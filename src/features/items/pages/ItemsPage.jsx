@@ -399,7 +399,7 @@ const Items = () => {
 
 const StatCard = ({ title, val, sub, icon }) => (
   <div className="bg-white p-6 rounded-2xl border border-[#F1F5F9] shadow-sm flex items-center gap-5 hover:shadow-md transition-all">
-    <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center flex-shrink-0 text-indigo-500">{icon}</div>
+    <div className="w-14 h-14 rounded-2xl  flex items-center justify-center flex-shrink-0 text-indigo-500">{icon}</div>
     <div className="overflow-hidden text-left">
       <p className="text-[10px] uppercase font-bold text-[#6B7591] tracking-widest mb-1">{title}</p>
       <h2 className="text-[22px] font-extrabold text-[#1E2740] mb-1">{val}</h2>
