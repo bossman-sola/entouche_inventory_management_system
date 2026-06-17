@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom"
 import MainLayout from "../../shared/layouts/MainLayout.jsx"
-
+import Dashboard from '../../features/dashboard/pages/Dashboard.jsx'
 import ItemsPage from "../../features/items/pages/ItemsPage.jsx"
 
 function AppRoutes() {
@@ -11,7 +11,7 @@ function AppRoutes() {
       <Route path="/" element={<MainLayout />}>
 
         
-        <Route index element={<div>Dashboard Home</div>} />
+        <Route index element={<Dashboard />} />
 
         <Route path="items" element={<ItemsPage />} />
 
