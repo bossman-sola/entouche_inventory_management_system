@@ -6,6 +6,7 @@ import Receipts from "../../features/receipts/pages/Receipts.jsx"
 import Transfer from "../../features/transfers/pages/TransferPage.jsx"
 import Adjustments from "../../features/adjustments/pages/AdjustmentsPage.jsx"
 import Transcations from "../../features/transactions/pages/TransactionsPage.jsx"
+import OverView from "../../features/warehouse/pages/Overview.jsx"
 
 
 function AppRoutes() {
@@ -27,8 +28,8 @@ function AppRoutes() {
         <Route path="transfers" element={<Transfer />} />
 
         <Route path="adjustments" element={<Adjustments />} />
-        
         <Route path="transactions" element={<Transcations />} />
+        <Route path="overview" element={<OverView />} />
 
       </Route>
 

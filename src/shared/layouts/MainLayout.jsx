@@ -84,8 +84,8 @@ const MainLayout = () => {
                 </div>
             )}
             <div className="space-y-1">
-              <SidebarLink to="/locations" label="Locations" isCollapsed={isCollapsed} />
               <SidebarLink to="/overview" label="Overview" isCollapsed={isCollapsed} />
+              <SidebarLink to="/locations" label="Locations" isCollapsed={isCollapsed} />
             </div>
           </div>
 
