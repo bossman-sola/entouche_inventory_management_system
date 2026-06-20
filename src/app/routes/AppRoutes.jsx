@@ -7,7 +7,8 @@ import Transfer from "../../features/transfers/pages/TransferPage.jsx"
 import Adjustments from "../../features/adjustments/pages/AdjustmentsPage.jsx"
 import Transcations from "../../features/transactions/pages/TransactionsPage.jsx"
 import OverView from "../../features/warehouse/pages/Overview.jsx"
-
+import User from "../../features/users/pages/users.jsx"
+import Data from "../../features/data-import/pages/data.jsx"
 
 function AppRoutes() {
   return (
@@ -30,6 +31,9 @@ function AppRoutes() {
         <Route path="adjustments" element={<Adjustments />} />
         <Route path="transactions" element={<Transcations />} />
         <Route path="overview" element={<OverView />} />
+        <Route path="user" element={<User />} />
+        
+        <Route path="data" element={<Data />} />
 
       </Route>
 

@@ -92,8 +92,8 @@ const MainLayout = () => {
          
           <div className="pt-4 border-t border-slate-700/30 space-y-1">
               <SidebarLink to="/reports" icon={<ReportIcon className="w-[18px] h-[18px]"/>} label="Reports" isCollapsed={isCollapsed} />
-              <SidebarLink to="/users" icon={<UsersIcon className="w-[18px] h-[18px]"/>} label="Users & Roles" isCollapsed={isCollapsed} />
-              <SidebarLink to="/import" icon={<DataIcon className="w-[18px] h-[18px]"/>} label="Data Import" isCollapsed={isCollapsed} />
+              <SidebarLink to="/user" icon={<UsersIcon className="w-[18px] h-[18px]"/>} label="Users & Roles" isCollapsed={isCollapsed} />
+              <SidebarLink to="/data" icon={<DataIcon className="w-[18px] h-[18px]"/>} label="Data Import" isCollapsed={isCollapsed} />
               <SidebarLink to="/logs" icon={<AuditIcon className="w-[18px] h-[18px]"/>} label="Audit Logs" isCollapsed={isCollapsed} />
               <SidebarLink to="/settings" icon={<SettingsIcon className="w-[18px] h-[18px]"/>} label="Settings" isCollapsed={isCollapsed} />
           </div>
