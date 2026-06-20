@@ -24,7 +24,7 @@ const MainLayout = () => {
       
       
       <motion.aside 
-        animate={{ width: isCollapsed ? 70 : 260 }}
+        animate={{ width: isCollapsed ? 70 : 190 }}
         transition={{ duration: 0.3, ease: "circOut" }}
         className="bg-[#1E2740] text-white flex flex-col h-full z-20 flex-shrink-0"
       >
@@ -36,7 +36,7 @@ const MainLayout = () => {
           {!isCollapsed && (
             <div className="flex flex-col">
               <span className="font-bold text-base leading-tight tracking-tight">InventoryPro</span>
-              <span className="text-[9px] text-[#6B7591] font-semibold uppercase tracking-wider">Enterprise Inventory</span>
+              <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">Enterprise Inventory</span>
             </div>
           )}
         </div>
@@ -147,25 +147,7 @@ const MainLayout = () => {
              <Outlet />
           </main>
 
-          <aside className="w-[320px] bg-white border-l border-gray-100 flex-shrink-0 flex flex-col overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-             <div className="space-y-8">
-                <div>
-                   <h3 className="text-[13px] font-bold flex items-center gap-2 mb-4"><Bell size={15} className="text-[#4F46E5]"/> Alerts & Notifications</h3>
-                   <div className="space-y-3">
-                      <div className="h-20 w-full bg-red-50/40 rounded-xl border border-red-100 p-3 relative overflow-hidden">
-                        <div className="w-1 bg-red-500 absolute left-0 top-0 bottom-0"></div>
-                      </div>
-                      <div className="h-20 w-full bg-amber-50/40 rounded-xl border border-amber-100 p-3 relative overflow-hidden">
-                        <div className="w-1 bg-amber-500 absolute left-0 top-0 bottom-0"></div>
-                      </div>
-                   </div>
-                </div>
-                <div>
-                   <h3 className="text-[13px] font-bold flex items-center gap-2 mb-4"><MapPin size={15} className="text-[#4F46E5]"/> Inventory by Location</h3>
-                   <div className="h-44 w-full bg-slate-50/50 rounded-xl border border-dashed border-slate-200"></div>
-                </div>
-             </div>
-          </aside>
+          
         </div>
       </div>
     </div>
@@ -183,7 +165,7 @@ const SidebarLink = ({ to, icon, label, isCollapsed, end = false }) => (
           : "text-[#6B7591] hover:bg-slate-800 hover:text-white"
       }`
     }
-  >
+  >   
     {icon && <div className="min-w-[18px]">{icon}</div>}
     {!isCollapsed && (
       <span className={`text-[13.5px] font-medium whitespace-nowrap overflow-hidden tracking-tight ${!icon ? 'pl-7' : ''}`}>
