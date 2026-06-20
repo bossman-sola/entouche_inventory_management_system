@@ -64,6 +64,7 @@ const MainLayout = () => {
                 </div>
             )}
             <div className="space-y-1">
+                <SidebarLink to="/Transactions" label="Transactions" isCollapsed={isCollapsed} />
               <SidebarLink to="/receipts" label="Receipts" isCollapsed={isCollapsed} />
               <SidebarLink to="/transfers" label="Transfers" isCollapsed={isCollapsed} />
               <SidebarLink to="/adjustments" label="Adjustments" isCollapsed={isCollapsed} />
