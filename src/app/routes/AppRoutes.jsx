@@ -9,6 +9,9 @@ import Transcations from "../../features/transactions/pages/TransactionsPage.jsx
 import OverView from "../../features/warehouse/pages/Overview.jsx"
 import User from "../../features/users/pages/users.jsx"
 import Data from "../../features/data-import/pages/data.jsx"
+import Audit from "../../features/audit-logs/pages/audit.jsx"  
+import Settings from "../../features/settings/pages/settings.jsx"
+import Reports from "../../features/reports/pages/reports.jsx"
 
 function AppRoutes() {
   return (
@@ -32,8 +35,10 @@ function AppRoutes() {
         <Route path="transactions" element={<Transcations />} />
         <Route path="overview" element={<OverView />} />
         <Route path="user" element={<User />} />
-        
+        <Route path="audit" element={<Audit />} />
         <Route path="data" element={<Data />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="reports" element={<Reports />} />
 
       </Route>
 
