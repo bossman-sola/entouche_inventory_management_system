@@ -1,0 +1,440 @@
+import { useState } from "react";
+
+/* ─── Toggle ─── */
+function Toggle({ value, onChange }) {
+  return (
+    <div onClick={()=>onChange(!value)} style={{ width:44, height:24, borderRadius:12, background:value?"#4f6ef7":"#d1d5e0", cursor:"pointer", position:"relative", transition:"background .2s", flexShrink:0 }}>
+      <div style={{ position:"absolute", top:3, left: value?20:3, width:18, height:18, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
+    </div>
+  );
+}
+
+/* ─── Section heading ─── */
+const SectionHead = ({title, sub}) => (
+  <div style={{ marginBottom:22 }}>
+    <div style={{ fontSize:16, fontWeight:700, color:"#1e2740", marginBottom:4 }}>{title}</div>
+    <div style={{ fontSize:12.5, color:"#6b7591" }}>{sub}</div>
+  </div>
+);
+
+/* ─── Form Row ─── */
+const FieldRow = ({children, cols="1fr 1fr 1fr"}) => (
+  <div style={{ display:"grid", gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
+);
+
+/* ─── Field ─── */
+const Field = ({label, children}) => (
+  <div>
+    <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:6 }}>{label}</label>
+    {children}
+  </div>
+);
+
+/* ─── Input ─── */
+const Inp = ({value, onChange, readOnly, placeholder}) => (
+  <input value={value} onChange={e=>onChange&&onChange(e.target.value)} readOnly={readOnly} placeholder={placeholder}
+    style={{ width:"100%", padding:"9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", color:"#1e2740", outline:"none", background:readOnly?"#f8f9fb":"#fff", boxSizing:"border-box", transition:"border .15s" }}
+    onFocus={e=>{if(!readOnly)e.target.style.borderColor="#4f6ef7"}} onBlur={e=>e.target.style.borderColor="#e4e7ef"}
+  />
+);
+
+/* ─── Select ─── */
+const Sel = ({value, onChange, options}) => (
+  <div style={{ position:"relative" }}>
+    <select value={value} onChange={e=>onChange(e.target.value)}
+      style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", color:"#1e2740", outline:"none", appearance:"none", background:"#fff", cursor:"pointer", boxSizing:"border-box" }}>
+      {options.map(o=><option key={o}>{o}</option>)}
+    </select>
+    <svg style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+);
+
+/* ─── Save Button ─── */
+const SaveBtn = ({onClick}) => (
+  <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
+    <button onClick={onClick} style={{ padding:"10px 28px", background:"#4f6ef7", border:"none", borderRadius:8, fontSize:13.5, fontWeight:600, color:"#fff", cursor:"pointer", fontFamily:"inherit", transition:"background .15s" }}
+      onMouseEnter={e=>e.currentTarget.style.background="#3a5be0"} onMouseLeave={e=>e.currentTarget.style.background="#4f6ef7"}>
+      Save Changes
+    </button>
+  </div>
+);
+
+/* ─── Section Divider ─── */
+const Divider = () => <div style={{ borderTop:"1px solid #e4e7ef", margin:"28px 0" }}/>;
+
+/* ─── Toast ─── */
+const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 22px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>{msg}</div>);
+
+/* ─── NAV SECTIONS ─── */
+const NAV_ITEMS = [
+  { key:"general",      label:"General",        sub:"Company, system and localization",  icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
+  { key:"warehouse",    label:"Warehouse",       sub:"Manage warehouses and locations",   icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+  { key:"inventory",    label:"Inventory",       sub:"Stock, numbering and preferences",  icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> },
+  { key:"users",        label:"Users & Roles",   sub:"Default roles and permissions",     icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { key:"notifications",label:"Notifications",   sub:"Email and system alerts",           icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
+  { key:"integrations", label:"Integrations",    sub:"Third-party services and API",      icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
+  { key:"backup",       label:"Backup & Restore",sub:"Data backup and restore",           icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
+  { key:"security",     label:"Security",        sub:"Password, sessions and policies",   icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+  { key:"audit",        label:"Audit",           sub:"Audit log and retention settings",  icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
+];
+
+export default function Settings() {
+  const [activeSection, setActiveSection] = useState("general");
+  const [toast, setToast] = useState(null);
+
+  /* ── General ── */
+  const [companyName,  setCompanyName]  = useState("Ross & Co. Global Resources");
+  const [companyEmail, setCompanyEmail] = useState("info@rossglobal.com");
+  const [companyPhone, setCompanyPhone] = useState("+234 803 123 4567");
+  const [country,      setCountry]      = useState("Nigeria");
+  const [timezone,     setTimezone]     = useState("(UTC+01:00) West Africa Time (WAT)");
+  const [dateFormat,   setDateFormat]   = useState("May 27, 2025");
+  const [timeFormat,   setTimeFormat]   = useState("12 Hour (hh:mm AM/PM)");
+  const [currency,     setCurrency]     = useState("NGN (₦) - Nigerian Naira");
+  const [language,     setLanguage]     = useState("English (US)");
+
+  /* ── System Preferences ── */
+  const [lowStockAlerts,       setLowStockAlerts]       = useState(true);
+  const [emailNotifications,   setEmailNotifications]   = useState(true);
+  const [allowNegativeStock,   setAllowNegativeStock]   = useState(false);
+  const [requireReasonAdj,     setRequireReasonAdj]     = useState(true);
+  const [autoGenerateSku,      setAutoGenerateSku]      = useState(true);
+  const [sessionTimeout,       setSessionTimeout]       = useState("30");
+
+  /* ── Document & Numbering ── */
+  const [itemPrefix,        setItemPrefix]        = useState("ITM");
+  const [inventoryPrefix,   setInventoryPrefix]   = useState("INV");
+  const [transferPrefix,    setTransferPrefix]    = useState("TRF");
+  const [receiptPrefix,     setReceiptPrefix]     = useState("RCV");
+  const [adjustmentPrefix,  setAdjustmentPrefix]  = useState("ADJ");
+  const [numberingReset,    setNumberingReset]    = useState("Do not reset");
+
+  /* ── Warehouse Settings ── */
+  const [defaultWarehouse,    setDefaultWarehouse]    = useState("Storage Area");
+  const [warehousePrefix,     setWarehousePrefix]     = useState("WH");
+  const [enableBinLocations,  setEnableBinLocations]  = useState(false);
+  const [requireLocation,     setRequireLocation]     = useState(true);
+
+  /* ── Security ── */
+  const [minPasswordLength, setMinPasswordLength] = useState("8");
+  const [requireUppercase,  setRequireUppercase]  = useState(true);
+  const [requireNumbers,    setRequireNumbers]    = useState(true);
+  const [twoFactorAuth,     setTwoFactorAuth]     = useState(false);
+  const [maxLoginAttempts,  setMaxLoginAttempts]  = useState("5");
+  const [lockoutDuration,   setLockoutDuration]   = useState("15");
+
+  /* ── Notifications ── */
+  const [lowStockEmail,   setLowStockEmail]   = useState(true);
+  const [receiptAlerts,   setReceiptAlerts]   = useState(true);
+  const [transferAlerts,  setTransferAlerts]  = useState(false);
+  const [dailyDigest,     setDailyDigest]     = useState(true);
+  const [notifyEmail,     setNotifyEmail]     = useState("info@rossglobal.com");
+
+  /* ── Audit ── */
+  const [retentionPeriod, setRetentionPeriod] = useState("12 months");
+  const [logLogins,       setLogLogins]       = useState(true);
+  const [logDataChanges,  setLogDataChanges]  = useState(true);
+  const [logExports,      setLogExports]      = useState(true);
+  const [autoDeleteLogs,  setAutoDeleteLogs]  = useState(false);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),2600); };
+  const handleSave = () => showToast("Settings saved successfully ✓");
+
+  const actionItems = [
+    { label:"Backup Now",         sub:"Create a backup of your data now", color:"#4f6ef7", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
+    { label:"Restore from Backup",sub:"Restore data from a previous backup", color:"#f59e0b", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
+    { label:"Clear Cache",        sub:"Improve system performance", color:"#8b5cf6", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> },
+    { label:"View System Logs",   sub:"View system activity logs", color:"#22c27e", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+  ];
+
+  const renderSection = () => {
+    switch(activeSection) {
+
+      case "general": return (
+        <>
+          {/* General Settings */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }}>
+            <SectionHead title="General Settings" sub="Configure basic information about your organization and system." />
+            <FieldRow cols="1fr 1fr 1fr">
+              <Field label="Company Name"><Inp value={companyName} onChange={setCompanyName}/></Field>
+              <Field label="Company Email"><Inp value={companyEmail} onChange={setCompanyEmail}/></Field>
+              <Field label="Company Phone"><Inp value={companyPhone} onChange={setCompanyPhone}/></Field>
+            </FieldRow>
+            <FieldRow cols="1fr 1fr 1fr">
+              <Field label="Country"><Sel value={country} onChange={setCountry} options={["Nigeria","Ghana","Kenya","South Africa","United States","United Kingdom"]}/></Field>
+              <Field label="Time Zone"><Sel value={timezone} onChange={setTimezone} options={["(UTC+01:00) West Africa Time (WAT)","(UTC+00:00) GMT","(UTC-05:00) Eastern Time","(UTC+03:00) East Africa Time"]}/></Field>
+              <Field label="Date Format"><Inp value={dateFormat} onChange={setDateFormat}/></Field>
+            </FieldRow>
+            <FieldRow cols="1fr 1fr 1fr">
+              <Field label="Time Format"><Sel value={timeFormat} onChange={setTimeFormat} options={["12 Hour (hh:mm AM/PM)","24 Hour (HH:mm)"]}/></Field>
+              <Field label="Currency"><Sel value={currency} onChange={setCurrency} options={["NGN (₦) - Nigerian Naira","USD ($) - US Dollar","GBP (£) - British Pound","EUR (€) - Euro"]}/></Field>
+              <Field label="Language"><Sel value={language} onChange={setLanguage} options={["English (US)","English (UK)","French","Portuguese"]}/></Field>
+            </FieldRow>
+            <SaveBtn onClick={handleSave}/>
+          </div>
+
+          {/* System Preferences */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }}>
+            <SectionHead title="System Preferences" sub="Configure system wide preferences." />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
+              {[
+                [lowStockAlerts,     setLowStockAlerts,     "Low Stock Alerts",           "Enable alerts for items below reorder level."],
+                [emailNotifications, setEmailNotifications, "Email Notifications",         "Send email notifications for key events."],
+                [allowNegativeStock, setAllowNegativeStock, "Allow Negative Stock",        "Allow stock quantity to go below zero."],
+                [requireReasonAdj,   setRequireReasonAdj,   "Require Reason on Adjustments","Users must provide reason for stock adjustments."],
+                [autoGenerateSku,    setAutoGenerateSku,    "Auto Generate Item SKU",      "Automatically generate SKU for new items."],
+              ].map(([val,setter,label,sub],i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                  <Toggle value={val} onChange={setter}/>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:3 }}>{label}</div>
+                    <div style={{ fontSize:12, color:"#6b7591" }}>{sub}</div>
+                  </div>
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:8 }}>Session Timeout (minutes)</div>
+                <div style={{ position:"relative", maxWidth:280 }}>
+                  <select value={sessionTimeout} onChange={e=>setSessionTimeout(e.target.value)}
+                    style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none", appearance:"none", background:"#fff" }}>
+                    {["15","30","60","120"].map(v=><option key={v}>{v}</option>)}
+                  </select>
+                  <svg style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div style={{ fontSize:12, color:"#9aa1b4", marginTop:5 }}>Automatically log out inactive users.</div>
+              </div>
+            </div>
+            <SaveBtn onClick={handleSave}/>
+          </div>
+
+          {/* Document & Numbering */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+            <SectionHead title="Document & Numbering" sub="Configure document prefixes and numbering." />
+            <FieldRow cols="1fr 1fr 1fr 1fr 1fr">
+              <Field label="Item Prefix"><Inp value={itemPrefix} onChange={setItemPrefix}/></Field>
+              <Field label="Inventory Prefix"><Inp value={inventoryPrefix} onChange={setInventoryPrefix}/></Field>
+              <Field label="Transfer Prefix"><Inp value={transferPrefix} onChange={setTransferPrefix}/></Field>
+              <Field label="Receipt Prefix"><Inp value={receiptPrefix} onChange={setReceiptPrefix}/></Field>
+              <Field label="Adjustment Prefix"><Inp value={adjustmentPrefix} onChange={setAdjustmentPrefix}/></Field>
+            </FieldRow>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:12, color:"#6b7591", marginBottom:6 }}>Numbering Reset</div>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                {["Do not reset","Monthly","Yearly"].map(opt=>(
+                  <button key={opt} onClick={()=>setNumberingReset(opt)} style={{ padding:"7px 16px", border:`1px solid ${numberingReset===opt?"#4f6ef7":"#e4e7ef"}`, borderRadius:7, background: numberingReset===opt?"#eef2ff":"#fff", color: numberingReset===opt?"#4f6ef7":"#1e2740", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight: numberingReset===opt?600:400 }}>{opt}</button>
+                ))}
+                <span style={{ fontSize:12, color:"#9aa1b4" }}>Numbers will continue sequentially.</span>
+              </div>
+            </div>
+            <SaveBtn onClick={handleSave}/>
+          </div>
+        </>
+      );
+
+      case "warehouse": return (
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+          <SectionHead title="Warehouse Settings" sub="Manage warehouse and location preferences."/>
+          <FieldRow cols="1fr 1fr">
+            <Field label="Default Warehouse"><Sel value={defaultWarehouse} onChange={setDefaultWarehouse} options={["Storage Area","Receiving Area","Distribution Center"]}/></Field>
+            <Field label="Warehouse Prefix"><Inp value={warehousePrefix} onChange={setWarehousePrefix}/></Field>
+          </FieldRow>
+          <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:20 }}>
+            {[
+              [enableBinLocations, setEnableBinLocations, "Enable Bin Locations",     "Allow items to be assigned to specific bin locations."],
+              [requireLocation,    setRequireLocation,    "Require Location on Receipt","Location must be specified when receiving items."],
+            ].map(([val,setter,label,sub],i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                <Toggle value={val} onChange={setter}/>
+                <div><div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:3 }}>{label}</div><div style={{ fontSize:12, color:"#6b7591" }}>{sub}</div></div>
+              </div>
+            ))}
+          </div>
+          <SaveBtn onClick={handleSave}/>
+        </div>
+      );
+
+      case "security": return (
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+          <SectionHead title="Security Settings" sub="Configure password policies, sessions and security options."/>
+          <FieldRow cols="1fr 1fr 1fr">
+            <Field label="Minimum Password Length"><Sel value={minPasswordLength} onChange={setMinPasswordLength} options={["6","8","10","12"]}/></Field>
+            <Field label="Max Login Attempts"><Sel value={maxLoginAttempts} onChange={setMaxLoginAttempts} options={["3","5","10"]}/></Field>
+            <Field label="Lockout Duration (mins)"><Sel value={lockoutDuration} onChange={setLockoutDuration} options={["5","10","15","30","60"]}/></Field>
+          </FieldRow>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+            {[
+              [requireUppercase, setRequireUppercase, "Require Uppercase Letters",   "Passwords must contain at least one uppercase letter."],
+              [requireNumbers,   setRequireNumbers,   "Require Numbers",             "Passwords must contain at least one number."],
+              [twoFactorAuth,    setTwoFactorAuth,    "Two-Factor Authentication",   "Require 2FA for all user accounts."],
+            ].map(([val,setter,label,sub],i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                <Toggle value={val} onChange={setter}/>
+                <div><div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:3 }}>{label}</div><div style={{ fontSize:12, color:"#6b7591" }}>{sub}</div></div>
+              </div>
+            ))}
+          </div>
+          <SaveBtn onClick={handleSave}/>
+        </div>
+      );
+
+      case "notifications": return (
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+          <SectionHead title="Notification Settings" sub="Configure email and system alert preferences."/>
+          <Field label="Notification Email"><Inp value={notifyEmail} onChange={setNotifyEmail}/></Field>
+          <div style={{ height:16 }}/>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+            {[
+              [lowStockEmail,  setLowStockEmail,  "Low Stock Email Alerts",  "Receive emails when items fall below reorder level."],
+              [receiptAlerts,  setReceiptAlerts,  "Receipt Alerts",          "Notifications when goods are received."],
+              [transferAlerts, setTransferAlerts, "Transfer Alerts",         "Notifications for inventory transfers."],
+              [dailyDigest,    setDailyDigest,    "Daily Digest",            "Receive a daily summary of all activities."],
+            ].map(([val,setter,label,sub],i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                <Toggle value={val} onChange={setter}/>
+                <div><div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:3 }}>{label}</div><div style={{ fontSize:12, color:"#6b7591" }}>{sub}</div></div>
+              </div>
+            ))}
+          </div>
+          <SaveBtn onClick={handleSave}/>
+        </div>
+      );
+
+      case "audit": return (
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+          <SectionHead title="Audit Settings" sub="Configure audit log and data retention settings."/>
+          <div style={{ marginBottom:16 }}>
+            <Field label="Log Retention Period">
+              <Sel value={retentionPeriod} onChange={setRetentionPeriod} options={["3 months","6 months","12 months","24 months","Indefinitely"]}/>
+            </Field>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+            {[
+              [logLogins,      setLogLogins,      "Log User Logins",     "Record all login and logout events."],
+              [logDataChanges, setLogDataChanges, "Log Data Changes",    "Record all create, update and delete operations."],
+              [logExports,     setLogExports,     "Log Data Exports",    "Record all data export and download events."],
+              [autoDeleteLogs, setAutoDeleteLogs, "Auto-Delete Old Logs","Automatically delete logs older than retention period."],
+            ].map(([val,setter,label,sub],i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                <Toggle value={val} onChange={setter}/>
+                <div><div style={{ fontSize:13, fontWeight:600, color:"#1e2740", marginBottom:3 }}>{label}</div><div style={{ fontSize:12, color:"#6b7591" }}>{sub}</div></div>
+              </div>
+            ))}
+          </div>
+          <SaveBtn onClick={handleSave}/>
+        </div>
+      );
+
+      default: return (
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:48, textAlign:"center", color:"#9aa1b4", fontSize:13 }}>
+          This section is coming soon.
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740" }}>
+      {toast && <Toast msg={toast}/>}
+
+      {/* Header */}
+      <div style={{ marginBottom:24 }}>
+        <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Settings</h1>
+        <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Manage system configuration and preferences.</p>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"250px 1fr 280px", gap:16, alignItems:"start" }}>
+
+        {/* ── Left Nav ── */}
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", position:"sticky", top:20 }}>
+          {NAV_ITEMS.map(item=>{
+            const isActive = activeSection===item.key;
+            return (
+              <button key={item.key} onClick={()=>setActiveSection(item.key)}
+                style={{ width:"100%", display:"flex", alignItems:"flex-start", gap:12, padding:"14px 16px", background: isActive?"#eef2ff":"#fff", border:"none", borderLeft: isActive?"3px solid #4f6ef7":"3px solid transparent", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s" }}
+                onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="#f8f9fb"; }} onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background="#fff"; }}>
+                <div style={{ color: isActive?"#4f6ef7":"#6b7591", marginTop:1, flexShrink:0 }}>{item.icon}</div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight: isActive?700:500, color: isActive?"#4f6ef7":"#1e2740", marginBottom:2 }}>{item.label}</div>
+                  <div style={{ fontSize:11, color:"#9aa1b4", lineHeight:1.3 }}>{item.sub}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Center Content ── */}
+        <div>{renderSection()}</div>
+
+        {/* ── Right Panel ── */}
+        <div style={{ display:"flex", flexDirection:"column", gap:14, position:"sticky", top:20 }}>
+
+          {/* Company Info */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
+            <div style={{ padding:"14px 18px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontWeight:700, fontSize:13.5, color:"#1e2740" }}>Company Information</span>
+              <button onClick={()=>showToast("Edit mode coming soon")} style={{ display:"flex",alignItems:"center",gap:5,padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",fontSize:12,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+            </div>
+            <div style={{ padding:"18px 18px 6px" }}>
+              {/* Logo placeholder */}
+              <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+              </div>
+              <div style={{ textAlign:"center", marginBottom:16 }}>
+                <div style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>{companyName}</div>
+                <div style={{ fontSize:12, color:"#9aa1b4", marginTop:3 }}>Enterprise Inventory Management</div>
+              </div>
+              {[
+                ["Email",   companyEmail],
+                ["Phone",   companyPhone],
+                ["Address", "12 Industrial Avenue, Lagos, Nigeria"],
+                ["Website", "www.rossglobal.com"],
+              ].map(([label,val])=>(
+                <div key={label} style={{ display:"flex", gap:8, padding:"8px 0", borderTop:"1px solid #f4f6fb" }}>
+                  <span style={{ fontSize:12, color:"#9aa1b4", width:55, flexShrink:0 }}>{label}</span>
+                  <span style={{ fontSize:12, color:"#1e2740", wordBreak:"break-all" }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* System Details */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
+            <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
+            {[
+              ["Version",         "v1.0.0"],
+              ["Environment",     "Production"],
+              ["Database",        "PostgreSQL 15"],
+              ["Last Backup",     "May 27, 2025 02:15 AM"],
+              ["Next Scheduled Backup","May 28, 2025 02:00 AM"],
+            ].map(([label,val])=>(
+              <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb" }}>
+                <span style={{ fontSize:12, color:"#9aa1b4" }}>{label}</span>
+                <span style={{ fontSize:12, color:"#1e2740", fontWeight:500, textAlign:"right", maxWidth:140 }}>{val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
+            <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>Actions</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {actionItems.map((a,i)=>(
+                <button key={i} onClick={()=>showToast(`${a.label}...`)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:"1px solid #f4f6fb", borderRadius:9, background:"#fff", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s", width:"100%" }}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f8f9fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                  <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
+                  <div>
+                    <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
+                    <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.sub}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
