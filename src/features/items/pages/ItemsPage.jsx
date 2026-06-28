@@ -10,7 +10,7 @@ import ImportItems from '../components/importItems';
 import Num    from "../../../assets/icons/num.svg?react";
 import Card   from "../../../assets/icons/card.svg?react";
 import Burger from "../../../assets/icons/burger.svg?react";
-import Book   from "../../../assets/icons/Book.svg?react";
+import Book   from "../../../assets/icons/book.svg?react";
 import Fiter  from "../../../assets/icons/filter.svg?react";
 
 const INITIAL_ITEMS = [
