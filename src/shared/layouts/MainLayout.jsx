@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import Logo from "../../assets/icons/Logo.svg?react";
 import DashboardIcon from "../../assets/icons/Dashboard.svg?react";
 import HomeIcon from "../../assets/icons/Home.svg?react";
 import ItemsIcon from "../../assets/icons/Items.svg?react";
@@ -31,7 +32,7 @@ const MainLayout = () => {
         {/* Logo */}
         <div className="p-5 flex items-center gap-3 overflow-hidden whitespace-nowrap border-b border-slate-700/20">
           <div className="min-w-[32px] h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center shadow-inner">
-            <LogoIcon className="text-white w-4 h-4" />
+            <Logo className="text-white w-4 h-4" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col">
