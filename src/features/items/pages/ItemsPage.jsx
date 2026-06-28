@@ -7,11 +7,11 @@ import {
 import ItemDetailsModal from '../components/ItemDetailsModal';
 import AddNewItems from '../components/addNewItems';
 import ImportItems from '../components/importItems';
-import Num from "src/assets/icons/num.svg?react";
-import Card from "src/assets/icons/card.svg?react";
-import Burger from "src/assets/icons/burger.svg?react";
-import Book from "src/assets/icons/Book.svg?react";
-import Fiter from "src/assets/icons/filter.svg?react";
+import Num    from "../../../assets/icons/num.svg?react";
+import Card   from "../../../assets/icons/card.svg?react";
+import Burger from "../../../assets/icons/burger.svg?react";
+import Book   from "../../../assets/icons/Book.svg?react";
+import Fiter  from "../../../assets/icons/filter.svg?react";
 
 const INITIAL_ITEMS = [
   { id: 1, name: 'Dell Latitude 5440', sku: 'LAP-001', barcode: '1234567890123', category: 'Laptops', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 35, stockStatus: 'In Stock', img: '💻', brand: 'Dell', model: 'Latitude 5440', weight: '1.48 kg', addedOn: 'May 20, 2025' },
