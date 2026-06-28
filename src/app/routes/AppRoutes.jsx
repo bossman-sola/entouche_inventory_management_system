@@ -13,6 +13,7 @@ import Audit from "../../features/audit-logs/pages/audit.jsx"
 import Settings from "../../features/settings/pages/settings.jsx"
 import Reports from "../../features/reports/pages/reports.jsx"
 
+
 function AppRoutes() {
   return (
     <Routes>
