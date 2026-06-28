@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import Logo from "../../assets/icons/Logo.svg?react";
 import DashboardIcon from "../../assets/icons/Dashboard.svg?react";
 import HomeIcon from "../../assets/icons/Home.svg?react";
 import ItemsIcon from "../../assets/icons/Items.svg?react";
