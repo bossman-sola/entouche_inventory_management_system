@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom"
 import MainLayout from "../../shared/layouts/MainLayout.jsx"
-import Dashboard from '../../features/dashboard/pages/Dashboard.jsx'
+import Dashboard from "src/features/dashboard/pages/Dashboard.jsx";
 import ItemsPage from "../../features/items/pages/ItemsPage.jsx"
 import Receipts from "../../features/receipts/pages/Receipts.jsx"
 import Transfer from "../../features/transfers/pages/TransferPage.jsx"
