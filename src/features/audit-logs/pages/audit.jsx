@@ -84,7 +84,7 @@ function CalendarPicker({ value, onChange, onClose }) {
   const apply = () => { onChange({ start: localStart, end: localEnd||localStart }); onClose(); };
 
   return (
-    <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, boxShadow:"0 8px 32px rgba(0,0,0,0.15)", zIndex:1000, padding:20, minWidth:320 }}>
+    <div className="al-calendar" style={{ position:"absolute", top:"calc(100% + 6px)", left:0, background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, boxShadow:"0 8px 32px rgba(0,0,0,0.15)", zIndex:1000, padding:20, minWidth:320 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
         <button onClick={()=>setViewDate(new Date(year, month-1,1))} style={{ border:"1px solid #e4e7ef", borderRadius:6, width:28, height:28, cursor:"pointer", background:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1e2740" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -109,7 +109,7 @@ function CalendarPicker({ value, onChange, onClose }) {
           >{d ? d.getDate() : ""}</div>
         ))}
       </div>
-      <div style={{ borderTop:"1px solid #f0f2f7", paddingTop:12, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ borderTop:"1px solid #f0f2f7", paddingTop:12, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <div style={{ fontSize:11.5, color:"#6b7591" }}>
           {localStart ? toStr(localStart) : "Start"} {localEnd ? `– ${toStr(localEnd)}` : ""}
         </div>
@@ -146,7 +146,7 @@ function Dropdown({ options, value, onChange, width=160 }) {
   );
 }
 
-const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 20px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>{msg}</div>);
+const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 20px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:"calc(100vw - 32px)",overflow:"hidden",textOverflow:"ellipsis" }}>{msg}</div>);
 
 export default function AuditLogs() {
   const [logs] = useState(SEED_LOGS);
@@ -235,39 +235,64 @@ export default function AuditLogs() {
         .al-link { color:#4f6ef7;font-weight:500;cursor:pointer; }
         .al-link:hover { text-decoration:underline; }
         input::placeholder { color:#b0b8cc; }
+
+        .al-page { padding: 16px; }
+        .al-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        .al-layout { display:grid; grid-template-columns:1fr 300px; gap:14px; align-items:start; }
+        .al-toolbar { padding:14px 16px; border-bottom:1px solid #e4e7ef; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .al-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .al-table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+        .al-detail-panel { position:sticky; top:20px; }
+
+        @media (max-width: 1024px) {
+          .al-layout { grid-template-columns: 1fr; }
+          .al-detail-panel { position:static; }
+        }
+        @media (max-width: 768px) {
+          .al-page { padding: 12px; }
+          .al-metrics { grid-template-columns:repeat(2,1fr); gap:10px; }
+          .al-toolbar { padding:12px; }
+          .al-toolbar > div, .al-toolbar > button { width:100%; }
+          .al-toolbar input { width:100%; }
+        }
+        @media (max-width: 480px) {
+          .al-metrics { grid-template-columns:1fr; }
+          .al-calendar { left:50%; transform:translateX(-50%); min-width:280px; max-width:calc(100vw - 32px); }
+        }
       `}</style>
 
+      <div className="al-page">
       <div style={{ marginBottom:20 }}>
         <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Audit Logs</h1>
         <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Track all system activities and changes to ensure transparency and accountability.</p>
       </div>
 
       
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
+      <div className="al-metrics">
         {metrics.map((m,i)=>(
-          <div key={i} style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:10, padding:"16px 18px", display:"flex", alignItems:"center", gap:14 }}>
+          <div key={i} style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:10, padding:"16px 18px", display:"flex", alignItems:"center", gap:14, minWidth:0 }}>
             <div style={{ width:44, height:44, background:m.iconBg, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{m.icon}</div>
-            <div>
-              <div style={{ fontSize:11.5, color:"#6b7591", marginBottom:4 }}>{m.label}</div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:11.5, color:"#6b7591", marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{m.label}</div>
               <div style={{ fontSize:22, fontWeight:700, lineHeight:1, color:"#1e2740", marginBottom:3 }}>{m.value}</div>
-              <div style={{ fontSize:11, color: m.subAccent ? "#f59e0b":"#6b7591", fontWeight: m.subAccent?600:400 }}>{m.sub}</div>
+              <div style={{ fontSize:11, color: m.subAccent ? "#f59e0b":"#6b7591", fontWeight: m.subAccent?600:400, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{m.sub}</div>
             </div>
           </div>
         ))}
       </div>
 
       
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:14, alignItems:"start" }}>
+      <div className="al-layout">
         
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", minWidth:0 }}>
 
           
-          <div style={{ padding:"14px 16px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <div className="al-toolbar">
             
             <div style={{ position:"relative", flex:"1 1 200px" }}>
               <svg style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search by keyword, action, module or user..."
-                style={{ width:"100%", padding:"7px 10px 7px 32px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:12.5, fontFamily:"inherit", color:"#1e2740", outline:"none", background:"#fff" }}
+                style={{ width:"100%", padding:"7px 10px 7px 32px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:12.5, fontFamily:"inherit", color:"#1e2740", outline:"none", background:"#fff", boxSizing:"border-box" }}
               />
             </div>
             <Dropdown options={ALL_MODULES} value={module} onChange={v=>{setModule(v);setPage(1);}} width={140} />
@@ -285,20 +310,20 @@ export default function AuditLogs() {
             </div>
 
             {/* Filters btn */}
-            <button style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #4f6ef7",borderRadius:8,background:"#eef2ff",fontSize:12.5,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
+            <button style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #4f6ef7",borderRadius:8,background:"#eef2ff",fontSize:12.5,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500,justifyContent:"center" }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               Filters
             </button>
             <button onClick={()=>{ setSearch(""); setModule("All Modules"); setAction("All Actions"); setUser("All Users"); setStatus("All Status"); setPage(1); }}
-              style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 12px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#6b7591",fontFamily:"inherit" }}>
+              style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 12px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#6b7591",fontFamily:"inherit",justifyContent:"center" }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
               Reset
             </button>
           </div>
 
           {/* Table */}
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12.5 }}>
+          <div className="al-table-wrap">
+            <table className="al-table">
               <thead>
                 <tr style={{ background:"#f8f9fb", borderBottom:"1px solid #e4e7ef" }}>
                   {["Date & Time","User","Action","Module","Record","Details","IP Address","Status",""].map((h,i)=>(
@@ -356,7 +381,7 @@ export default function AuditLogs() {
           {/* Pagination */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", borderTop:"1px solid #e4e7ef", flexWrap:"wrap", gap:8 }}>
             <span style={{ fontSize:12, color:"#6b7591" }}>Showing {filtered.length===0?0:(page-1)*PAGE_SIZE+1} to {Math.min(page*PAGE_SIZE,filtered.length)} of {filtered.length} activities</span>
-            <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" }}>
               <div className="al-pagbtn nav" onClick={()=>setPage(1)}>«</div>
               <div className="al-pagbtn nav" onClick={()=>setPage(p=>Math.max(1,p-1))}>‹</div>
               {pageNums().map((n,i)=>
@@ -372,7 +397,7 @@ export default function AuditLogs() {
 
         {/* Right: Activity Details Panel */}
         {selected ? (
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", position:"sticky", top:20 }}>
+          <div className="al-detail-panel" style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", minWidth:0 }}>
             <div style={{ padding:"16px 18px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", gap:10 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               <span style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>Activity Details</span>
@@ -384,7 +409,7 @@ export default function AuditLogs() {
                 ["Record",     <span className="al-link">{selected.record}</span>],
                 ["Date & Time",`${selected.date} ${selected.time}`],
               ].map(([label,val],i)=>(
-                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"10px 0", borderBottom:"1px solid #f4f6fb" }}>
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"10px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
                   <span style={{ fontSize:12.5, color:"#6b7591" }}>{label}</span>
                   <span style={{ fontSize:12.5, color:"#1e2740", fontWeight:500, textAlign:"right", maxWidth:160 }}>{val}</span>
                 </div>
@@ -403,7 +428,7 @@ export default function AuditLogs() {
               </div>
 
               {/* IP */}
-              <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #f4f6fb" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
                 <span style={{ fontSize:12.5, color:"#6b7591" }}>IP Address</span>
                 <span style={{ fontSize:12.5, fontFamily:"monospace" }}>{selected.ip}</span>
               </div>
@@ -411,20 +436,20 @@ export default function AuditLogs() {
               {/* User Agent */}
               <div style={{ padding:"10px 0", borderBottom:"1px solid #f4f6fb" }}>
                 <div style={{ fontSize:12.5, color:"#6b7591", marginBottom:5 }}>User Agent</div>
-                <div style={{ fontSize:11.5, color:"#3d4a63", lineHeight:1.5 }}>Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15</div>
+                <div style={{ fontSize:11.5, color:"#3d4a63", lineHeight:1.5, wordBreak:"break-word" }}>Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15</div>
               </div>
 
               {/* Details */}
               <div style={{ padding:"10px 0", borderBottom:selected.changes?"1px solid #f4f6fb":"none" }}>
                 <div style={{ fontSize:12.5, color:"#6b7591", marginBottom:5 }}>Details</div>
-                <div style={{ fontSize:12, color:"#1e2740", lineHeight:1.6 }}>{selected.fullDetails}</div>
+                <div style={{ fontSize:12, color:"#1e2740", lineHeight:1.6, wordBreak:"break-word" }}>{selected.fullDetails}</div>
               </div>
 
               {/* Changes */}
               {selected.changes && (
                 <div style={{ padding:"10px 0" }}>
                   <div style={{ fontSize:12.5, color:"#6b7591", marginBottom:5 }}>Changes</div>
-                  <div style={{ fontSize:12, color:"#1e2740", background:"#f8f9fb", borderRadius:7, padding:"8px 10px", fontFamily:"monospace" }}>{selected.changes}</div>
+                  <div style={{ fontSize:12, color:"#1e2740", background:"#f8f9fb", borderRadius:7, padding:"8px 10px", fontFamily:"monospace", wordBreak:"break-word" }}>{selected.changes}</div>
                 </div>
               )}
             </div>
@@ -443,6 +468,7 @@ export default function AuditLogs() {
             Select an activity to view details
           </div>
         )}
+      </div>
       </div>
     </div>
   );
