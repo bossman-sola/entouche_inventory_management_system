@@ -122,7 +122,6 @@ function CalendarPicker({ value, onChange, onClose }) {
   );
 }
 
-/* ─── Dropdown ─── */
 function Dropdown({ options, value, onChange, width=160 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -147,7 +146,6 @@ function Dropdown({ options, value, onChange, width=160 }) {
   );
 }
 
-/* ─── Toast ─── */
 const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 20px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>{msg}</div>);
 
 export default function AuditLogs() {
@@ -239,13 +237,12 @@ export default function AuditLogs() {
         input::placeholder { color:#b0b8cc; }
       `}</style>
 
-      {/* Header */}
       <div style={{ marginBottom:20 }}>
         <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Audit Logs</h1>
         <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Track all system activities and changes to ensure transparency and accountability.</p>
       </div>
 
-      {/* Metric Cards */}
+      
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
         {metrics.map((m,i)=>(
           <div key={i} style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:10, padding:"16px 18px", display:"flex", alignItems:"center", gap:14 }}>
@@ -259,14 +256,14 @@ export default function AuditLogs() {
         ))}
       </div>
 
-      {/* Main Panel */}
+      
       <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:14, alignItems:"start" }}>
-        {/* Left: Table */}
+        
         <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
 
-          {/* Filters Bar */}
+          
           <div style={{ padding:"14px 16px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-            {/* Search */}
+            
             <div style={{ position:"relative", flex:"1 1 200px" }}>
               <svg style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search by keyword, action, module or user..."

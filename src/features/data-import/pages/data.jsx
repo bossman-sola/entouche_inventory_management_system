@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import * as XLSX from "xlsx";
 
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -70,18 +71,108 @@ const TEMPLATES = [
   { name: "Users Template", sub: "XLSX, CSV", icon: icons.file, bg: "bg-purple-50", color: "text-purple-500" },
 ];
 
-const IMPORT_ERRORS_BASE = [
-  { row: 15, column: "SKU", error: "Missing SKU", errorColor: "text-orange-500", value: "(empty)" },
-  { row: 38, column: "Category", error: "Invalid Category", errorColor: "text-orange-500", value: "Electronics & Gadgets" },
-  { row: 102, column: "SKU", error: "Duplicate SKU", errorColor: "text-orange-500", value: "ITM-00123" },
-];
+// Required columns per import type, used for real schema validation.
+const REQUIRED_COLUMNS = {
+  Items: ["Item Name", "SKU", "Category", "Unit of Measure", "Reorder Level"],
+  Inventory: ["Item", "Quantity", "Location", "Cost"],
+  Users: ["Name", "Email", "Role"],
+};
+
+function normalizeHeader(h) {
+  return String(h || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+}
 
 function parseCSV(text) {
   const lines = text.split("\n").filter(l => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
+  if (lines.length < 1) return { headers: [], rows: [] };
   const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
   const rows = lines.slice(1).map(l => l.split(",").map(c => c.trim().replace(/"/g, "")));
   return { headers, rows };
+}
+
+// Parses an XLSX File object into { headers, rows } using SheetJS.
+function parseXLSX(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
+        const headers = (grid[0] || []).map(h => String(h));
+        const rows = grid.slice(1).map(r => headers.map((_, i) => (r[i] === undefined ? "" : String(r[i]))));
+        resolve({ headers, rows });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Real schema + row-level validation against the expected columns for the
+// selected import type. Returns a list of error rows like the table expects.
+function validateData(headers, rows, importType) {
+  const required = REQUIRED_COLUMNS[importType] || [];
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const errs = [];
+
+  // 1. Structural check: does this file even look like the right kind of data?
+  const missingColumns = required.filter(rc => !normalizedHeaders.includes(normalizeHeader(rc)));
+  if (missingColumns.length === required.length && required.length > 0) {
+    // None of the expected columns are present at all — wrong file entirely.
+    errs.push({
+      row: "—",
+      column: "(all columns)",
+      error: "File does not match Import Type",
+      errorColor: "text-red-600",
+      value: headers.length ? headers.join(", ") : "(no headers found)",
+    });
+    return errs;
+  }
+  missingColumns.forEach(col => {
+    errs.push({
+      row: "—",
+      column: col,
+      error: "Missing required column",
+      errorColor: "text-red-500",
+      value: "(column not found)",
+    });
+  });
+
+  // 2. Row-level checks for columns that do exist.
+  const colIndex = {};
+  required.forEach(rc => {
+    const idx = normalizedHeaders.indexOf(normalizeHeader(rc));
+    if (idx !== -1) colIndex[rc] = idx;
+  });
+
+  const seenSKUs = new Set();
+  rows.forEach((row, i) => {
+    const rowNum = i + 2; // +1 for header row, +1 for 1-indexing
+    Object.entries(colIndex).forEach(([col, idx]) => {
+      const value = (row[idx] ?? "").toString().trim();
+      if (!value) {
+        errs.push({ row: rowNum, column: col, error: `Missing ${col}`, errorColor: "text-orange-500", value: "(empty)" });
+        return;
+      }
+      if (col === "SKU") {
+        if (seenSKUs.has(value)) {
+          errs.push({ row: rowNum, column: col, error: "Duplicate SKU", errorColor: "text-orange-500", value });
+        }
+        seenSKUs.add(value);
+      }
+      if ((col === "Quantity" || col === "Cost" || col === "Reorder Level") && value && isNaN(Number(value))) {
+        errs.push({ row: rowNum, column: col, error: `${col} must be a number`, errorColor: "text-orange-500", value });
+      }
+      if (col === "Email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        errs.push({ row: rowNum, column: col, error: "Invalid email format", errorColor: "text-orange-500", value });
+      }
+    });
+  });
+
+  return errs;
 }
 
 export default function DataImportPage() {
@@ -100,31 +191,37 @@ export default function DataImportPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [parsedData, setParsedData] = useState(null);
   const [errors, setErrors] = useState([]);
+  const [parseError, setParseError] = useState("");
   const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const fileRef = useRef(null);
   const PER_PAGE = 8;
 
-  const totalImports = history.length + (importDone ? 0 : 0);
   const successCount = history.filter(h => h.status === "Completed").length;
   const failedCount = history.filter(h => h.status === "Failed").length;
 
-  const handleFile = (f) => {
+  const handleFile = async (f) => {
     if (!f) return;
     setFile(f);
     setValidated(false);
     setImportDone(false);
     setErrors([]);
     setParsedData(null);
+    setParseError("");
+
     const ext = f.name.split(".").pop().toLowerCase();
-    if (ext === "csv") {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const { headers, rows } = parseCSV(e.target.result);
+    try {
+      if (ext === "csv") {
+        const text = await f.text();
+        const { headers, rows } = parseCSV(text);
         setParsedData({ headers, rows, total: rows.length });
-      };
-      reader.readAsText(f);
-    } else {
-      setParsedData({ headers: [], rows: [], total: Math.floor(f.size / 80) + 10 });
+      } else if (ext === "xlsx" || ext === "xls") {
+        const { headers, rows } = await parseXLSX(f);
+        setParsedData({ headers, rows, total: rows.length });
+      } else {
+        setParseError("Unsupported file type. Please upload a CSV or XLSX file.");
+      }
+    } catch (err) {
+      setParseError("Could not read this file. It may be corrupted or in an unsupported format.");
     }
   };
 
@@ -132,21 +229,20 @@ export default function DataImportPage() {
     e.preventDefault();
     setIsDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f && (f.name.endsWith(".csv") || f.name.endsWith(".xlsx"))) handleFile(f);
+    if (f && (f.name.endsWith(".csv") || f.name.endsWith(".xlsx") || f.name.endsWith(".xls"))) handleFile(f);
   }, []);
 
   const handleValidate = () => {
-    if (!file) return;
+    if (!file || !parsedData) return;
     setValidating(true);
     setTimeout(() => {
       setValidating(false);
       setValidated(true);
-      const total = parsedData?.total || 250;
-      const errCount = Math.floor(total * 0.012);
-      const errs = IMPORT_ERRORS_BASE.slice(0, errCount || 0);
+      const { headers, rows, total } = parsedData;
+      const errs = validateData(headers, rows, importType);
       setErrors(errs);
-      setParsedData(p => ({ ...p, total, valid: total - errs.length, errors: errs.length }));
-    }, 1800);
+      setParsedData(p => ({ ...p, valid: Math.max(0, total - errs.length), errors: errs.length }));
+    }, 800);
   };
 
   const handleImport = () => {
@@ -155,7 +251,7 @@ export default function DataImportPage() {
     setTimeout(() => {
       setImporting(false);
       setImportDone(true);
-      const total = parsedData?.total || 250;
+      const total = parsedData?.total || 0;
       const fail = errors.length;
       const newEntry = {
         id: Date.now(),
@@ -164,9 +260,9 @@ export default function DataImportPage() {
         type: importType,
         file: file.name,
         rec: total,
-        ok: total - fail,
+        ok: Math.max(0, total - fail),
         fail,
-        status: fail > 0 && fail === total ? "Failed" : "Completed",
+        status: fail > 0 && fail >= total ? "Failed" : "Completed",
         by: "Ayomide Ajayi",
       };
       setHistory(p => [newEntry, ...p]);
@@ -174,7 +270,7 @@ export default function DataImportPage() {
       setParsedData(null);
       setValidated(false);
       setErrors([]);
-    }, 2000);
+    }, 1200);
   };
 
   const handleCancel = () => {
@@ -183,6 +279,7 @@ export default function DataImportPage() {
     setValidated(false);
     setErrors([]);
     setImportDone(false);
+    setParseError("");
   };
 
   const downloadTemplate = (name) => {
@@ -208,20 +305,20 @@ export default function DataImportPage() {
   const failRate = history.length > 0 ? ((failedCount / history.length) * 100).toFixed(1) : 0;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Data Import</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Data Import</h1>
           <p className="text-sm text-gray-500 mt-0.5">Import initial data into the system. Download templates, upload your files and validate before importing.</p>
         </div>
-        <button onClick={() => setGuidelinesOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+        <button onClick={() => setGuidelinesOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
           <Icon d={icons.book} size={14} /> Import Guidelines
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Total Imports", value: history.length, sub: "All time imports", subColor: "text-gray-500", icon: icons.upload, bg: "bg-blue-50", color: "text-blue-500" },
           { label: "Successful Imports", value: successCount, sub: `${successRate}% success rate`, subColor: "text-green-600", icon: icons.check, bg: "bg-green-50", color: "text-green-500" },
@@ -230,32 +327,32 @@ export default function DataImportPage() {
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.bg}`}>
                 <Icon d={s.icon} size={18} className={s.color} />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">{s.label}</p>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 truncate">{s.label}</p>
                 <p className="text-3xl font-bold text-gray-900">{s.value}</p>
-                <p className={`text-xs font-medium mt-0.5 ${s.subColor}`}>{s.sub}</p>
+                <p className={`text-xs font-medium mt-0.5 truncate ${s.subColor}`}>{s.sub}</p>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-5">
+      <div className="flex flex-col lg:flex-row gap-5">
         {/* Left column */}
-        <div className="w-[560px] shrink-0 space-y-4">
+        <div className="w-full lg:w-[560px] shrink-0 space-y-4">
           {/* Import Templates */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
             <h2 className="font-semibold text-gray-800 mb-1">Import Templates</h2>
             <p className="text-xs text-gray-500 mb-4">Download templates to ensure your data is formatted correctly.</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {TEMPLATES.map(t => (
                 <button key={t.name} onClick={() => downloadTemplate(t.name)}
-                  className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50/30 transition-all group">
-                  <div className={`w-12 h-12 rounded-xl ${t.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
-                    <Icon d={t.icon} size={22} className={t.color} />
+                  className="flex flex-col items-center gap-2 p-2.5 sm:p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50/30 transition-all group">
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${t.bg} flex items-center justify-center group-hover:scale-105 transition-transform shrink-0`}>
+                    <Icon d={t.icon} size={20} className={t.color} />
                   </div>
                   <p className="text-xs font-semibold text-gray-800 text-center">{t.name}</p>
                   <p className="text-xs text-gray-400">{t.sub}</p>
@@ -265,13 +362,13 @@ export default function DataImportPage() {
           </div>
 
           {/* New Import */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
             <h2 className="font-semibold text-gray-800 mb-1">New Import</h2>
             <p className="text-xs text-gray-500 mb-4">Upload your file and configure import settings.</p>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               {/* Drop zone */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div
                   onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
                   onDragLeave={() => setIsDragging(false)}
@@ -313,18 +410,25 @@ export default function DataImportPage() {
                     </div>
                   )}
                 </div>
-                <input ref={fileRef} type="file" accept=".csv,.xlsx" className="hidden" onChange={e => handleFile(e.target.files[0])} />
+                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => handleFile(e.target.files[0])} />
+
+                {parseError && (
+                  <div className="mt-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                    <Icon d={icons.alert} size={16} className="text-red-500 shrink-0" />
+                    <p className="text-sm text-red-700 font-medium">{parseError}</p>
+                  </div>
+                )}
 
                 {/* Validation Summary */}
                 {validated && parsedData && (
                   <div className="mt-3 border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
                       <p className="text-sm font-semibold text-gray-800">Validation Summary</p>
-                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <span className={`flex items-center gap-1 text-xs font-medium whitespace-nowrap ${errors.length ? "text-orange-600" : "text-green-600"}`}>
                         <Icon d="M5 13l4 4L19 7" size={13} strokeWidth={2.5} /> Validation completed
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                       {[
                         { label: "Total Rows", value: parsedData.total, color: "text-gray-800" },
                         { label: "Valid Rows", value: parsedData.valid, color: "text-green-600" },
@@ -348,38 +452,40 @@ export default function DataImportPage() {
                 {/* Import Errors */}
                 {validated && errors.length > 0 && (
                   <div className="mt-3">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
                       <p className="text-sm font-semibold text-gray-800">Import Errors ({errors.length})</p>
-                      <button className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                      <button className="text-xs text-blue-600 hover:underline flex items-center gap-1 whitespace-nowrap">
                         <Icon d={icons.download} size={12} /> Download Error Report
                       </button>
                     </div>
                     <p className="text-xs text-gray-500 mb-2">Tap a row to see the suggested fix.</p>
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            {["Row", "Column", "Error", "Value Found"].map(h => (
-                              <th key={h} className="py-2 px-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {errors.map((e, i) => (
-                            <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-orange-50/30 cursor-pointer transition-colors">
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-1.5">
-                                  <Icon d={icons.x} size={14} className="text-red-500" />
-                                  <span className="text-sm font-medium text-gray-800">{e.row}</span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-sm text-gray-700">{e.column}</td>
-                              <td className={`py-2 px-3 text-sm font-medium ${e.errorColor}`}>{e.error}</td>
-                              <td className="py-2 px-3 text-sm text-gray-500">{e.value}</td>
+                      <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                        <table className="w-full min-w-[420px]">
+                          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                            <tr>
+                              {["Row", "Column", "Error", "Value Found"].map(h => (
+                                <th key={h} className="py-2 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {errors.map((e, i) => (
+                              <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-orange-50/30 cursor-pointer transition-colors">
+                                <td className="py-2 px-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <Icon d={icons.x} size={14} className="text-red-500" />
+                                    <span className="text-sm font-medium text-gray-800">{e.row}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 text-sm text-gray-700 whitespace-nowrap">{e.column}</td>
+                                <td className={`py-2 px-3 text-sm font-medium whitespace-nowrap ${e.errorColor}`}>{e.error}</td>
+                                <td className="py-2 px-3 text-sm text-gray-500 whitespace-nowrap max-w-[180px] truncate" title={e.value}>{e.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -388,25 +494,27 @@ export default function DataImportPage() {
                 {validated && parsedData?.headers?.length > 0 && (
                   <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3 max-h-32 overflow-auto">
                     <p className="text-xs font-semibold text-gray-600 mb-2">Data Preview (first 3 rows)</p>
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr>{parsedData.headers.map(h => <th key={h} className="text-left py-1 px-2 text-gray-500 font-medium">{h}</th>)}</tr>
-                      </thead>
-                      <tbody>
-                        {parsedData.rows.slice(0, 3).map((row, i) => (
-                          <tr key={i} className="border-t border-gray-200">
-                            {row.map((cell, j) => <td key={j} className="py-1 px-2 text-gray-700">{cell || "—"}</td>)}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs min-w-[320px]">
+                        <thead>
+                          <tr>{parsedData.headers.map((h, i) => <th key={i} className="text-left py-1 px-2 text-gray-500 font-medium whitespace-nowrap">{h}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {parsedData.rows.slice(0, 3).map((row, i) => (
+                            <tr key={i} className="border-t border-gray-200">
+                              {row.map((cell, j) => <td key={j} className="py-1 px-2 text-gray-700 whitespace-nowrap">{cell || "—"}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
                 {/* Action buttons */}
-                {file && (
+                {file && parsedData && (
                   <div className="flex gap-2 mt-3">
-                    <button onClick={handleCancel} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleCancel} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">Cancel</button>
                     {!validated ? (
                       <button onClick={handleValidate} disabled={validating} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-blue-600 text-blue-600 rounded-lg text-sm font-semibold hover:bg-blue-50 disabled:opacity-50 transition-colors">
                         {validating ? (
@@ -414,7 +522,7 @@ export default function DataImportPage() {
                         ) : "Validate File"}
                       </button>
                     ) : (
-                      <button onClick={handleImport} disabled={importing} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors">
+                      <button onClick={handleImport} disabled={importing || errors.length >= (parsedData?.total || 0)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors">
                         {importing ? (
                           <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2" strokeDasharray="40 20" /></svg> Importing...</>
                         ) : "Import Valid Data"}
@@ -432,9 +540,9 @@ export default function DataImportPage() {
               </div>
 
               {/* Import Configuration */}
-              <div className="w-56 shrink-0">
+              <div className="w-full sm:w-56 shrink-0">
                 <p className="text-sm font-semibold text-gray-800 mb-3">Import Configuration</p>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-1 gap-3">
                   {[
                     { label: "Import Type", value: importType, setter: setImportType, options: ["Items", "Inventory", "Users"] },
                     { label: "Default Location", value: location, setter: setLocation, options: ["Storage Area", "Receiving Area", "Dispatch Area", "Damaged Goods Area"] },
@@ -460,17 +568,17 @@ export default function DataImportPage() {
         {/* Right column */}
         <div className="flex-1 min-w-0 space-y-4">
           {/* Import Categories */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className="flex items-start justify-between mb-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-4 gap-3">
               <div>
                 <h2 className="font-semibold text-gray-800">Import Categories</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Choose the type of data you want to import.</p>
               </div>
-              <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+              <button onClick={() => fileRef.current?.click()} className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
                 <Icon d={icons.plus} size={13} /> New Import
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {IMPORT_CATEGORIES.map(c => (
                 <div key={c.title} className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
                   <div className={`w-10 h-10 rounded-xl ${c.iconBg} flex items-center justify-center mb-3`}>
@@ -484,7 +592,7 @@ export default function DataImportPage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500" />{c.status}
                     </span>
@@ -497,13 +605,13 @@ export default function DataImportPage() {
 
           {/* Import History */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center items-stretch justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-gray-800">Import History</h2>
                 <p className="text-xs text-gray-500 mt-0.5">View all past imports and their status.</p>
               </div>
               <div className="relative">
-                <select value={historyFilter} onChange={e => { setHistoryFilter(e.target.value); setHistoryPage(1); }} className="appearance-none border border-gray-200 rounded-lg px-3 py-1.5 pr-7 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <select value={historyFilter} onChange={e => { setHistoryFilter(e.target.value); setHistoryPage(1); }} className="appearance-none w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-1.5 pr-7 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="">All Types</option>
                   <option>Items</option>
                   <option>Inventory</option>
@@ -512,46 +620,48 @@ export default function DataImportPage() {
                 <Icon d={icons.chevronDown} size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {["Date & Time", "Type", "File Name", "Rec.", "OK", "Fail", "Status", "Imported By", "Actions"].map(h => (
-                    <th key={h} className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleHistory.map(h => (
-                  <tr key={h.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-3">
-                      <p className="text-sm font-semibold text-gray-800">{h.date}</p>
-                      <p className="text-xs text-gray-400">{h.time}</p>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[h.type] || "bg-gray-100 text-gray-600"}`}>{h.type}</span>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-600 max-w-[120px]">
-                      <span className="truncate block" title={h.file}>{h.file}</span>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-700 font-medium">{h.rec}</td>
-                    <td className="py-3 px-3 text-sm font-semibold text-green-600">{h.ok}</td>
-                    <td className="py-3 px-3 text-sm font-semibold text-red-500">{h.fail || 0}</td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${h.status === "Completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{h.status}</span>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{h.by}</td>
-                    <td className="py-3 px-3">
-                      <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500" title="Download">
-                        <Icon d={icons.download} size={14} />
-                      </button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {["Date & Time", "Type", "File Name", "Rec.", "OK", "Fail", "Status", "Imported By", "Actions"].map(h => (
+                      <th key={h} className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-              <p className="text-xs text-gray-500">Showing 1 to {visibleHistory.length} of {filteredHistory.length} imports</p>
-              <div className="flex items-center gap-1">
+                </thead>
+                <tbody>
+                  {visibleHistory.map(h => (
+                    <tr key={h.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <p className="text-sm font-semibold text-gray-800">{h.date}</p>
+                        <p className="text-xs text-gray-400">{h.time}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${TYPE_COLORS[h.type] || "bg-gray-100 text-gray-600"}`}>{h.type}</span>
+                      </td>
+                      <td className="py-3 px-3 text-sm text-gray-600 max-w-[120px]">
+                        <span className="truncate block" title={h.file}>{h.file}</span>
+                      </td>
+                      <td className="py-3 px-3 text-sm text-gray-700 font-medium">{h.rec}</td>
+                      <td className="py-3 px-3 text-sm font-semibold text-green-600">{h.ok}</td>
+                      <td className="py-3 px-3 text-sm font-semibold text-red-500">{h.fail || 0}</td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${h.status === "Completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{h.status}</span>
+                      </td>
+                      <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{h.by}</td>
+                      <td className="py-3 px-3">
+                        <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500" title="Download">
+                          <Icon d={icons.download} size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 text-center sm:text-left">Showing 1 to {visibleHistory.length} of {filteredHistory.length} imports</p>
+              <div className="flex items-center gap-1 flex-wrap justify-center">
                 <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1} className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-40">
                   <Icon d={icons.chevronLeft} size={13} />
                 </button>
@@ -569,16 +679,16 @@ export default function DataImportPage() {
 
       {/* Guidelines Modal */}
       {guidelinesOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setGuidelinesOpen(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">Import Guidelines</h2>
-              <button onClick={() => setGuidelinesOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+              <button onClick={() => setGuidelinesOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
                 <Icon d={icons.xSmall} size={16} />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {[
                 { title: "1. Download Template", desc: "Always start by downloading the appropriate template for your data type (Items, Inventory, or Users). This ensures your data is in the correct format." },
                 { title: "2. Prepare Your Data", desc: "Fill in the template with your data. Make sure all required fields are complete. Do not change the column headers or the file structure." },

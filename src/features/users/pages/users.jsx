@@ -76,16 +76,16 @@ const INITIAL_USERS = [
 const Modal = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
             <Icon d={icons.x} size={16} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -124,7 +124,7 @@ const UserForm = ({ user, roles, onSave, onClose }) => {
           ))}
         </div>
       </div>
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-col sm:flex-row gap-3 pt-2">
         <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
         <button disabled={!isValid} onClick={() => isValid && onSave(form)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-semibold transition-colors">
           {user ? "Save Changes" : "Add User"}
@@ -185,20 +185,20 @@ export default function UsersRolesPage() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users & Roles</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Users & Roles</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage system users and their access permissions</p>
         </div>
-        <button onClick={() => setAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+        <button onClick={() => setAddModal(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
           <Icon d={icons.plus} size={15} /> Add New User
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Total Users", value: users.length, link: "View all users →", icon: icons.users, bg: "bg-blue-50", color: "text-blue-500" },
           { label: "Active Users", value: activeCount, link: "View active users →", icon: icons.shield, bg: "bg-green-50", color: "text-green-500" },
@@ -207,22 +207,22 @@ export default function UsersRolesPage() {
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.bg}`}>
                 <Icon d={s.icon} size={18} className={s.color} />
               </div>
-              <div>
-                <p className="text-xs text-gray-500">{s.label}</p>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 truncate">{s.label}</p>
                 <p className="text-3xl font-bold text-gray-900">{s.value}</p>
-                <button className="text-xs text-blue-500 font-medium hover:text-blue-700 mt-0.5">{s.link}</button>
+                <button className="text-xs text-blue-500 font-medium hover:text-blue-700 mt-0.5 whitespace-nowrap">{s.link}</button>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-5">
+      <div className="flex flex-col lg:flex-row gap-5">
         {/* Main panel */}
-        <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-gray-200 px-5">
             {["Users", "Roles"].map(t => (
@@ -235,91 +235,95 @@ export default function UsersRolesPage() {
           {tab === "Users" && (
             <>
               {/* Filters */}
-              <div className="p-4 flex gap-3">
-                <div className="relative flex-1">
+              <div className="p-4 flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1 min-w-0">
                   <Icon d={icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search users by name, email or role..." className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div className="relative">
-                  <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }} className="appearance-none border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <option value="">All Roles</option>
-                    {roles.map(r => <option key={r.name}>{r.name}</option>)}
-                  </select>
-                  <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-                <div className="relative">
-                  <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="appearance-none border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <option value="">All Statuses</option>
-                    <option>Active</option>
-                    <option>Inactive</option>
-                  </select>
-                  <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <div className="flex gap-3">
+                  <div className="relative flex-1 sm:flex-none">
+                    <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }} className="appearance-none w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">All Roles</option>
+                      {roles.map(r => <option key={r.name}>{r.name}</option>)}
+                    </select>
+                    <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                  <div className="relative flex-1 sm:flex-none">
+                    <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="appearance-none w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">All Statuses</option>
+                      <option>Active</option>
+                      <option>Inactive</option>
+                    </select>
+                    <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
               {/* Table */}
-              <table className="w-full">
-                <thead className="bg-gray-50 border-y border-gray-200">
-                  <tr>
-                    {["User", "Email", "Role", "Status", "Last Login", "Actions"].map(h => (
-                      <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map(u => (
-                    <tr key={u.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full ${u.bg} flex items-center justify-center text-white text-xs font-bold shrink-0`}>{u.initials}</div>
-                          <span className="text-sm font-medium text-gray-800">{u.name}</span>
-                          {u.isYou && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">You</span>}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{u.email}</td>
-                      <td className="py-3 px-4">
-                        <span className={`text-sm font-medium ${ROLE_COLORS[u.role] || "text-gray-600"}`}>{u.role}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{u.status}</span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-500">{u.lastLogin}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => setEditUser(u)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
-                            <Icon d={icons.edit} size={14} />
-                          </button>
-                          <div className="relative">
-                            <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
-                              <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
-                            </button>
-                            {openMenu === u.id && (
-                              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-44 py-1">
-                                <button onClick={() => { setEditUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                                  <Icon d={icons.edit} size={13} /> Edit User
-                                </button>
-                                <button onClick={() => { toggleStatus(u.id); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                                  <Icon d={icons.eye} size={13} /> {u.status === "Active" ? "Deactivate" : "Activate"}
-                                </button>
-                                {!u.isYou && (
-                                  <button onClick={() => { setDeleteUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
-                                    <Icon d={icons.trash} size={13} /> Delete User
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px]">
+                  <thead className="bg-gray-50 border-y border-gray-200">
+                    <tr>
+                      {["User", "Email", "Role", "Status", "Last Login", "Actions"].map(h => (
+                        <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {visible.map(u => (
+                      <tr key={u.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-full ${u.bg} flex items-center justify-center text-white text-xs font-bold shrink-0`}>{u.initials}</div>
+                            <span className="text-sm font-medium text-gray-800 whitespace-nowrap">{u.name}</span>
+                            {u.isYou && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium shrink-0">You</span>}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{u.email}</td>
+                        <td className="py-3 px-4">
+                          <span className={`text-sm font-medium whitespace-nowrap ${ROLE_COLORS[u.role] || "text-gray-600"}`}>{u.role}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${u.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{u.status}</span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-500 whitespace-nowrap">{u.lastLogin}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => setEditUser(u)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
+                              <Icon d={icons.edit} size={14} />
+                            </button>
+                            <div className="relative">
+                              <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
+                                <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
+                              </button>
+                              {openMenu === u.id && (
+                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-44 py-1">
+                                  <button onClick={() => { setEditUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                    <Icon d={icons.edit} size={13} /> Edit User
+                                  </button>
+                                  <button onClick={() => { toggleStatus(u.id); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                    <Icon d={icons.eye} size={13} /> {u.status === "Active" ? "Deactivate" : "Activate"}
+                                  </button>
+                                  {!u.isYou && (
+                                    <button onClick={() => { setDeleteUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                                      <Icon d={icons.trash} size={13} /> Delete User
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Pagination */}
-              <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-                <p className="text-xs text-gray-500">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} users</p>
-                <div className="flex items-center gap-1">
+              <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <p className="text-xs text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} users</p>
+                <div className="flex items-center gap-1 flex-wrap justify-center">
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-40">
                     <Icon d={icons.chevronLeft} size={13} />
                   </button>
@@ -335,32 +339,32 @@ export default function UsersRolesPage() {
           )}
 
           {tab === "Roles" && (
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
+            <div className="p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                 <p className="text-sm text-gray-500">{roles.length} roles defined in the system</p>
-                <button onClick={() => setAddRoleModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+                <button onClick={() => setAddRoleModal(true)} className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
                   <Icon d={icons.plus} size={13} /> Add Role
                 </button>
               </div>
               <div className="space-y-3">
                 {roles.map(r => (
                   <div key={r.id} className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.bg}`}>
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${r.bg}`}>
                           <Icon d={r.icon} size={18} className={r.color} />
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-800">{r.name}</p>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-800 truncate">{r.name}</p>
                           <p className="text-xs text-gray-500">{r.users} user{r.users !== 1 ? "s" : ""}</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center shrink-0">
                         <button onClick={() => setEditRole(r)} className="px-3 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Edit</button>
                         <Icon d={icons.chevronRight} size={16} className="text-gray-400 mt-0.5" />
                       </div>
                     </div>
-                    <ul className="mt-3 space-y-1 ml-13">
+                    <ul className="mt-3 space-y-1">
                       {r.permissions.map(p => (
                         <li key={p} className="text-xs text-gray-500 flex items-center gap-1.5 ml-13">
                           <span className="w-1 h-1 rounded-full bg-gray-400 shrink-0" />
@@ -376,7 +380,7 @@ export default function UsersRolesPage() {
         </div>
 
         {/* Roles Overview Sidebar */}
-        <div className="w-64 shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="w-full lg:w-64 shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-800">Roles Overview</h2>
             <p className="text-xs text-gray-500 mt-0.5">{roles.length} roles defined in the system</p>
@@ -384,17 +388,17 @@ export default function UsersRolesPage() {
           <div className="p-3 space-y-2">
             {roles.map(r => (
               <div key={r.id} className="p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all cursor-pointer">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${r.bg}`}>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${r.bg}`}>
                       <Icon d={r.icon} size={14} className={r.color} />
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-800 leading-tight">{r.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 leading-tight truncate">{r.name}</p>
                       <p className="text-xs text-gray-400">{r.users} user{r.users !== 1 ? "s" : ""}</p>
                     </div>
                   </div>
-                  <Icon d={icons.chevronRight} size={13} className="text-gray-400" />
+                  <Icon d={icons.chevronRight} size={13} className="text-gray-400 shrink-0" />
                 </div>
                 <ul className="space-y-0.5">
                   {r.permissions.map(p => (
@@ -431,7 +435,7 @@ export default function UsersRolesPage() {
           <div>
             <p className="text-sm text-gray-600 mb-1">Are you sure you want to delete <strong>{deleteUser.name}</strong>?</p>
             <p className="text-sm text-red-500 mb-5">This action cannot be undone.</p>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={() => setDeleteUser(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button onClick={confirmDelete} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold transition-colors">Delete</button>
             </div>
@@ -443,17 +447,17 @@ export default function UsersRolesPage() {
       <Modal open={roleModalOpen} onClose={() => setRoleModalOpen(false)} title="Manage Roles">
         <div className="space-y-3 max-h-80 overflow-y-auto">
           {roles.map(r => (
-            <div key={r.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-              <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${r.bg}`}>
+            <div key={r.id} className="flex items-center justify-between gap-2 p-3 border border-gray-200 rounded-xl flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${r.bg}`}>
                   <Icon d={r.icon} size={13} className={r.color} />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{r.name}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{r.name}</p>
                   <p className="text-xs text-gray-500">{r.users} users</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 <button onClick={() => { setEditRole(r); setRoleModalOpen(false); }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Edit</button>
                 <button onClick={() => setRoles(p => p.filter(x => x.id !== r.id))} className="px-2.5 py-1 text-xs border border-red-200 rounded-lg text-red-500 hover:bg-red-50">Delete</button>
               </div>
@@ -479,16 +483,16 @@ export default function UsersRolesPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
               <div className="space-y-2">
                 {editRole.permissions.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 gap-2">
                     <span className="text-sm text-gray-700">{p}</span>
-                    <button onClick={() => setEditRole(r => ({ ...r, permissions: r.permissions.filter((_, j) => j !== i) }))} className="text-red-400 hover:text-red-600">
+                    <button onClick={() => setEditRole(r => ({ ...r, permissions: r.permissions.filter((_, j) => j !== i) }))} className="text-red-400 hover:text-red-600 shrink-0">
                       <Icon d={icons.x} size={13} />
                     </button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button onClick={() => setEditRole(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button onClick={() => { setRoles(p => p.map(r => r.id === editRole.id ? editRole : r)); setEditRole(null); }} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">Save Changes</button>
             </div>
@@ -503,7 +507,7 @@ export default function UsersRolesPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Role Name <span className="text-red-500">*</span></label>
             <input value={newRoleForm.name} onChange={e => setNewRoleForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Stock Auditor" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button onClick={() => setAddRoleModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
             <button disabled={!newRoleForm.name.trim()} onClick={() => {
               setRoles(p => [...p, { id: Date.now(), name: newRoleForm.name, icon: icons.adminIcon, color: "text-blue-600", bg: "bg-blue-50", users: 0, permissions: [] }]);

@@ -4,7 +4,6 @@ import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
 
-/* ───────────────────────── helpers ───────────────────────── */
 
 function parseNaira(str) {
   return Number(String(str).replace(/[₦,]/g, "")) || 0;

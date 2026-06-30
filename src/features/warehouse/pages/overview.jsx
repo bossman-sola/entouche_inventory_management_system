@@ -63,7 +63,7 @@ const DonutChart = ({ segments, total }) => {
   });
 
   return (
-    <svg width={size} height={size}>
+    <svg width={size} height={size} viewBox="0 0 140 140" className="w-full max-w-[140px] h-auto">
       {paths}
       <text x={cx} y={cy - 6} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">{total.toLocaleString()}</text>
       <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="#6b7280">Total</text>
@@ -75,12 +75,12 @@ const DonutChart = ({ segments, total }) => {
 
 const UtilBar = ({ label, pct, color }) => (
   <div className="mb-4 last:mb-0">
-    <div className="flex items-center justify-between mb-1.5">
-      <div>
-        <p className="text-sm font-medium text-gray-800">{label}</p>
+    <div className="flex items-center justify-between mb-1.5 gap-2">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-800 truncate">{label}</p>
         <p className="text-xs text-gray-400">*</p>
       </div>
-      <span className="text-sm font-semibold text-gray-700">{pct}%</span>
+      <span className="text-sm font-semibold text-gray-700 shrink-0">{pct}%</span>
     </div>
     <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
       <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
@@ -97,11 +97,11 @@ const DateRangePicker = () => {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
       >
-        <Icon d={icons.calendar} size={14} className="text-gray-500" />
-        <span>{label}</span>
-        <Icon d={icons.chevronDown} size={13} className="text-gray-400" />
+        <Icon d={icons.calendar} size={14} className="text-gray-500 shrink-0" />
+        <span className="truncate">{label}</span>
+        <Icon d={icons.chevronDown} size={13} className="text-gray-400 shrink-0" />
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-48 py-1">
@@ -124,7 +124,7 @@ const StatusBadge = ({ status }) => {
     Attention: "bg-yellow-100 text-yellow-700",
     Inactive: "bg-red-100 text-red-700",
   };
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
+  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
 
@@ -146,10 +146,10 @@ const LocationIcon = ({ type }) => {
 
 const MiniUtilBar = ({ pct, color }) => (
   <div className="flex items-center gap-2">
-    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden shrink-0">
       <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
     </div>
-    <span className="text-sm text-gray-700">{pct}%</span>
+    <span className="text-sm text-gray-700 whitespace-nowrap">{pct}%</span>
   </div>
 );
 
@@ -185,29 +185,29 @@ const UTIL_BARS = [
 
 export default function WarehouseOverviewPage() {
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Warehouse Overview</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Warehouse Overview</h1>
           <p className="text-sm text-gray-500 mt-0.5">Real-time overview of your warehouse locations and inventory distribution</p>
         </div>
         <DateRangePicker />
       </div>
 
       {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Total Locations */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
               <Icon d={icons.location} size={18} className="text-blue-500" fill="none" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Total Locations</p>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Locations</p>
               <p className="text-3xl font-bold text-gray-900">4</p>
-              <p className="text-xs text-blue-500 font-medium mt-0.5">All operational locations</p>
+              <p className="text-xs text-blue-500 font-medium mt-0.5 truncate">All operational locations</p>
             </div>
           </div>
         </div>
@@ -215,15 +215,15 @@ export default function WarehouseOverviewPage() {
         {/* Total Inventory Quantity */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
               <Icon d={icons.hexagon} size={18} className="text-green-500" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Total Inventory Quantity</p>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Inventory Quantity</p>
               <p className="text-3xl font-bold text-gray-900">2,729</p>
               <p className="text-xs text-green-600 font-medium mt-0.5 flex items-center gap-1">
-                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} />
-                6.7% vs last 7 days
+                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} className="shrink-0" />
+                <span className="truncate">6.7% vs last 7 days</span>
               </p>
             </div>
           </div>
@@ -232,15 +232,15 @@ export default function WarehouseOverviewPage() {
         {/* Total Inventory Value */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
               <Icon d={icons.briefcase} size={18} className="text-orange-500" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Total Inventory Value</p>
-              <p className="text-3xl font-bold text-gray-900">₦45,780,250</p>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Inventory Value</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">₦45,780,250</p>
               <p className="text-xs text-green-600 font-medium mt-0.5 flex items-center gap-1">
-                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} />
-                8.4% vs last 7 days
+                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} className="shrink-0" />
+                <span className="truncate">8.4% vs last 7 days</span>
               </p>
             </div>
           </div>
@@ -249,20 +249,20 @@ export default function WarehouseOverviewPage() {
         {/* Utilization Rate */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
               <Icon d={icons.pie} size={18} className="text-purple-500" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Utilization Rate</p>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-0.5 truncate">Utilization Rate</p>
               <p className="text-3xl font-bold text-gray-900">68.4%</p>
-              <p className="text-xs text-purple-500 font-medium mt-0.5">Overall capacity utilization</p>
+              <p className="text-xs text-purple-500 font-medium mt-0.5 truncate">Overall capacity utilization</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Middle Row: 3 panels ── */}
-      <div className="grid grid-cols-[1fr_2fr_1fr] gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 mb-4">
 
         {/* Inventory by Location */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -298,45 +298,45 @@ export default function WarehouseOverviewPage() {
           <h2 className="text-sm font-semibold text-gray-800 mb-4">Location Status Summary</h2>
           <div className="space-y-3">
             {/* Active */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/60 border border-green-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/60 border border-green-100 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                   <Icon d={icons.check} size={15} className="text-green-600" fill="none" />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Active Locations</p>
-                  <p className="text-xs text-gray-500">All systems operational</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">Active Locations</p>
+                  <p className="text-xs text-gray-500 truncate">All systems operational</p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-green-600">3</span>
+              <span className="text-2xl font-bold text-green-600 shrink-0">3</span>
             </div>
 
             {/* Attention */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-yellow-100 flex items-center justify-center">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
                   <Icon d={icons.warning} size={14} className="text-yellow-600" fill="none" />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Attention Required</p>
-                  <p className="text-xs text-gray-500">Requires monitoring</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">Attention Required</p>
+                  <p className="text-xs text-gray-500 truncate">Requires monitoring</p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-yellow-500">1</span>
+              <span className="text-2xl font-bold text-yellow-500 shrink-0">1</span>
             </div>
 
             {/* Inactive */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-red-50/40 border border-red-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-red-50/40 border border-red-100 gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center shrink-0">
                   <Icon d={icons.xCircle} size={14} className="text-red-400" fill="none" />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Inactive Locations</p>
-                  <p className="text-xs text-gray-500">Currently inactive</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">Inactive Locations</p>
+                  <p className="text-xs text-gray-500 truncate">Currently inactive</p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-red-400">0</span>
+              <span className="text-2xl font-bold text-red-400 shrink-0">0</span>
             </div>
           </div>
           <button className="mt-4 text-xs text-blue-600 font-medium hover:text-blue-700">View all locations</button>
@@ -344,49 +344,51 @@ export default function WarehouseOverviewPage() {
       </div>
 
       {/* ── Bottom Row: Location Summary + Recent Movements ── */}
-      <div className="grid grid-cols-[1fr_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Location Summary */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-800">Location Summary</h2>
           </div>
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {["Location", "Description", "Quantity", "Inventory Value", "Utilization", "Status", ""].map(h => (
-                  <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {LOCATIONS.map((loc, i) => (
-                <tr key={loc.name} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors`}>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2.5">
-                      <LocationIcon type={loc.name} />
-                      <span className="text-sm font-medium text-gray-800">{loc.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{loc.desc}</td>
-                  <td className="py-3 px-4 text-sm font-semibold text-gray-800">{loc.qty.toLocaleString()}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{loc.value}</td>
-                  <td className="py-3 px-4">
-                    <MiniUtilBar pct={loc.util} color={loc.utilColor} />
-                  </td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={loc.status} />
-                  </td>
-                  <td className="py-3 px-4">
-                    <button className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600">
-                      <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {["Location", "Description", "Quantity", "Inventory Value", "Utilization", "Status", ""].map(h => (
+                    <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+              </thead>
+              <tbody>
+                {LOCATIONS.map((loc, i) => (
+                  <tr key={loc.name} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors`}>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <LocationIcon type={loc.name} />
+                        <span className="text-sm font-medium text-gray-800 whitespace-nowrap">{loc.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-500 whitespace-nowrap">{loc.desc}</td>
+                    <td className="py-3 px-4 text-sm font-semibold text-gray-800 whitespace-nowrap">{loc.qty.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-sm text-gray-700 whitespace-nowrap">{loc.value}</td>
+                    <td className="py-3 px-4">
+                      <MiniUtilBar pct={loc.util} color={loc.utilColor} />
+                    </td>
+                    <td className="py-3 px-4">
+                      <StatusBadge status={loc.status} />
+                    </td>
+                    <td className="py-3 px-4">
+                      <button className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600">
+                        <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-xs text-gray-500">Showing 1 to 4 of 4 locations</p>
             <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all locations</button>
           </div>
@@ -398,27 +400,29 @@ export default function WarehouseOverviewPage() {
             <h2 className="text-sm font-semibold text-gray-800">Recent Location Movements</h2>
             <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all</button>
           </div>
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {["Date & Time", "Item", "From", "To", "Qty", "User"].map(h => (
-                  <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {MOVEMENTS.map((m, i) => (
-                <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.date}</td>
-                  <td className="py-3 px-4 text-sm font-medium text-gray-800 whitespace-nowrap">{m.item}</td>
-                  <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.from}</td>
-                  <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.to}</td>
-                  <td className="py-3 px-4 text-sm font-semibold text-gray-800">{m.qty}</td>
-                  <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.user}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {["Date & Time", "Item", "From", "To", "Qty", "User"].map(h => (
+                    <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {MOVEMENTS.map((m, i) => (
+                  <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.date}</td>
+                    <td className="py-3 px-4 text-sm font-medium text-gray-800 whitespace-nowrap">{m.item}</td>
+                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.from}</td>
+                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.to}</td>
+                    <td className="py-3 px-4 text-sm font-semibold text-gray-800 whitespace-nowrap">{m.qty}</td>
+                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.user}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end">
             <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all movements</button>
           </div>
