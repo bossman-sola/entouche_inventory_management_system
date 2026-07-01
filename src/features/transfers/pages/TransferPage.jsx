@@ -36,7 +36,7 @@ const StatusBadge = ({ status }) => {
     Pending: "bg-yellow-100 text-yellow-700",
     Cancelled: "bg-red-100 text-red-700",
   };
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
+  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
 const Select = ({ value, onChange, options, placeholder, className = "" }) => (
@@ -74,9 +74,9 @@ const DateTimePicker = ({ label, required, value, onChange, showTime = false, cl
 const Modal = ({ open, onClose, children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -118,13 +118,13 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
 
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-6">
+      <div className="p-4 sm:p-6">
+        <div className="flex items-start justify-between mb-6 gap-3">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">New Inventory Transfer</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">New Inventory Transfer</h2>
             <p className="text-sm text-gray-500 mt-0.5">Move inventory items from one location to another.</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
             <Icon d={icons.x} size={16} />
           </button>
         </div>
@@ -132,10 +132,10 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
         {/* Step 1: Details */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
             <span className="font-semibold text-gray-800">Transfer Details</span>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <DateTimePicker label="Transfer Date" required value={date} onChange={setDate} showTime className="col-span-1" />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number (optional)</label>
@@ -163,13 +163,13 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
         {/* Step 2: Items */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
             <span className="font-semibold text-gray-800">Items</span>
           </div>
 
           {/* Add item bar */}
-          <div className="flex gap-2 mb-3">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <div className="relative flex-1 min-w-0">
               <Icon d={icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={searchItem}
@@ -178,77 +178,81 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <Select value={searchUnit} onChange={setSearchUnit} options={["pcs", "kg", "box", "carton", "set"]} placeholder="Select unit" className="w-36" />
-            <button onClick={addItem} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
-              <Icon d={icons.plus} size={14} /> Add Item
-            </button>
+            <div className="flex gap-2">
+              <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-full sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <Select value={searchUnit} onChange={setSearchUnit} options={["pcs", "kg", "box", "carton", "set"]} placeholder="Select unit" className="w-full sm:w-36" />
+              <button onClick={addItem} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap shrink-0">
+                <Icon d={icons.plus} size={14} /> Add Item
+              </button>
+            </div>
           </div>
 
           {/* Items table */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {["#", "Item", "SKU", "Unit", "Available Stock", "Quantity *", "Actions"].map(h => (
-                    <th key={h} className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <td colSpan={7} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-2 text-gray-400">
-                        <Icon d={icons.box} size={36} strokeWidth={1} />
-                        <p className="text-sm font-medium text-gray-500">No items added yet</p>
-                        <p className="text-xs">Search and add items to include in this transfer.</p>
-                      </div>
-                    </td>
+                    {["#", "Item", "SKU", "Unit", "Available Stock", "Quantity *", "Actions"].map(h => (
+                      <th key={h} className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                )}
-                {items.map((row, idx) => (
-                  <tr key={row.id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
-                    <td className="py-2 px-3 text-sm text-gray-800 font-medium">{row.item}</td>
-                    <td className="py-2 px-3 text-sm text-gray-400">{row.sku}</td>
-                    <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "—"}</td>
-                    <td className="py-2 px-3 text-sm text-gray-700">{row.availableStock}</td>
-                    <td className="py-2 px-3">
-                      <input
-                        type="number"
-                        value={row.qty}
-                        onChange={e => setItems(p => p.map(r => r.id === row.id ? { ...r, qty: e.target.value } : r))}
-                        className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                      />
-                    </td>
-                    <td className="py-2 px-3">
-                      <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
-                        <Icon d={icons.trash} size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                </thead>
+                <tbody>
+                  {items.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-2 text-gray-400">
+                          <Icon d={icons.box} size={36} strokeWidth={1} />
+                          <p className="text-sm font-medium text-gray-500">No items added yet</p>
+                          <p className="text-xs">Search and add items to include in this transfer.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {items.map((row, idx) => (
+                    <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
+                      <td className="py-2 px-3 text-sm text-gray-800 font-medium whitespace-nowrap">{row.item}</td>
+                      <td className="py-2 px-3 text-sm text-gray-400">{row.sku}</td>
+                      <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "—"}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{row.availableStock}</td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          value={row.qty}
+                          onChange={e => setItems(p => p.map(r => r.id === row.id ? { ...r, qty: e.target.value } : r))}
+                          className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
+                          <Icon d={icons.trash} size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
               <button onClick={() => setItems([])} className="flex items-center gap-1 text-sm text-red-500 font-medium border border-red-200 rounded-lg px-3 py-1 hover:bg-red-50">
                 Clear All Items
               </button>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-500">
                 <span>Total Items: <strong className="text-gray-700">{items.length}</strong></span>
                 <span>Total Quantity: <strong className="text-gray-700">{totalQty}</strong></span>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-            <Icon d={icons.info} size={15} className="text-blue-500 shrink-0" />
+          <div className="mt-3 flex items-start sm:items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <Icon d={icons.info} size={15} className="text-blue-500 shrink-0 mt-0.5 sm:mt-0" />
             <p className="text-xs text-blue-700">Transfers will be processed based on availability at the source location.</p>
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+        <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
           <button onClick={handleSave} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Save Transfer</button>
         </div>
@@ -310,31 +314,31 @@ export default function TransfersPage() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen flex gap-5">
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen flex flex-col lg:flex-row gap-5">
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transfers</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Transfers</h1>
             <p className="text-sm text-gray-500 mt-0.5">Move inventory items between different locations.</p>
           </div>
-          <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <div className="flex flex-wrap gap-2">
+            <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <Icon d={icons.download} size={15} /> Export
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <Icon d={icons.filter} size={15} /> Filters
               <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">2</span>
             </button>
-            <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+            <button onClick={() => setModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
               <Icon d={icons.plus} size={15} /> New Transfer
             </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[
             { label: "Total Transfers", value: "312", sub: "▲ 9.4% vs last 7 days", subColor: "text-green-600", icon: icons.transferAlt, bg: "bg-blue-50 text-blue-500" },
             { label: "Total Qty Transferred", value: "2,845", sub: "▲ 11.6% vs last 7 days", subColor: "text-green-600", icon: icons.box, bg: "bg-green-50 text-green-500" },
@@ -343,13 +347,13 @@ export default function TransfersPage() {
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${s.bg}`}>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
                   <Icon d={s.icon} size={16} />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">{s.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
-                  <p className={`text-xs ${s.subColor}`}>{s.sub}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">{s.label}</p>
+                  <p className="text-xl font-bold text-gray-900 truncate">{s.value}</p>
+                  <p className={`text-xs ${s.subColor} truncate`}>{s.sub}</p>
                 </div>
               </div>
             </div>
@@ -358,63 +362,65 @@ export default function TransfersPage() {
 
         {/* Filters bar */}
         <div className="bg-white border border-gray-200 rounded-xl mb-4 p-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm text-gray-500 border-r border-gray-200 pr-3">
+          <div className="flex items-center gap-2 text-sm text-gray-500 sm:border-r border-gray-200 sm:pr-3 whitespace-nowrap">
             <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
           </div>
-          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={locs} placeholder="From Location" className="w-40" />
-          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={locs} placeholder="To Location" className="w-40" />
-          <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-36" />
+          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={locs} placeholder="From Location" className="w-full sm:w-40" />
+          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={locs} placeholder="To Location" className="w-full sm:w-40" />
+          <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
           {(fromFilter || toFilter || statusFilter) && (
-            <button onClick={() => { setFromFilter(""); setToFilter(""); setStatusFilter(""); setPage(1); }} className="text-sm text-red-500 hover:underline ml-auto">Clear filters</button>
+            <button onClick={() => { setFromFilter(""); setToFilter(""); setStatusFilter(""); setPage(1); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear filters</button>
           )}
         </div>
 
         {/* Table */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                {["Transfer ID", "Date & Time", "Item", "From Location", "To Location", "Quantity", "Requested By", "Status", "Actions"].map(h => (
-                  <th key={h} className="py-3 px-4 text-left text-xs font-semibold text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map(t => (
-                <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium text-blue-600 cursor-pointer hover:underline">{t.id}</td>
-                  <td className="py-3 px-4">
-                    <p className="text-sm text-gray-800">{t.date}</p>
-                    <p className="text-xs text-gray-400">{t.time}</p>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Icon d={icons.box} size={14} className="text-gray-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-800 font-medium">{t.item}</p>
-                        <p className="text-xs text-gray-400">{t.sku}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600">{t.from}</td>
-                  <td className="py-3 px-4 text-sm text-gray-600">{t.to}</td>
-                  <td className={`py-3 px-4 text-sm font-semibold ${t.qty < 0 ? "text-red-500" : "text-gray-800"}`}>{t.qty}</td>
-                  <td className="py-3 px-4 text-sm text-gray-600">{t.requestedBy}</td>
-                  <td className="py-3 px-4"><StatusBadge status={t.status} /></td>
-                  <td className="py-3 px-4">
-                    <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
-                      <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {["Transfer ID", "Date & Time", "Item", "From Location", "To Location", "Quantity", "Requested By", "Status", "Actions"].map(h => (
+                    <th key={h} className="py-3 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100 bg-gray-50">
-            <p className="text-sm text-gray-500">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} transfers</p>
-            <div className="flex items-center gap-1">
+              </thead>
+              <tbody>
+                {visible.map(t => (
+                  <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="py-3 px-4 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{t.id}</td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <p className="text-sm text-gray-800">{t.date}</p>
+                      <p className="text-xs text-gray-400">{t.time}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                          <Icon d={icons.box} size={14} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-800 font-medium whitespace-nowrap">{t.item}</p>
+                          <p className="text-xs text-gray-400">{t.sku}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{t.from}</td>
+                    <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{t.to}</td>
+                    <td className={`py-3 px-4 text-sm font-semibold whitespace-nowrap ${t.qty < 0 ? "text-red-500" : "text-gray-800"}`}>{t.qty}</td>
+                    <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{t.requestedBy}</td>
+                    <td className="py-3 px-4"><StatusBadge status={t.status} /></td>
+                    <td className="py-3 px-4">
+                      <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
+                        <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
+            <p className="text-sm text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} transfers</p>
+            <div className="flex items-center gap-1 flex-wrap justify-center">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
               {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (
                 <button key={n} onClick={() => setPage(n)} className={`w-7 h-7 text-sm rounded ${page === n ? "bg-blue-600 text-white" : "border border-gray-200 hover:bg-gray-100 text-gray-700"}`}>{n}</button>
@@ -426,13 +432,13 @@ export default function TransfersPage() {
       </div>
 
       {/* Sidebar */}
-      <div className="w-72 shrink-0 space-y-4">
+      <div className="w-full lg:w-72 shrink-0 space-y-4">
         {/* Quick Actions */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <h3 className="font-semibold text-gray-800 mb-3">Quick Actions</h3>
           <div className="space-y-2">
             <button onClick={() => setModalOpen(true)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50 border border-dashed border-blue-300 text-blue-600 transition-colors">
-              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
                 <Icon d={icons.plus} size={13} strokeWidth={2.5} />
               </div>
               <div className="text-left">
@@ -441,7 +447,7 @@ export default function TransfersPage() {
               </div>
             </button>
             <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-orange-50 border border-gray-200 transition-colors group">
-              <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                 <Icon d={icons.clock} size={13} className="text-orange-500" />
               </div>
               <div className="text-left">
@@ -453,7 +459,7 @@ export default function TransfersPage() {
               </div>
             </button>
             <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 border border-gray-200 transition-colors">
-              <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                 <Icon d={icons.template} size={13} className="text-blue-600" />
               </div>
               <div className="text-left">

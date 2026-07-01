@@ -30,12 +30,12 @@ const icons = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const AdjBadge = ({ type }) => {
   const s = { Increase: "bg-green-100 text-green-700", Decrease: "bg-red-100 text-red-600", "Set Stock": "bg-yellow-100 text-yellow-700" };
-  return <span className={`px-2.5 py-0.5 rounded text-xs font-medium ${s[type] || "bg-gray-100 text-gray-600"}`}>{type}</span>;
+  return <span className={`px-2.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${s[type] || "bg-gray-100 text-gray-600"}`}>{type}</span>;
 };
 
 const StatusBadge = ({ status }) => {
   const s = { Completed: "bg-green-100 text-green-700", Pending: "bg-yellow-100 text-yellow-700", Cancelled: "bg-red-100 text-red-700" };
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
+  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
 const Select = ({ value, onChange, options, placeholder, className = "" }) => (
@@ -73,9 +73,9 @@ const DateTimePicker = ({ label, required, value, onChange, className = "" }) =>
 const Modal = ({ open, onClose, children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -86,10 +86,10 @@ const Modal = ({ open, onClose, children }) => {
 const AdjTypeButton = ({ id, icon, color, bg, label, sub, selected, onClick }) => (
   <button
     onClick={() => onClick(id)}
-    className={`flex-1 flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${selected ? `border-current ${bg}` : "border-gray-200 hover:border-gray-300"}`}
+    className={`flex-1 min-w-[140px] flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${selected ? `border-current ${bg}` : "border-gray-200 hover:border-gray-300"}`}
     style={selected ? { borderColor: color, backgroundColor: `${color}15` } : {}}
   >
-    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
+    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20`, color }}>
       <Icon d={icon} size={16} strokeWidth={2} />
     </div>
     <div>
@@ -136,13 +136,13 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
 
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-6">
+      <div className="p-4 sm:p-6">
+        <div className="flex items-start justify-between mb-6 gap-3">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">New Inventory Adjustment</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">New Inventory Adjustment</h2>
             <p className="text-sm text-gray-500 mt-0.5">Record inventory quantity adjustments.</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
             <Icon d={icons.x} size={16} />
           </button>
         </div>
@@ -150,21 +150,21 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
         {/* Step 1: Adjustment Information */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
             <span className="font-semibold text-gray-800">Adjustment Information</span>
           </div>
 
           {/* Adjustment Type */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Type<span className="text-red-500">*</span></label>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {adjTypes.map(t => (
                 <AdjTypeButton key={t.id} {...t} selected={adjType === t.id} onClick={setAdjType} />
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <DateTimePicker label="Adjustment Date" required value={date} onChange={setDate} />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location<span className="text-red-500">*</span></label>
@@ -192,69 +192,71 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
         {/* Step 2: Items */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
             <span className="font-semibold text-gray-800">Items</span>
           </div>
           <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 w-8">#</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Item *</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">SKU</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Current Stock</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
-                    {adjType === "Set Stock" ? "Set Qty *" : "Adjustment Qty *"}
-                  </th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit Cost (₦)</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
-                    {adjType === "Set Stock" ? "New Stock" : "Total Impact (₦)"}
-                  </th>
-                  <th className="py-2.5 px-3 text-xs font-semibold text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((row, idx) => {
-                  const impact = adjType === "Set Stock" ? row.adjQty : row.adjQty * row.unitCost;
-                  return (
-                    <tr key={row.id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
-                      <td className="py-2 px-3">
-                        <input value={row.item} onChange={e => updateItem(row.id, "item", e.target.value)} placeholder="Search item..." className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </td>
-                      <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{row.currentStock}</td>
-                      <td className="py-2 px-3">
-                        <select value={row.unit} onChange={e => updateItem(row.id, "unit", e.target.value)} className="text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="">Unit</option>
-                          {["pcs", "kg", "box", "carton", "set"].map(u => <option key={u}>{u}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-2 px-3">
-                        <input type="number" value={row.adjQty} onChange={e => updateItem(row.id, "adjQty", +e.target.value)} className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input type="number" value={row.unitCost} onChange={e => updateItem(row.id, "unitCost", +e.target.value)} className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </td>
-                      <td className={`py-2 px-3 text-sm font-medium ${adjType !== "Set Stock" && impact < 0 ? "text-red-500" : adjType !== "Set Stock" && impact > 0 ? "text-green-600" : "text-gray-700"}`}>
-                        {adjType === "Set Stock" ? row.adjQty : impact.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3">
-                        <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
-                          <Icon d={icons.trash} size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 w-8">#</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Item *</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">SKU</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Current Stock</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
+                      {adjType === "Set Stock" ? "Set Qty *" : "Adjustment Qty *"}
+                    </th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit Cost (₦)</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
+                      {adjType === "Set Stock" ? "New Stock" : "Total Impact (₦)"}
+                    </th>
+                    <th className="py-2.5 px-3 text-xs font-semibold text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((row, idx) => {
+                    const impact = adjType === "Set Stock" ? row.adjQty : row.adjQty * row.unitCost;
+                    return (
+                      <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                        <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
+                        <td className="py-2 px-3">
+                          <input value={row.item} onChange={e => updateItem(row.id, "item", e.target.value)} placeholder="Search item..." className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </td>
+                        <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
+                        <td className="py-2 px-3 text-sm text-gray-700">{row.currentStock}</td>
+                        <td className="py-2 px-3">
+                          <select value={row.unit} onChange={e => updateItem(row.id, "unit", e.target.value)} className="text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Unit</option>
+                            {["pcs", "kg", "box", "carton", "set"].map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input type="number" value={row.adjQty} onChange={e => updateItem(row.id, "adjQty", +e.target.value)} className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input type="number" value={row.unitCost} onChange={e => updateItem(row.id, "unitCost", +e.target.value)} className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </td>
+                        <td className={`py-2 px-3 text-sm font-medium whitespace-nowrap ${adjType !== "Set Stock" && impact < 0 ? "text-red-500" : adjType !== "Set Stock" && impact > 0 ? "text-green-600" : "text-gray-700"}`}>
+                          {adjType === "Set Stock" ? row.adjQty : impact.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3">
+                          <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
+                            <Icon d={icons.trash} size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
               <button onClick={addItem} className="flex items-center gap-1.5 text-sm text-blue-600 font-medium hover:text-blue-700">
                 <Icon d={icons.plus} size={14} /> Add Item
               </button>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-500">
                 <span>Total Items: <strong className="text-gray-700">{items.length}</strong></span>
                 <span>Total Adjustment Qty: <strong className="text-gray-700">{totalQty}</strong></span>
                 {adjType !== "Set Stock" && <span>Total Impact (₦): <strong className={totalImpact >= 0 ? "text-green-600" : "text-red-500"}>₦{totalImpact.toLocaleString()}</strong></span>}
@@ -263,7 +265,7 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+        <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
           <button onClick={handleSave} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Save Adjustment</button>
         </div>
@@ -288,15 +290,15 @@ const MOCK_ADJ = [
 
 // ── Stat Card ────────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, subColor, icon, bg }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-4 flex-1">
+  <div className="bg-white rounded-xl border border-gray-200 p-4">
     <div className="flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${bg}`}>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
         <Icon d={icon} size={16} />
       </div>
-      <div>
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-xl font-bold text-gray-900">{value}</p>
-        {sub && <p className={`text-xs ${subColor}`}>{sub}</p>}
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 truncate">{label}</p>
+        <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
+        {sub && <p className={`text-xs ${subColor} truncate`}>{sub}</p>}
       </div>
     </div>
   </div>
@@ -345,25 +347,25 @@ export default function AdjustmentsPage() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Adjustments</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Adjustments</h1>
           <p className="text-sm text-gray-500 mt-0.5">Record and manage inventory quantity adjustments.</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
             <Icon d={icons.download} size={15} /> Export
           </button>
-          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+          <button onClick={() => setModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
             <Icon d={icons.plus} size={15} /> New Adjustment
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="flex gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Adjustments" value="124" sub="All time" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
         <StatCard label="Total Increases" value={totalIncreases} sub={`+ ${totalIncUnits.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" />
         <StatCard label="Total Decreases" value={totalDecreases} sub={`- ${totalDecUnits.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" />
@@ -372,7 +374,7 @@ export default function AdjustmentsPage() {
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl mb-4 p-3 flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
           <Icon d={icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -381,68 +383,70 @@ export default function AdjustmentsPage() {
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500 border-l border-gray-200 pl-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500 border-l border-gray-200 pl-3 whitespace-nowrap">
           <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
         </div>
-        <Select value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }} options={["Increase", "Decrease", "Set Stock"]} placeholder="All Types" className="w-36" />
-        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-36" />
+        <Select value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }} options={["Increase", "Decrease", "Set Stock"]} placeholder="All Types" className="w-full sm:w-36" />
+        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
         {(typeFilter || statusFilter || search) && (
-          <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); setPage(1); }} className="text-sm text-red-500 hover:underline ml-auto">Clear</button>
+          <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); setPage(1); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear</button>
         )}
       </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {["Adjustment No.", "Date & Time", "Item", "Adjustment Type", "Location", "Quantity Change", "Value Impact (₦)", "Reason", "Adjusted By", "Status", ""].map(h => (
-                <th key={h} className="py-3 px-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(a => (
-              <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                <td className="py-3 px-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline">{a.id}</td>
-                <td className="py-3 px-3">
-                  <p className="text-sm text-gray-800">{a.date}</p>
-                  <p className="text-xs text-gray-400">{a.time}</p>
-                </td>
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                      <Icon d={icons.box} size={13} className="text-gray-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-800 font-medium leading-tight">{a.item}</p>
-                      <p className="text-xs text-gray-400">{a.sku}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3"><AdjBadge type={a.type} /></td>
-                <td className="py-3 px-3 text-sm text-gray-600">{a.location}</td>
-                <td className={`py-3 px-3 text-sm font-bold ${a.qtyChange > 0 ? "text-green-600" : "text-red-500"}`}>
-                  {a.qtyChange > 0 ? `+${a.qtyChange}` : a.qtyChange}
-                </td>
-                <td className="py-3 px-3 text-sm text-gray-700">₦{a.valueImpact.toLocaleString()}</td>
-                <td className="py-3 px-3 text-sm text-gray-600 max-w-[160px]">
-                  <span className="truncate block" title={a.reason}>{a.reason}</span>
-                </td>
-                <td className="py-3 px-3 text-sm text-gray-600">{a.adjustedBy}</td>
-                <td className="py-3 px-3"><StatusBadge status={a.status} /></td>
-                <td className="py-3 px-3">
-                  <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
-                    <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1100px]">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                {["Adjustment No.", "Date & Time", "Item", "Adjustment Type", "Location", "Quantity Change", "Value Impact (₦)", "Reason", "Adjusted By", "Status", ""].map(h => (
+                  <th key={h} className="py-3 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100 bg-gray-50">
-          <p className="text-sm text-gray-500">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} adjustments</p>
-          <div className="flex items-center gap-1">
+            </thead>
+            <tbody>
+              {visible.map(a => (
+                <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <td className="py-3 px-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{a.id}</td>
+                  <td className="py-3 px-3 whitespace-nowrap">
+                    <p className="text-sm text-gray-800">{a.date}</p>
+                    <p className="text-xs text-gray-400">{a.time}</p>
+                  </td>
+                  <td className="py-3 px-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Icon d={icons.box} size={13} className="text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-800 font-medium leading-tight whitespace-nowrap">{a.item}</p>
+                        <p className="text-xs text-gray-400">{a.sku}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-3"><AdjBadge type={a.type} /></td>
+                  <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{a.location}</td>
+                  <td className={`py-3 px-3 text-sm font-bold whitespace-nowrap ${a.qtyChange > 0 ? "text-green-600" : "text-red-500"}`}>
+                    {a.qtyChange > 0 ? `+${a.qtyChange}` : a.qtyChange}
+                  </td>
+                  <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">₦{a.valueImpact.toLocaleString()}</td>
+                  <td className="py-3 px-3 text-sm text-gray-600 max-w-[160px]">
+                    <span className="truncate block" title={a.reason}>{a.reason}</span>
+                  </td>
+                  <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{a.adjustedBy}</td>
+                  <td className="py-3 px-3"><StatusBadge status={a.status} /></td>
+                  <td className="py-3 px-3">
+                    <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
+                      <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
+          <p className="text-sm text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} adjustments</p>
+          <div className="flex items-center gap-1 flex-wrap justify-center">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
             {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (
               <button key={n} onClick={() => setPage(n)} className={`w-7 h-7 text-sm rounded ${page === n ? "bg-blue-600 text-white" : "border border-gray-200 hover:bg-gray-100 text-gray-700"}`}>{n}</button>
