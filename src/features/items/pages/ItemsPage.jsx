@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { 
-  Plus, Download, Upload, Search, ChevronDown, Filter, 
+import {
+  Plus, Download, Upload, Search, ChevronDown, Filter,
   MoreVertical, Eye, Trash2, SlidersHorizontal
 } from 'lucide-react';
 import ItemDetailsModal from '../components/ItemDetailsModal';
@@ -13,43 +13,51 @@ import Burger from "../../../assets/icons/burger.svg?react";
 import Book   from "../../../assets/icons/book.svg?react";
 import Fiter  from "../../../assets/icons/filter.svg?react";
 
-const INITIAL_ITEMS = [
-  { id: 1, name: 'Dell Latitude 5440', sku: 'LAP-001', barcode: '1234567890123', category: 'Laptops', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 35, stockStatus: 'In Stock', img: '💻', brand: 'Dell', model: 'Latitude 5440', weight: '1.48 kg', addedOn: 'May 20, 2025' },
-  { id: 2, name: 'HP LaserJet Pro MFP M428', sku: 'PRN-001', barcode: '2345678901234', category: 'Printers', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 12, stockStatus: 'In Stock', img: '🖨️', brand: 'HP', model: 'M428fdw', weight: '12.6 kg', addedOn: 'May 18, 2025' },
-  { id: 3, name: 'Ergonomic Office Chair', sku: 'CHR-002', barcode: '3456789012345', category: 'Furniture', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 8, stockStatus: 'In Stock', img: '🪑', brand: '', model: '', weight: '', addedOn: 'May 15, 2025' },
-  { id: 4, name: 'Cat6 Ethernet Cable 2M', sku: 'CAB-002', barcode: '4567890123456', category: 'Accessories', uom: 'Meter (M)', type: 'Stock Item', status: 'Active', stock: 150, stockStatus: 'In Stock', img: '🔌', brand: '', model: '', weight: '', addedOn: 'May 10, 2025' },
-  { id: 5, name: 'USB-C Hub 7-in-1', sku: 'ACC-003', barcode: '5678901234567', category: 'Accessories', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 25, stockStatus: 'In Stock', img: '🔗', brand: '', model: '', weight: '', addedOn: 'May 8, 2025' },
-  { id: 6, name: '24" LED Monitor', sku: 'MON-001', barcode: '6789012345678', category: 'Monitors', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Active', stock: 18, stockStatus: 'In Stock', img: '🖥️', brand: '', model: '', weight: '', addedOn: 'May 5, 2025' },
-  { id: 7, name: 'HP 58A Toner Cartridge', sku: 'CON-001', barcode: '7890123456789', category: 'Consumables', uom: 'Piece (PCS)', type: 'Consumable', status: 'Active', stock: 6, stockStatus: 'In Stock', img: '🖨️', brand: 'HP', model: '58A', weight: '', addedOn: 'May 3, 2025' },
-  { id: 8, name: 'Wireless Keyboard', sku: 'ACC-004', barcode: '8901234567890', category: 'Accessories', uom: 'Piece (PCS)', type: 'Stock Item', status: 'Inactive', stock: 0, stockStatus: 'Out of Stock', img: '⌨️', brand: '', model: '', weight: '', addedOn: 'Apr 28, 2025' },
-];
+import { useItems } from "../hooks/useItems.js";
+import { useCategories } from "../../categories/hooks/useCategories.js";
+import { useSuppliers } from "../../suppliers/hooks/useSuppliers.js";
+import { useUnits } from "../../units/hooks/useUnits.js";
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 const Items = () => {
-  const [items, setItems] = useState(INITIAL_ITEMS);
+  const {
+    items,
+    isLoading: isLoadingItems,
+    error: itemsError,
+    createItem,
+    updateItem,
+    deleteItem,
+  } = useItems();
+
+  // These power the dropdowns in the Add/Edit item forms.
+  const { categories } = useCategories();
+  const { suppliers } = useSuppliers();
+  const { units } = useUnits();
+
   const [activeMenu, setActiveMenu] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
- 
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All Categories');
   const [filterStatus, setFilterStatus] = useState('All Statuses');
   const [filterType, setFilterType] = useState('All Types');
 
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  
-  const categories = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
+
+  const categoryNames = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
   const types = ['All Types', 'Stock Item', 'Consumable'];
 
-  
+
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const q = searchQuery.toLowerCase();
@@ -65,14 +73,14 @@ const Items = () => {
     });
   }, [items, searchQuery, filterCategory, filterStatus, filterType]);
 
- 
+
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  
+
   const handleFilterChange = (setter) => (val) => {
     setter(val);
     setCurrentPage(1);
@@ -92,19 +100,39 @@ const Items = () => {
     return pages;
   };
 
-  const handleSaveNewItem = (newItem) => {
-    setItems(prev => [newItem, ...prev]);
+  const handleSaveNewItem = async (apiPayload, imageFile) => {
+    setActionError(null);
+    await createItem(apiPayload, imageFile);
     setIsAddModalOpen(false);
   };
 
-  const handleUpdateItem = (updatedItem) => {
-    setItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
-    setSelectedItem(updatedItem);
+  const handleUpdateItem = async (id, apiPayload) => {
+    setActionError(null);
+    const updated = await updateItem(id, apiPayload);
+    setSelectedItem(updated);
+    return updated;
   };
 
-  const handleDuplicateItem = (newItem) => {
-    setItems(prev => [newItem, ...prev]);
-    setIsModalOpen(false);
+  const handleDuplicateItem = async (item) => {
+    setActionError(null);
+    try {
+      await createItem({
+        name: `${item.name} (Copy)`,
+        category_id: item.categoryId,
+        unit_of_measure_id: item.unitId,
+        supplier_id: item.supplierId || undefined,
+        item_type: item.raw?.item_type || "product",
+        brand: item.brand || undefined,
+        description: item.description || undefined,
+        unit_cost: item.unitCost ?? undefined,
+        selling_price: item.sellingPrice ?? undefined,
+        reorder_level: item.reorderLevel ?? undefined,
+        status: "active",
+      });
+      setIsModalOpen(false);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't duplicate this item.");
+    }
   };
 
   const handleExport = () => {
@@ -114,9 +142,14 @@ const Items = () => {
     XLSX.writeFile(wb, "Inventory_Export.xlsx");
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this item?")) {
-      setItems(items.filter(i => i.id !== id));
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    setActionError(null);
+    try {
+      await deleteItem(id);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't delete this item.");
+    } finally {
       setActiveMenu(null);
     }
   };
@@ -149,9 +182,9 @@ const Items = () => {
           <p className="text-[#6B7591] text-[14px] font-medium mt-1">Manage all items in your inventory</p>
         </div>
         <div className="flex items-center gap-3">
-          <HeaderButton icon={<Upload size={16}/>} label="Import Items" onClick={() => setIsImportModalOpen(true)} />
+          <HeaderButton icon={<Download size={16}/>} label="Import Items" onClick={() => setIsImportModalOpen(true)} />
           <ImportItems isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImportComplete={() => {}} />
-          <HeaderButton icon={<Download size={16}/>} label="Export Items" onClick={handleExport} />
+          <HeaderButton icon={< Upload size={16}/>} label="Export Items" onClick={handleExport} />
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2 bg-[#4F46E5] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
@@ -161,12 +194,18 @@ const Items = () => {
         </div>
       </div>
 
+      {(itemsError || actionError) && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {itemsError || actionError}
+        </div>
+      )}
+
       {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard title="Total Items" val={items.length.toLocaleString()} sub="Active items" icon={<Num size={20}/>} />
         <StatCard title="Item Categories" val={Array.from(new Set(items.map(i => i.category))).length.toString()} sub="Categories" icon={<Card size={20}/>} />
         <StatCard title="Total SKUs" val={items.length.toLocaleString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
-        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={`${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of total items`} icon={<Book size={20}/>} />
+        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of total items` : '0% of total items'} icon={<Book size={20}/>} />
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -194,7 +233,7 @@ const Items = () => {
             <FilterSelect
               value={filterCategory}
               onChange={handleFilterChange(setFilterCategory)}
-              options={categories}
+              options={categoryNames}
             />
           </div>
 
@@ -272,13 +311,21 @@ const Items = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 text-[13px] font-bold text-[#1E2740]">
-              {paginatedItems.length === 0 ? (
+              {isLoadingItems ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
+                    Loading items...
+                  </td>
+                </tr>
+              ) : paginatedItems.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
                     <div className="flex flex-col items-center gap-2">
                       <Search size={32} className="text-gray-200"/>
-                      <p>No items match your filters.</p>
-                      <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
+                      <p>{items.length === 0 ? "No items yet. Add your first one to get started." : "No items match your filters."}</p>
+                      {items.length > 0 && (
+                        <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -389,8 +436,18 @@ const Items = () => {
         item={selectedItem}
         onUpdate={handleUpdateItem}
         onDuplicate={handleDuplicateItem}
+        categories={categories}
+        suppliers={suppliers}
+        units={units}
       />
-      <AddNewItems isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewItem}/>
+      <AddNewItems
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleSaveNewItem}
+        categories={categories}
+        suppliers={suppliers}
+        units={units}
+      />
     </div>
   );
 };

@@ -64,7 +64,7 @@ function CalPicker({ value, onChange, onClose }) {
     else { if(d<lStart){setLE(lStart);setLS(d);}else setLE(d); setPhase(null); }
   };
   return (
-    <div style={{ position:"absolute",top:"calc(100% + 6px)",left:0,background:"#fff",border:"1px solid #e4e7ef",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",zIndex:1000,padding:20,minWidth:300 }}>
+    <div style={{ position:"absolute",top:"calc(100% + 6px)",left:0,background:"#fff",border:"1px solid #e4e7ef",borderRadius:12,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",zIndex:1000,padding:20,minWidth:300,maxWidth:"calc(100vw - 24px)" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
         <button onClick={()=>setView(new Date(y,m-1,1))} style={{ border:"1px solid #e4e7ef",borderRadius:6,width:28,height:28,cursor:"pointer",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center" }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1e2740" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg></button>
         <span style={{ fontWeight:600,fontSize:13,color:"#1e2740" }}>{MONTHS_SHORT[m]} {y}</span>
@@ -81,7 +81,7 @@ function CalPicker({ value, onChange, onClose }) {
           </div>
         ))}
       </div>
-      <div style={{ borderTop:"1px solid #f0f2f7",paddingTop:10,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+      <div style={{ borderTop:"1px solid #f0f2f7",paddingTop:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8 }}>
         <div style={{ fontSize:11,color:"#6b7591" }}>{lStart?fmtD(lStart):"Start"}{lEnd?` – ${fmtD(lEnd)}`:""}</div>
         <div style={{ display:"flex",gap:6 }}>
           <button onClick={onClose} style={{ padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:6,fontSize:12,cursor:"pointer",background:"#fff",fontFamily:"inherit" }}>Cancel</button>
@@ -151,7 +151,7 @@ export default function Reports() {
   };
 
   return (
-    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740" }}>
+    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740", padding:"clamp(12px,3vw,24px)" }}>
       {toast && <Toast msg={toast}/>}
       <style>{`
         .rpt-row:hover { background:#f8f9fb; }
@@ -160,17 +160,40 @@ export default function Reports() {
         .rpt-pagbtn.active { background:#4f6ef7;border-color:#4f6ef7;color:#fff;font-weight:600; }
         .rpt-pagbtn.muted  { cursor:default;color:#9aa1b4; }
         input::placeholder { color:#b0b8cc; }
+
+        .rpt-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:22px; gap:12px; flex-wrap:wrap; }
+        .rpt-cats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+        .rpt-filters-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto auto; gap:12px; align-items:end; }
+        .rpt-filters-actions { display:flex; gap:12px; }
+        .rpt-table-wrap { overflow-x:auto; }
+        .rpt-table { width:100%; min-width:920px; border-collapse:collapse; font-size:12.5px; }
+        .rpt-pagination { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-top:1px solid #e4e7ef; flex-wrap:wrap; gap:10px; }
+
+        @media (max-width: 1024px) {
+          .rpt-cats { grid-template-columns:repeat(2,1fr); }
+          .rpt-filters-grid { grid-template-columns:1fr 1fr; }
+          .rpt-filters-actions { grid-column:1 / -1; justify-content:flex-end; }
+        }
+        @media (max-width: 640px) {
+          .rpt-header { flex-direction:column; align-items:stretch; }
+          .rpt-header > div:last-child button { width:100%; justify-content:center; }
+          .rpt-cats { grid-template-columns:1fr; }
+          .rpt-filters-grid { grid-template-columns:1fr; }
+          .rpt-filters-actions { justify-content:stretch; }
+          .rpt-filters-actions button { flex:1; }
+          .rpt-pagination { justify-content:center; text-align:center; }
+        }
       `}</style>
 
       {/* Header */}
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:22 }}>
+      <div className="rpt-header">
         <div>
           <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Reports</h1>
           <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Generate and download inventory reports and analytics</p>
         </div>
         {/* Date Range header button */}
-        <div ref={calRef} style={{ position:"relative" }}>
-          <button onClick={()=>setShowCal(o=>!o)} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 14px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500 }}>
+        <div style={{ position:"relative" }}>
+          <button onClick={()=>setShowCal(o=>!o)} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 14px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             {fmtDR()}
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -180,7 +203,7 @@ export default function Reports() {
       </div>
 
       {/* Category Cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:24 }}>
+      <div className="rpt-cats">
         {Object.entries(CAT_ICON_MAP).map(([cat,cfg])=>(
           <div key={cat} onClick={()=>{ setCatFilter(cat===catFilter?"All Report Types":cat); setPage(1); }}
             style={{ background:"#fff", border:`1px solid ${catFilter===cat?"#4f6ef7":"#e4e7ef"}`, borderRadius:12, padding:20, cursor:"pointer", transition:"all .15s", boxShadow: catFilter===cat?"0 0 0 2px rgba(79,110,247,0.15)":"none" }}
@@ -200,7 +223,7 @@ export default function Reports() {
 
       {/* Filters */}
       <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:"14px 18px", marginBottom:2 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr auto auto", gap:12, alignItems:"end" }}>
+        <div className="rpt-filters-grid">
           <div>
             <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:5 }}>Report Type</label>
             <div style={{ position:"relative" }}>
@@ -213,7 +236,7 @@ export default function Reports() {
           </div>
           <div>
             <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:5 }}>Date Range</label>
-            <div ref={calRef} style={{ position:"relative" }}>
+            <div style={{ position:"relative" }}>
               <button onClick={()=>setShowCal(o=>!o)} style={{ width:"100%",display:"flex",alignItems:"center",gap:7,padding:"8px 10px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 <span style={{ flex:1, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fmtDR()}</span>
@@ -241,84 +264,88 @@ export default function Reports() {
               <svg style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
           </div>
-          <button onClick={()=>{ setCatFilter("All Report Types"); setFormat("All Formats"); setWarehouse("All Locations"); setSearch(""); setPage(1); }}
-            style={{ padding:"8px 20px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap" }}>
-            Reset
-          </button>
-          <button style={{ padding:"8px 20px",border:"none",borderRadius:8,background:"#4f6ef7",color:"#fff",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,whiteSpace:"nowrap" }}
-            onClick={()=>showToast("Filters applied ✓")}>
-            Apply Filters
-          </button>
+          <div className="rpt-filters-actions">
+            <button onClick={()=>{ setCatFilter("All Report Types"); setFormat("All Formats"); setWarehouse("All Locations"); setSearch(""); setPage(1); }}
+              style={{ padding:"8px 20px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap" }}>
+              Reset
+            </button>
+            <button style={{ padding:"8px 20px",border:"none",borderRadius:8,background:"#4f6ef7",color:"#fff",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,whiteSpace:"nowrap" }}
+              onClick={()=>showToast("Filters applied ✓")}>
+              Apply Filters
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Search */}
-      <div style={{ padding:"12px 18px", background:"#fff", borderTop:"none", border:"1px solid #e4e7ef", borderTop:"0", marginBottom:0, borderRadius:"0 0 0 0" }}>
-        <div style={{ position:"relative", maxWidth:320 }}>
+      <div style={{ padding:"12px 18px", background:"#fff", border:"1px solid #e4e7ef", borderTop:"0" }}>
+        <div style={{ position:"relative", maxWidth:320, width:"100%" }}>
           <svg style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search reports..."
-            style={{ width:"100%",padding:"7px 10px 7px 32px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none" }}/>
+            style={{ width:"100%",padding:"7px 10px 7px 32px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none",boxSizing:"border-box" }}/>
         </div>
       </div>
 
       {/* Table */}
       <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", marginTop:14 }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12.5 }}>
-          <thead>
-            <tr style={{ background:"#f8f9fb", borderBottom:"1px solid #e4e7ef" }}>
-              <th style={{ textAlign:"left",padding:"12px 18px",color:"#6b7591",fontWeight:500 }}>Report Name</th>
-              <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Category</th>
-              <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Description</th>
-              <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Format</th>
-              <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Last Generated</th>
-              <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Generated By</th>
-              <th style={{ textAlign:"center",padding:"12px 12px",color:"#6b7591",fontWeight:500 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.length===0 ? (
-              <tr><td colSpan={7} style={{ padding:"48px 20px",textAlign:"center",color:"#9aa1b4" }}>No reports match your search.</td></tr>
-            ) : paginated.map((r,i)=>(
-              <tr key={r.id} className="rpt-row" style={{ borderBottom:i===paginated.length-1?"none":"1px solid #f4f6fb", transition:"background .15s" }}>
-                <td style={{ padding:"14px 18px" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                    <div style={{ width:36, height:36, borderRadius:8, background:"#f4f6fb", border:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"center", color:"#6b7591", flexShrink:0 }}>
-                      {ICON_MAP[r.icon]}
-                    </div>
-                    <span style={{ fontWeight:600, color:"#1e2740", fontSize:13 }}>{r.name}</span>
-                  </div>
-                </td>
-                <td style={{ padding:"14px 12px" }}>
-                  <span style={{ background:r.catColor, color:r.catText, padding:"3px 10px", borderRadius:5, fontSize:11.5, fontWeight:600, whiteSpace:"nowrap" }}>{r.cat}</span>
-                </td>
-                <td style={{ padding:"14px 12px", color:"#6b7591", maxWidth:240 }}>{r.desc}</td>
-                <td style={{ padding:"14px 12px", color:"#6b7591", whiteSpace:"nowrap" }}>{r.format}</td>
-                <td style={{ padding:"14px 12px", color:"#6b7591", whiteSpace:"nowrap", fontSize:12 }}>{r.lastGen}</td>
-                <td style={{ padding:"14px 12px", color:"#1e2740", fontWeight:500 }}>{r.genBy}</td>
-                <td style={{ padding:"14px 12px", textAlign:"center" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-                    {/* Download */}
-                    <button onClick={()=>handleDownload(r,"Excel")}
-                      style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}
-                      onMouseEnter={e=>{e.currentTarget.style.background="#eef2ff";e.currentTarget.style.borderColor="#4f6ef7";}} onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor="#e4e7ef";}}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    </button>
-                    {/* More */}
-                    <button style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}
-                      onMouseEnter={e=>e.currentTarget.style.background="#f4f6fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-                    </button>
-                  </div>
-                </td>
+        <div className="rpt-table-wrap">
+          <table className="rpt-table">
+            <thead>
+              <tr style={{ background:"#f8f9fb", borderBottom:"1px solid #e4e7ef" }}>
+                <th style={{ textAlign:"left",padding:"12px 18px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Report Name</th>
+                <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Category</th>
+                <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Description</th>
+                <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Format</th>
+                <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Last Generated</th>
+                <th style={{ textAlign:"left",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Generated By</th>
+                <th style={{ textAlign:"center",padding:"12px 12px",color:"#6b7591",fontWeight:500,whiteSpace:"nowrap" }}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paginated.length===0 ? (
+                <tr><td colSpan={7} style={{ padding:"48px 20px",textAlign:"center",color:"#9aa1b4" }}>No reports match your search.</td></tr>
+              ) : paginated.map((r,i)=>(
+                <tr key={r.id} className="rpt-row" style={{ borderBottom:i===paginated.length-1?"none":"1px solid #f4f6fb", transition:"background .15s" }}>
+                  <td style={{ padding:"14px 18px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ width:36, height:36, borderRadius:8, background:"#f4f6fb", border:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"center", color:"#6b7591", flexShrink:0 }}>
+                        {ICON_MAP[r.icon]}
+                      </div>
+                      <span style={{ fontWeight:600, color:"#1e2740", fontSize:13, whiteSpace:"nowrap" }}>{r.name}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding:"14px 12px" }}>
+                    <span style={{ background:r.catColor, color:r.catText, padding:"3px 10px", borderRadius:5, fontSize:11.5, fontWeight:600, whiteSpace:"nowrap" }}>{r.cat}</span>
+                  </td>
+                  <td style={{ padding:"14px 12px", color:"#6b7591", maxWidth:240 }}>{r.desc}</td>
+                  <td style={{ padding:"14px 12px", color:"#6b7591", whiteSpace:"nowrap" }}>{r.format}</td>
+                  <td style={{ padding:"14px 12px", color:"#6b7591", whiteSpace:"nowrap", fontSize:12 }}>{r.lastGen}</td>
+                  <td style={{ padding:"14px 12px", color:"#1e2740", fontWeight:500, whiteSpace:"nowrap" }}>{r.genBy}</td>
+                  <td style={{ padding:"14px 12px", textAlign:"center" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                      {/* Download */}
+                      <button onClick={()=>handleDownload(r,"Excel")}
+                        style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}
+                        onMouseEnter={e=>{e.currentTarget.style.background="#eef2ff";e.currentTarget.style.borderColor="#4f6ef7";}} onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor="#e4e7ef";}}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </button>
+                      {/* More */}
+                      <button style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#f4f6fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {/* Pagination */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 18px", borderTop:"1px solid #e4e7ef" }}>
+        <div className="rpt-pagination">
           <span style={{ fontSize:12, color:"#6b7591" }}>Showing {filtered.length===0?0:(page-1)*PAGE_SIZE+1} to {Math.min(page*PAGE_SIZE,filtered.length)} of {filtered.length} reports</span>
-          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap", justifyContent:"center" }}>
             <div className="rpt-pagbtn" onClick={()=>setPage(p=>Math.max(1,p-1))}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
             </div>

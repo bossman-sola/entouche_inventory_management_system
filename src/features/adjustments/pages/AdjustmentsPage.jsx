@@ -1,4 +1,45 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Upload, Loader2, AlertCircle } from "lucide-react";
+
+// ── API CONFIG ───────────────────────────────────────────────────────────────
+// Same base URL your other pages (Items, Categories, Suppliers, Units, Users)
+// are already pointed at.
+const API_BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com";
+
+// Wherever your app stores the JWT from POST /api/v1/auth/login — swap this
+// for your existing auth context/hook if you're not using localStorage.
+const getAuthToken = () => localStorage.getItem("access_token");
+
+async function apiRequest(path, { method = "GET", body, params } = {}) {
+  const url = new URL(`${API_BASE_URL}/api/v1${path}`);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
+    });
+  }
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  let json = null;
+  try { json = await res.json(); } catch { /* empty body */ }
+
+  if (!res.ok || (json && json.success === false)) {
+    const message = json?.message || `Request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    err.errors = json?.errors;
+    throw err;
+  }
+  return json;
+}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
@@ -30,19 +71,19 @@ const icons = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const AdjBadge = ({ type }) => {
   const s = { Increase: "bg-green-100 text-green-700", Decrease: "bg-red-100 text-red-600", "Set Stock": "bg-yellow-100 text-yellow-700" };
-  return <span className={`px-2.5 py-0.5 rounded text-xs font-medium ${s[type] || "bg-gray-100 text-gray-600"}`}>{type}</span>;
+  return <span className={`px-2.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${s[type] || "bg-gray-100 text-gray-600"}`}>{type}</span>;
 };
 
 const StatusBadge = ({ status }) => {
   const s = { Completed: "bg-green-100 text-green-700", Pending: "bg-yellow-100 text-yellow-700", Cancelled: "bg-red-100 text-red-700" };
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
+  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
-const Select = ({ value, onChange, options, placeholder, className = "" }) => (
+const Select = ({ value, onChange, options, placeholder, className = "", disabled = false }) => (
   <div className={`relative ${className}`}>
-    <select value={value} onChange={e => onChange(e.target.value)} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+    <select disabled={disabled} value={value} onChange={e => onChange(e.target.value)} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full disabled:bg-gray-50 disabled:text-gray-400">
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o}>{o}</option>)}
+      {options.map(o => (typeof o === "string" ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>))}
     </select>
     <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
   </div>
@@ -73,9 +114,9 @@ const DateTimePicker = ({ label, required, value, onChange, className = "" }) =>
 const Modal = ({ open, onClose, children }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -86,10 +127,10 @@ const Modal = ({ open, onClose, children }) => {
 const AdjTypeButton = ({ id, icon, color, bg, label, sub, selected, onClick }) => (
   <button
     onClick={() => onClick(id)}
-    className={`flex-1 flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${selected ? `border-current ${bg}` : "border-gray-200 hover:border-gray-300"}`}
+    className={`flex-1 min-w-[140px] flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${selected ? `border-current ${bg}` : "border-gray-200 hover:border-gray-300"}`}
     style={selected ? { borderColor: color, backgroundColor: `${color}15` } : {}}
   >
-    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
+    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20`, color }}>
       <Icon d={icon} size={16} strokeWidth={2} />
     </div>
     <div>
@@ -99,10 +140,52 @@ const AdjTypeButton = ({ id, icon, color, bg, label, sub, selected, onClick }) =
   </button>
 );
 
-// ── New Adjustment Modal ─────────────────────────────────────────────────────
-const emptyItem = () => ({ id: Date.now() + Math.random(), item: "", sku: "", unit: "", currentStock: 0, adjQty: 0, unitCost: 0 });
+// ── Item typeahead (backed by GET /api/v1/items) ────────────────────────────
+const ItemPicker = ({ row, allItems, itemsLoading, onPick }) => {
+  const [query, setQuery] = useState(row.item);
+  const [open, setOpen] = useState(false);
 
-const NewAdjustmentModal = ({ open, onClose, onSave }) => {
+  useEffect(() => setQuery(row.item), [row.item]);
+
+  const matches = query.trim().length
+    ? allItems.filter(it => it.name.toLowerCase().includes(query.toLowerCase()) || (it.sku || "").toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    : allItems.slice(0, 8);
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={itemsLoading ? "Loading items..." : "Search item..."}
+        disabled={itemsLoading}
+        className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+      />
+      {open && !itemsLoading && (
+        <div className="absolute z-10 mt-1 w-64 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+          {matches.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No items found</p>}
+          {matches.map(it => (
+            <button
+              key={it.id}
+              type="button"
+              onMouseDown={() => { onPick(it); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2"
+            >
+              <span className="truncate">{it.name}</span>
+              <span className="text-xs text-gray-400 shrink-0">{it.sku}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── New Adjustment Modal ─────────────────────────────────────────────────────
+const emptyItem = () => ({ id: Date.now() + Math.random(), itemId: null, item: "", sku: "", unit: "", currentStock: 0, adjQty: 0, unitCost: 0, stockLoading: false });
+
+const NewAdjustmentModal = ({ open, onClose, onSave, allItems, itemsLoading, users, usersLoading }) => {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
   const [location, setLocation] = useState("");
   const [adjType, setAdjType] = useState("Increase");
@@ -111,10 +194,15 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
   const [adjustedBy, setAdjustedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([emptyItem()]);
+  const [saving, setSaving] = useState(false);
 
+  // Locations & reasons: not part of the tested API collection yet (no
+  // /warehouses, /locations, or /adjustment-reasons endpoint). Keeping these
+  // as static config for now — swap for a fetch as soon as one exists.
   const locs = ["Receiving Area", "Storage Area", "Storage Area A1-01", "Storage Area A1-02", "Storage Area B2-01", "Storage Area B2-02", "Dispatch Area", "Dispatch Area D1-01", "Damaged Goods Area"];
-  const users = ["Inventory Officer", "Warehouse Manager", "System Administrator"];
   const reasons = ["Damaged items", "Lost during handling", "Stock count variance adjustment", "Supplier sent extra items", "Additional stock found in store", "New stock found", "Customer return – damaged", "Not working", "Received missing items from supplier"];
+
+  const userOptions = users.map(u => ({ value: String(u.id), label: u.name }));
 
   const adjTypes = [
     { id: "Increase", icon: icons.plus, color: "#16a34a", label: "Increase Stock", sub: "Add stock to inventory" },
@@ -126,23 +214,63 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
   const removeItem = id => setItems(p => p.filter(r => r.id !== id));
   const updateItem = (id, field, val) => setItems(p => p.map(r => r.id === id ? { ...r, [field]: val } : r));
 
+  const handlePickItem = async (rowId, apiItem) => {
+    setItems(p => p.map(r => r.id === rowId ? {
+      ...r,
+      itemId: apiItem.id,
+      item: apiItem.name,
+      sku: apiItem.sku || "",
+      unit: apiItem.unit?.abbreviation || apiItem.unit?.name || "",
+      unitCost: apiItem.unit_cost ?? r.unitCost,
+      stockLoading: true,
+    } : r));
+
+    // GET /api/v1/items/{id}/stock-balance — pulls live on-hand quantity
+    try {
+      const res = await apiRequest(`/items/${apiItem.id}/stock-balance`);
+      setItems(p => p.map(r => r.id === rowId ? { ...r, currentStock: res.data?.total_available ?? res.data?.total_on_hand ?? 0, stockLoading: false } : r));
+    } catch {
+      setItems(p => p.map(r => r.id === rowId ? { ...r, stockLoading: false } : r));
+    }
+  };
+
   const totalQty = items.reduce((s, r) => s + Math.abs(+r.adjQty), 0);
   const totalImpact = items.reduce((s, r) => s + r.adjQty * r.unitCost, 0);
 
-  const handleSave = () => {
-    onSave({ adjType, date, location, reason, items });
+  const handleSave = async () => {
+    setSaving(true);
+    const payload = {
+      type: adjType,
+      date,
+      location,
+      reason,
+      reference_number: refNum || null,
+      adjusted_by: adjustedBy,
+      notes: notes || null,
+      items: items.map(r => ({ item_id: r.itemId, sku: r.sku, unit: r.unit, quantity: r.adjQty, unit_cost: r.unitCost })),
+    };
+
+    // NOTE: There's no adjustments endpoint in the tested API collection yet
+    // (no POST /api/v1/adjustments). Once it exists, swap the block below for:
+    //
+    //   const res = await apiRequest("/adjustments", { method: "POST", body: payload });
+    //   onSave(res.data);
+    //
+    // For now this just saves locally so the page stays usable.
+    onSave(payload);
+    setSaving(false);
     onClose();
   };
 
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-6">
+      <div className="p-4 sm:p-6">
+        <div className="flex items-start justify-between mb-6 gap-3">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">New Inventory Adjustment</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">New Inventory Adjustment</h2>
             <p className="text-sm text-gray-500 mt-0.5">Record inventory quantity adjustments.</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
             <Icon d={icons.x} size={16} />
           </button>
         </div>
@@ -150,21 +278,20 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
         {/* Step 1: Adjustment Information */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">1</span>
             <span className="font-semibold text-gray-800">Adjustment Information</span>
           </div>
 
-          {/* Adjustment Type */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Type<span className="text-red-500">*</span></label>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {adjTypes.map(t => (
                 <AdjTypeButton key={t.id} {...t} selected={adjType === t.id} onClick={setAdjType} />
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <DateTimePicker label="Adjustment Date" required value={date} onChange={setDate} />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location<span className="text-red-500">*</span></label>
@@ -180,7 +307,7 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Adjusted By<span className="text-red-500">*</span></label>
-              <Select value={adjustedBy} onChange={setAdjustedBy} options={users} placeholder="Select user" />
+              <Select value={adjustedBy} onChange={setAdjustedBy} options={userOptions} placeholder={usersLoading ? "Loading users..." : "Select user"} disabled={usersLoading} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -192,69 +319,74 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
         {/* Step 2: Items */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
             <span className="font-semibold text-gray-800">Items</span>
           </div>
           <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 w-8">#</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Item *</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">SKU</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Current Stock</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
-                    {adjType === "Set Stock" ? "Set Qty *" : "Adjustment Qty *"}
-                  </th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit Cost (₦)</th>
-                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
-                    {adjType === "Set Stock" ? "New Stock" : "Total Impact (₦)"}
-                  </th>
-                  <th className="py-2.5 px-3 text-xs font-semibold text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((row, idx) => {
-                  const impact = adjType === "Set Stock" ? row.adjQty : row.adjQty * row.unitCost;
-                  return (
-                    <tr key={row.id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
-                      <td className="py-2 px-3">
-                        <input value={row.item} onChange={e => updateItem(row.id, "item", e.target.value)} placeholder="Search item..." className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </td>
-                      <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{row.currentStock}</td>
-                      <td className="py-2 px-3">
-                        <select value={row.unit} onChange={e => updateItem(row.id, "unit", e.target.value)} className="text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <option value="">Unit</option>
-                          {["pcs", "kg", "box", "carton", "set"].map(u => <option key={u}>{u}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-2 px-3">
-                        <input type="number" value={row.adjQty} onChange={e => updateItem(row.id, "adjQty", +e.target.value)} className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input type="number" value={row.unitCost} onChange={e => updateItem(row.id, "unitCost", +e.target.value)} className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </td>
-                      <td className={`py-2 px-3 text-sm font-medium ${adjType !== "Set Stock" && impact < 0 ? "text-red-500" : adjType !== "Set Stock" && impact > 0 ? "text-green-600" : "text-gray-700"}`}>
-                        {adjType === "Set Stock" ? row.adjQty : impact.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3">
-                        <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
-                          <Icon d={icons.trash} size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 w-8">#</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Item *</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">SKU</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Current Stock</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
+                      {adjType === "Set Stock" ? "Set Qty *" : "Adjustment Qty *"}
+                    </th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">Unit Cost (₦)</th>
+                    <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500">
+                      {adjType === "Set Stock" ? "New Stock" : "Total Impact (₦)"}
+                    </th>
+                    <th className="py-2.5 px-3 text-xs font-semibold text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((row, idx) => {
+                    const impact = adjType === "Set Stock" ? row.adjQty : row.adjQty * row.unitCost;
+                    return (
+                      <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                        <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
+                        <td className="py-2 px-3">
+                          <ItemPicker row={row} allItems={allItems} itemsLoading={itemsLoading} onPick={(it) => handlePickItem(row.id, it)} />
+                        </td>
+                        <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
+                        <td className="py-2 px-3 text-sm text-gray-700">
+                          {row.stockLoading ? <Loader2 size={13} className="animate-spin text-gray-400" /> : row.currentStock}
+                        </td>
+                        <td className="py-2 px-3">
+                          <select value={row.unit} onChange={e => updateItem(row.id, "unit", e.target.value)} className="text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Unit</option>
+                            {row.unit && <option value={row.unit}>{row.unit}</option>}
+                            {["pcs", "kg", "box", "carton", "set"].filter(u => u !== row.unit).map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input type="number" value={row.adjQty} onChange={e => updateItem(row.id, "adjQty", +e.target.value)} className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
+                        </td>
+                        <td className="py-2 px-3">
+                          <input type="number" value={row.unitCost} onChange={e => updateItem(row.id, "unitCost", +e.target.value)} className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </td>
+                        <td className={`py-2 px-3 text-sm font-medium whitespace-nowrap ${adjType !== "Set Stock" && impact < 0 ? "text-red-500" : adjType !== "Set Stock" && impact > 0 ? "text-green-600" : "text-gray-700"}`}>
+                          {adjType === "Set Stock" ? row.adjQty : impact.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3">
+                          <button onClick={() => removeItem(row.id)} className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-500">
+                            <Icon d={icons.trash} size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-3 py-2.5 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
               <button onClick={addItem} className="flex items-center gap-1.5 text-sm text-blue-600 font-medium hover:text-blue-700">
                 <Icon d={icons.plus} size={14} /> Add Item
               </button>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-500">
                 <span>Total Items: <strong className="text-gray-700">{items.length}</strong></span>
                 <span>Total Adjustment Qty: <strong className="text-gray-700">{totalQty}</strong></span>
                 {adjType !== "Set Stock" && <span>Total Impact (₦): <strong className={totalImpact >= 0 ? "text-green-600" : "text-red-500"}>₦{totalImpact.toLocaleString()}</strong></span>}
@@ -263,40 +395,28 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
           </div>
         </div>
 
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+        <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Save Adjustment</button>
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+            {saving && <Loader2 size={14} className="animate-spin" />} Save Adjustment
+          </button>
         </div>
       </div>
     </Modal>
   );
 };
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_ADJ = [
-  { id: "ADJ-000124", date: "May 27, 2025", time: "02:45 PM", item: "Dell Latitude 5440", sku: "LAP-001", type: "Increase", location: "Storage Area A1-01", qtyChange: +10, valueImpact: 6250000, reason: "Received missing items from supplier", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000123", date: "May 27, 2025", time: "11:20 AM", item: "HP LaserJet Pro M428", sku: "PRN-001", type: "Decrease", location: "Storage Area A1-02", qtyChange: -2, valueImpact: 1700000, reason: "Damaged items", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000122", date: "May 26, 2025", time: "04:15 PM", item: "Ergonomic Office Chair", sku: "CHR-002", type: "Increase", location: "Storage Area B2-01", qtyChange: +5, valueImpact: 750000, reason: "Stock count variance adjustment", adjustedBy: "Warehouse Manager", status: "Completed" },
-  { id: "ADJ-000121", date: "May 26, 2025", time: "10:05 AM", item: "Cat6 Ethernet Cable 2M", sku: "CAB-002", type: "Decrease", location: "Storage Area A1-03", qtyChange: -15, valueImpact: 75000, reason: "Lost during handling", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000120", date: "May 25, 2025", time: "03:30 PM", item: "USB-C Hub 7-in-1", sku: "ACC-003", type: "Increase", location: "Storage Area A1-04", qtyChange: +8, valueImpact: 296000, reason: "Additional stock found in store", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000119", date: "May 25, 2025", time: "09:45 AM", item: '24" LED Monitor', sku: "MON-001", type: "Decrease", location: "Dispatch Area D1-01", qtyChange: -3, valueImpact: 165000, reason: "Damaged in transit", adjustedBy: "Warehouse Manager", status: "Pending" },
-  { id: "ADJ-000118", date: "May 24, 2025", time: "02:10 PM", item: "HP 58A Toner Cartridge", sku: "CON-001", type: "Increase", location: "Storage Area B2-02", qtyChange: +12, valueImpact: 180000, reason: "Supplier sent extra items", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000117", date: "May 24, 2025", time: "10:30 AM", item: "Wireless Keyboard", sku: "ACC-004", type: "Decrease", location: "Storage Area A1-05", qtyChange: -6, valueImpact: 90000, reason: "Not working", adjustedBy: "Inventory Officer", status: "Cancelled" },
-  { id: "ADJ-000116", date: "May 23, 2025", time: "04:50 PM", item: "Wireless Mouse", sku: "ACC-005", type: "Increase", location: "Storage Area B2-03", qtyChange: +20, valueImpact: 200000, reason: "New stock found", adjustedBy: "Warehouse Manager", status: "Completed" },
-  { id: "ADJ-000115", date: "May 23, 2025", time: "09:15 AM", item: "Office Desk", sku: "DSK-001", type: "Decrease", location: "Dispatch Area D1-02", qtyChange: -1, valueImpact: 180000, reason: "Customer return – damaged", adjustedBy: "Inventory Officer", status: "Completed" },
-];
-
 // ── Stat Card ────────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, subColor, icon, bg }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-4 flex-1">
+  <div className="bg-white rounded-xl border border-gray-200 p-4">
     <div className="flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${bg}`}>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
         <Icon d={icon} size={16} />
       </div>
-      <div>
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-xl font-bold text-gray-900">{value}</p>
-        {sub && <p className={`text-xs ${subColor}`}>{sub}</p>}
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 truncate">{label}</p>
+        <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
+        {sub && <p className={`text-xs ${subColor} truncate`}>{sub}</p>}
       </div>
     </div>
   </div>
@@ -305,12 +425,58 @@ const StatCard = ({ label, value, sub, subColor, icon, bg }) => (
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function AdjustmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
-  const [adjustments, setAdjustments] = useState(MOCK_ADJ);
+
+  // There's no GET /api/v1/adjustments in the tested collection yet, so this
+  // list starts empty and only grows from adjustments saved in this session.
+  // Swap the effect below in for a real fetch once the endpoint ships:
+  //
+  //   useEffect(() => {
+  //     apiRequest("/adjustments").then(res => setAdjustments(res.data));
+  //   }, []);
+  const [adjustments, setAdjustments] = useState([]);
+  const [adjustmentsNote] = useState(true); // shows the "endpoint not live yet" banner
+
+  const [allItems, setAllItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const [itemsError, setItemsError] = useState(null);
+
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
+
+  // GET /api/v1/items — feeds the item picker inside the "New Adjustment" modal
+  const fetchItems = useCallback(async () => {
+    setItemsLoading(true);
+    setItemsError(null);
+    try {
+      const res = await apiRequest("/items", { params: { per_page: 100 } });
+      setAllItems(res.data || []);
+    } catch (e) {
+      setItemsError(e.message);
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
+
+  // GET /api/v1/users — feeds the "Adjusted By" dropdown
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const res = await apiRequest("/users");
+      setUsers(res.data || []);
+    } catch {
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchItems(); fetchUsers(); }, [fetchItems, fetchUsers]);
 
   const filtered = adjustments.filter(a =>
     (!typeFilter || a.type === typeFilter) &&
@@ -328,51 +494,78 @@ export default function AdjustmentsPage() {
   const totalValueImpact = adjustments.reduce((s, a) => s + a.valueImpact, 0);
 
   const handleSave = (data) => {
+    const firstItem = data.items[0] || {};
+    const adjustedByUser = users.find(u => String(u.id) === String(data.adjusted_by));
     setAdjustments(p => [{
       id: `ADJ-${String(Math.floor(Math.random() * 99999)).padStart(6, "0")}`,
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      item: data.items[0]?.item || "New Item",
-      sku: "NEW-001",
-      type: data.adjType === "Increase" ? "Increase" : data.adjType === "Decrease" ? "Decrease" : "Set Stock",
-      location: data.location || "Storage Area",
-      qtyChange: data.adjType === "Increase" ? +data.items[0]?.adjQty : -Math.abs(data.items[0]?.adjQty || 0),
-      valueImpact: 0,
+      item: firstItem.sku ? allItems.find(it => it.id === firstItem.item_id)?.name || "Item" : "Item",
+      sku: firstItem.sku || "—",
+      type: data.type,
+      location: data.location || "—",
+      qtyChange: data.type === "Increase" ? Math.abs(firstItem.quantity || 0) : -Math.abs(firstItem.quantity || 0),
+      valueImpact: (firstItem.quantity || 0) * (firstItem.unit_cost || 0),
       reason: data.reason || "Manual adjustment",
-      adjustedBy: "System Administrator",
+      adjustedBy: adjustedByUser?.name || "—",
       status: "Pending",
     }, ...p]);
   };
 
+  const handleExportCsv = () => {
+    if (!filtered.length) return;
+    const headers = ["Adjustment No.", "Date", "Time", "Item", "SKU", "Type", "Location", "Qty Change", "Value Impact", "Reason", "Adjusted By", "Status"];
+    const rows = filtered.map(a => [a.id, a.date, a.time, a.item, a.sku, a.type, a.location, a.qtyChange, a.valueImpact, a.reason, a.adjustedBy, a.status]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "adjustments.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Adjustments</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Adjustments</h1>
           <p className="text-sm text-gray-500 mt-0.5">Record and manage inventory quantity adjustments.</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <Icon d={icons.download} size={15} /> Export
+          <button onClick={handleExportCsv} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+            <Upload size={16} /> Export
           </button>
-          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+          <button onClick={() => setModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
             <Icon d={icons.plus} size={15} /> New Adjustment
           </button>
         </div>
       </div>
 
+      {itemsError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+          <AlertCircle size={15} /> Couldn't load items from the API: {itemsError}
+          <button onClick={fetchItems} className="ml-auto underline font-medium">Retry</button>
+        </div>
+      )}
+
+      {adjustmentsNote && (
+        <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg px-3 py-2">
+          <AlertCircle size={15} /> There's no adjustments endpoint in the API yet, so entries below only live in this session. Items, stock levels, and users are pulled live.
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="flex gap-4 mb-6">
-        <StatCard label="Total Adjustments" value="124" sub="All time" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Adjustments" value={adjustments.length} sub="This session" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
         <StatCard label="Total Increases" value={totalIncreases} sub={`+ ${totalIncUnits.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" />
         <StatCard label="Total Decreases" value={totalDecreases} sub={`- ${totalDecUnits.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" />
-        <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="All time" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" />
+        <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="This session" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" />
       </div>
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl mb-4 p-3 flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
           <Icon d={icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
@@ -381,68 +574,76 @@ export default function AdjustmentsPage() {
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500 border-l border-gray-200 pl-3">
-          <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
-        </div>
-        <Select value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }} options={["Increase", "Decrease", "Set Stock"]} placeholder="All Types" className="w-36" />
-        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-36" />
+        <Select value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }} options={["Increase", "Decrease", "Set Stock"]} placeholder="All Types" className="w-full sm:w-36" />
+        <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
         {(typeFilter || statusFilter || search) && (
-          <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); setPage(1); }} className="text-sm text-red-500 hover:underline ml-auto">Clear</button>
+          <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); setPage(1); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear</button>
         )}
       </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              {["Adjustment No.", "Date & Time", "Item", "Adjustment Type", "Location", "Quantity Change", "Value Impact (₦)", "Reason", "Adjusted By", "Status", ""].map(h => (
-                <th key={h} className="py-3 px-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(a => (
-              <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                <td className="py-3 px-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline">{a.id}</td>
-                <td className="py-3 px-3">
-                  <p className="text-sm text-gray-800">{a.date}</p>
-                  <p className="text-xs text-gray-400">{a.time}</p>
-                </td>
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                      <Icon d={icons.box} size={13} className="text-gray-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-800 font-medium leading-tight">{a.item}</p>
-                      <p className="text-xs text-gray-400">{a.sku}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3"><AdjBadge type={a.type} /></td>
-                <td className="py-3 px-3 text-sm text-gray-600">{a.location}</td>
-                <td className={`py-3 px-3 text-sm font-bold ${a.qtyChange > 0 ? "text-green-600" : "text-red-500"}`}>
-                  {a.qtyChange > 0 ? `+${a.qtyChange}` : a.qtyChange}
-                </td>
-                <td className="py-3 px-3 text-sm text-gray-700">₦{a.valueImpact.toLocaleString()}</td>
-                <td className="py-3 px-3 text-sm text-gray-600 max-w-[160px]">
-                  <span className="truncate block" title={a.reason}>{a.reason}</span>
-                </td>
-                <td className="py-3 px-3 text-sm text-gray-600">{a.adjustedBy}</td>
-                <td className="py-3 px-3"><StatusBadge status={a.status} /></td>
-                <td className="py-3 px-3">
-                  <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
-                    <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1100px]">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                {["Adjustment No.", "Date & Time", "Item", "Adjustment Type", "Location", "Quantity Change", "Value Impact (₦)", "Reason", "Adjusted By", "Status", ""].map(h => (
+                  <th key={h} className="py-3 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100 bg-gray-50">
-          <p className="text-sm text-gray-500">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} adjustments</p>
-          <div className="flex items-center gap-1">
+            </thead>
+            <tbody>
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="py-10 text-center text-sm text-gray-400">
+                    No adjustments recorded yet. Click "New Adjustment" to create one.
+                  </td>
+                </tr>
+              )}
+              {visible.map(a => (
+                <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <td className="py-3 px-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{a.id}</td>
+                  <td className="py-3 px-3 whitespace-nowrap">
+                    <p className="text-sm text-gray-800">{a.date}</p>
+                    <p className="text-xs text-gray-400">{a.time}</p>
+                  </td>
+                  <td className="py-3 px-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Icon d={icons.box} size={13} className="text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-800 font-medium leading-tight whitespace-nowrap">{a.item}</p>
+                        <p className="text-xs text-gray-400">{a.sku}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-3"><AdjBadge type={a.type} /></td>
+                  <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{a.location}</td>
+                  <td className={`py-3 px-3 text-sm font-bold whitespace-nowrap ${a.qtyChange > 0 ? "text-green-600" : "text-red-500"}`}>
+                    {a.qtyChange > 0 ? `+${a.qtyChange}` : a.qtyChange}
+                  </td>
+                  <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">₦{a.valueImpact.toLocaleString()}</td>
+                  <td className="py-3 px-3 text-sm text-gray-600 max-w-[160px]">
+                    <span className="truncate block" title={a.reason}>{a.reason}</span>
+                  </td>
+                  <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{a.adjustedBy}</td>
+                  <td className="py-3 px-3"><StatusBadge status={a.status} /></td>
+                  <td className="py-3 px-3">
+                    <button className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
+                      <Icon d={icons.dotsV} size={16} fill="currentColor" stroke="none" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
+          <p className="text-sm text-gray-500 text-center sm:text-left">
+            {filtered.length === 0 ? "No adjustments" : `Showing ${(page - 1) * PER_PAGE + 1} to ${Math.min(page * PER_PAGE, filtered.length)} of ${filtered.length} adjustments`}
+          </p>
+          <div className="flex items-center gap-1 flex-wrap justify-center">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
             {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (
               <button key={n} onClick={() => setPage(n)} className={`w-7 h-7 text-sm rounded ${page === n ? "bg-blue-600 text-white" : "border border-gray-200 hover:bg-gray-100 text-gray-700"}`}>{n}</button>
@@ -453,7 +654,15 @@ export default function AdjustmentsPage() {
         </div>
       </div>
 
-      <NewAdjustmentModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} />
+      <NewAdjustmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSave}
+        allItems={allItems}
+        itemsLoading={itemsLoading}
+        users={users}
+        usersLoading={usersLoading}
+      />
     </div>
   );
 }

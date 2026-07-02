@@ -19,12 +19,12 @@ const SectionHead = ({title, sub}) => (
 
 /* ─── Form Row ─── */
 const FieldRow = ({children, cols="1fr 1fr 1fr"}) => (
-  <div style={{ display:"grid", gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
+  <div className="st-fieldrow" style={{ display:"grid", gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
 );
 
 /* ─── Field ─── */
 const Field = ({label, children}) => (
-  <div>
+  <div style={{ minWidth:0 }}>
     <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:6 }}>{label}</label>
     {children}
   </div>
@@ -63,7 +63,7 @@ const SaveBtn = ({onClick}) => (
 const Divider = () => <div style={{ borderTop:"1px solid #e4e7ef", margin:"28px 0" }}/>;
 
 /* ─── Toast ─── */
-const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 22px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>{msg}</div>);
+const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 22px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)",maxWidth:"calc(100vw - 32px)",overflow:"hidden",textOverflow:"ellipsis" }}>{msg}</div>);
 
 /* ─── NAV SECTIONS ─── */
 const NAV_ITEMS = [
@@ -81,6 +81,7 @@ const NAV_ITEMS = [
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("general");
   const [toast, setToast] = useState(null);
+  const [navOpen, setNavOpen] = useState(false);
 
   /* ── General ── */
   const [companyName,  setCompanyName]  = useState("Ross & Co. Global Resources");
@@ -153,7 +154,7 @@ export default function Settings() {
       case "general": return (
         <>
           {/* General Settings */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }} className="st-card">
             <SectionHead title="General Settings" sub="Configure basic information about your organization and system." />
             <FieldRow cols="1fr 1fr 1fr">
               <Field label="Company Name"><Inp value={companyName} onChange={setCompanyName}/></Field>
@@ -174,9 +175,9 @@ export default function Settings() {
           </div>
 
           {/* System Preferences */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28, marginBottom:16 }} className="st-card">
             <SectionHead title="System Preferences" sub="Configure system wide preferences." />
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
+            <div className="st-togglegrid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
               {[
                 [lowStockAlerts,     setLowStockAlerts,     "Low Stock Alerts",           "Enable alerts for items below reorder level."],
                 [emailNotifications, setEmailNotifications, "Email Notifications",         "Send email notifications for key events."],
@@ -208,7 +209,7 @@ export default function Settings() {
           </div>
 
           {/* Document & Numbering */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
             <SectionHead title="Document & Numbering" sub="Configure document prefixes and numbering." />
             <FieldRow cols="1fr 1fr 1fr 1fr 1fr">
               <Field label="Item Prefix"><Inp value={itemPrefix} onChange={setItemPrefix}/></Field>
@@ -219,7 +220,7 @@ export default function Settings() {
             </FieldRow>
             <div style={{ marginBottom:16 }}>
               <div style={{ fontSize:12, color:"#6b7591", marginBottom:6 }}>Numbering Reset</div>
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
                 {["Do not reset","Monthly","Yearly"].map(opt=>(
                   <button key={opt} onClick={()=>setNumberingReset(opt)} style={{ padding:"7px 16px", border:`1px solid ${numberingReset===opt?"#4f6ef7":"#e4e7ef"}`, borderRadius:7, background: numberingReset===opt?"#eef2ff":"#fff", color: numberingReset===opt?"#4f6ef7":"#1e2740", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight: numberingReset===opt?600:400 }}>{opt}</button>
                 ))}
@@ -232,7 +233,7 @@ export default function Settings() {
       );
 
       case "warehouse": return (
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Warehouse Settings" sub="Manage warehouse and location preferences."/>
           <FieldRow cols="1fr 1fr">
             <Field label="Default Warehouse"><Sel value={defaultWarehouse} onChange={setDefaultWarehouse} options={["Storage Area","Receiving Area","Distribution Center"]}/></Field>
@@ -254,14 +255,14 @@ export default function Settings() {
       );
 
       case "security": return (
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Security Settings" sub="Configure password policies, sessions and security options."/>
           <FieldRow cols="1fr 1fr 1fr">
             <Field label="Minimum Password Length"><Sel value={minPasswordLength} onChange={setMinPasswordLength} options={["6","8","10","12"]}/></Field>
             <Field label="Max Login Attempts"><Sel value={maxLoginAttempts} onChange={setMaxLoginAttempts} options={["3","5","10"]}/></Field>
             <Field label="Lockout Duration (mins)"><Sel value={lockoutDuration} onChange={setLockoutDuration} options={["5","10","15","30","60"]}/></Field>
           </FieldRow>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+          <div className="st-togglegrid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
             {[
               [requireUppercase, setRequireUppercase, "Require Uppercase Letters",   "Passwords must contain at least one uppercase letter."],
               [requireNumbers,   setRequireNumbers,   "Require Numbers",             "Passwords must contain at least one number."],
@@ -278,11 +279,11 @@ export default function Settings() {
       );
 
       case "notifications": return (
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Notification Settings" sub="Configure email and system alert preferences."/>
           <Field label="Notification Email"><Inp value={notifyEmail} onChange={setNotifyEmail}/></Field>
           <div style={{ height:16 }}/>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+          <div className="st-togglegrid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
             {[
               [lowStockEmail,  setLowStockEmail,  "Low Stock Email Alerts",  "Receive emails when items fall below reorder level."],
               [receiptAlerts,  setReceiptAlerts,  "Receipt Alerts",          "Notifications when goods are received."],
@@ -300,14 +301,14 @@ export default function Settings() {
       );
 
       case "audit": return (
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Audit Settings" sub="Configure audit log and data retention settings."/>
           <div style={{ marginBottom:16 }}>
             <Field label="Log Retention Period">
               <Sel value={retentionPeriod} onChange={setRetentionPeriod} options={["3 months","6 months","12 months","24 months","Indefinitely"]}/>
             </Field>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+          <div className="st-togglegrid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
             {[
               [logLogins,      setLogLogins,      "Log User Logins",     "Record all login and logout events."],
               [logDataChanges, setLogDataChanges, "Log Data Changes",    "Record all create, update and delete operations."],
@@ -325,112 +326,155 @@ export default function Settings() {
       );
 
       default: return (
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:48, textAlign:"center", color:"#9aa1b4", fontSize:13 }}>
+        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:48, textAlign:"center", color:"#9aa1b4", fontSize:13 }} className="st-card">
           This section is coming soon.
         </div>
       );
     }
   };
 
+  const activeNavItem = NAV_ITEMS.find(n => n.key === activeSection);
+
   return (
     <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740" }}>
       {toast && <Toast msg={toast}/>}
 
+      <style>{`
+        .st-page { padding: 16px; }
+        .st-layout { display:grid; grid-template-columns:250px 1fr 280px; gap:16px; align-items:start; }
+        .st-nav { position:sticky; top:20px; }
+        .st-right { position:sticky; top:20px; }
+
+        .st-navmobile-toggle { display:none; }
+
+        @media (max-width: 1100px) {
+          .st-layout { grid-template-columns: 220px 1fr; }
+          .st-right { grid-column: 1 / -1; position:static; display:grid !important; grid-template-columns:1fr 1fr; }
+        }
+
+        @media (max-width: 860px) {
+          .st-layout { grid-template-columns: 1fr; }
+          .st-nav { position:static; display:none; }
+          .st-nav.open { display:block; }
+          .st-navmobile-toggle { display:flex; }
+          .st-right { grid-template-columns:1fr; }
+        }
+
+        @media (max-width: 640px) {
+          .st-page { padding: 12px; }
+          .st-card { padding: 18px !important; }
+          .st-fieldrow { grid-template-columns: 1fr !important; gap: 12px !important; }
+          .st-togglegrid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
       {/* Header */}
-      <div style={{ marginBottom:24 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Settings</h1>
-        <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Manage system configuration and preferences.</p>
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"250px 1fr 280px", gap:16, alignItems:"start" }}>
-
-        {/* ── Left Nav ── */}
-        <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", position:"sticky", top:20 }}>
-          {NAV_ITEMS.map(item=>{
-            const isActive = activeSection===item.key;
-            return (
-              <button key={item.key} onClick={()=>setActiveSection(item.key)}
-                style={{ width:"100%", display:"flex", alignItems:"flex-start", gap:12, padding:"14px 16px", background: isActive?"#eef2ff":"#fff", border:"none", borderLeft: isActive?"3px solid #4f6ef7":"3px solid transparent", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s" }}
-                onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="#f8f9fb"; }} onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background="#fff"; }}>
-                <div style={{ color: isActive?"#4f6ef7":"#6b7591", marginTop:1, flexShrink:0 }}>{item.icon}</div>
-                <div>
-                  <div style={{ fontSize:13, fontWeight: isActive?700:500, color: isActive?"#4f6ef7":"#1e2740", marginBottom:2 }}>{item.label}</div>
-                  <div style={{ fontSize:11, color:"#9aa1b4", lineHeight:1.3 }}>{item.sub}</div>
-                </div>
-              </button>
-            );
-          })}
+      <div className="st-page" style={{ paddingBottom: 0 }}>
+        <div style={{ marginBottom:24 }}>
+          <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Settings</h1>
+          <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Manage system configuration and preferences.</p>
         </div>
 
-        {/* ── Center Content ── */}
-        <div>{renderSection()}</div>
+        {/* Mobile nav toggle */}
+        <button className="st-navmobile-toggle" onClick={()=>setNavOpen(o=>!o)}
+          style={{ alignItems:"center", justifyContent:"space-between", width:"100%", padding:"12px 16px", marginBottom:12, background:"#fff", border:"1px solid #e4e7ef", borderRadius:10, fontFamily:"inherit", cursor:"pointer" }}>
+          <span style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ color:"#4f6ef7" }}>{activeNavItem?.icon}</span>
+            <span style={{ fontSize:13.5, fontWeight:600, color:"#1e2740" }}>{activeNavItem?.label}</span>
+          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2" style={{ transform: navOpen?"rotate(180deg)":"none", transition:"transform .15s" }}><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
 
-        {/* ── Right Panel ── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:14, position:"sticky", top:20 }}>
+        <div className="st-layout">
 
-          {/* Company Info */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
-            <div style={{ padding:"14px 18px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontWeight:700, fontSize:13.5, color:"#1e2740" }}>Company Information</span>
-              <button onClick={()=>showToast("Edit mode coming soon")} style={{ display:"flex",alignItems:"center",gap:5,padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",fontSize:12,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit
-              </button>
+          {/* ── Left Nav ── */}
+          <div className={`st-nav${navOpen?" open":""}`} style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden", marginBottom: 16 }}>
+            {NAV_ITEMS.map(item=>{
+              const isActive = activeSection===item.key;
+              return (
+                <button key={item.key} onClick={()=>{ setActiveSection(item.key); setNavOpen(false); }}
+                  style={{ width:"100%", display:"flex", alignItems:"flex-start", gap:12, padding:"14px 16px", background: isActive?"#eef2ff":"#fff", border:"none", borderLeft: isActive?"3px solid #4f6ef7":"3px solid transparent", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s" }}
+                  onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="#f8f9fb"; }} onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background="#fff"; }}>
+                  <div style={{ color: isActive?"#4f6ef7":"#6b7591", marginTop:1, flexShrink:0 }}>{item.icon}</div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight: isActive?700:500, color: isActive?"#4f6ef7":"#1e2740", marginBottom:2 }}>{item.label}</div>
+                    <div style={{ fontSize:11, color:"#9aa1b4", lineHeight:1.3 }}>{item.sub}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Center Content ── */}
+          <div style={{ minWidth:0 }}>{renderSection()}</div>
+
+          {/* ── Right Panel ── */}
+          <div className="st-right" style={{ display:"flex", flexDirection:"column", gap:14 }}>
+
+            {/* Company Info */}
+            <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
+              <div style={{ padding:"14px 18px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ fontWeight:700, fontSize:13.5, color:"#1e2740" }}>Company Information</span>
+                <button onClick={()=>showToast("Edit mode coming soon")} style={{ display:"flex",alignItems:"center",gap:5,padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",fontSize:12,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+              </div>
+              <div style={{ padding:"18px 18px 6px" }}>
+                {/* Logo placeholder */}
+                <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+                </div>
+                <div style={{ textAlign:"center", marginBottom:16 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>{companyName}</div>
+                  <div style={{ fontSize:12, color:"#9aa1b4", marginTop:3 }}>Enterprise Inventory Management</div>
+                </div>
+                {[
+                  ["Email",   companyEmail],
+                  ["Phone",   companyPhone],
+                  ["Address", "12 Industrial Avenue, Lagos, Nigeria"],
+                  ["Website", "www.rossglobal.com"],
+                ].map(([label,val])=>(
+                  <div key={label} style={{ display:"flex", gap:8, padding:"8px 0", borderTop:"1px solid #f4f6fb" }}>
+                    <span style={{ fontSize:12, color:"#9aa1b4", width:55, flexShrink:0 }}>{label}</span>
+                    <span style={{ fontSize:12, color:"#1e2740", wordBreak:"break-all" }}>{val}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ padding:"18px 18px 6px" }}>
-              {/* Logo placeholder */}
-              <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
-              </div>
-              <div style={{ textAlign:"center", marginBottom:16 }}>
-                <div style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>{companyName}</div>
-                <div style={{ fontSize:12, color:"#9aa1b4", marginTop:3 }}>Enterprise Inventory Management</div>
-              </div>
+
+            {/* System Details */}
+            <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
+              <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
               {[
-                ["Email",   companyEmail],
-                ["Phone",   companyPhone],
-                ["Address", "12 Industrial Avenue, Lagos, Nigeria"],
-                ["Website", "www.rossglobal.com"],
+                ["Version",         "v1.0.0"],
+                ["Environment",     "Production"],
+                ["Database",        "PostgreSQL 15"],
+                ["Last Backup",     "May 27, 2025 02:15 AM"],
+                ["Next Scheduled Backup","May 28, 2025 02:00 AM"],
               ].map(([label,val])=>(
-                <div key={label} style={{ display:"flex", gap:8, padding:"8px 0", borderTop:"1px solid #f4f6fb" }}>
-                  <span style={{ fontSize:12, color:"#9aa1b4", width:55, flexShrink:0 }}>{label}</span>
-                  <span style={{ fontSize:12, color:"#1e2740", wordBreak:"break-all" }}>{val}</span>
+                <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
+                  <span style={{ fontSize:12, color:"#9aa1b4" }}>{label}</span>
+                  <span style={{ fontSize:12, color:"#1e2740", fontWeight:500, textAlign:"right", maxWidth:140 }}>{val}</span>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* System Details */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
-            <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
-            {[
-              ["Version",         "v1.0.0"],
-              ["Environment",     "Production"],
-              ["Database",        "PostgreSQL 15"],
-              ["Last Backup",     "May 27, 2025 02:15 AM"],
-              ["Next Scheduled Backup","May 28, 2025 02:00 AM"],
-            ].map(([label,val])=>(
-              <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb" }}>
-                <span style={{ fontSize:12, color:"#9aa1b4" }}>{label}</span>
-                <span style={{ fontSize:12, color:"#1e2740", fontWeight:500, textAlign:"right", maxWidth:140 }}>{val}</span>
+            {/* Actions */}
+            <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
+              <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>Actions</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {actionItems.map((a,i)=>(
+                  <button key={i} onClick={()=>showToast(`${a.label}...`)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:"1px solid #f4f6fb", borderRadius:9, background:"#fff", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s", width:"100%" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#f8f9fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                    <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
+                    <div>
+                      <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
+                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.sub}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-
-          {/* Actions */}
-          <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
-            <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>Actions</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {actionItems.map((a,i)=>(
-                <button key={i} onClick={()=>showToast(`${a.label}...`)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:"1px solid #f4f6fb", borderRadius:9, background:"#fff", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s", width:"100%" }}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f8f9fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                  <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
-                  <div>
-                    <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
-                    <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.sub}</div>
-                  </div>
-                </button>
-              ))}
             </div>
           </div>
         </div>
