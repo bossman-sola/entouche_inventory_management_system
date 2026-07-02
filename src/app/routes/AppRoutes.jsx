@@ -12,12 +12,18 @@ import Data from "../../features/data-import/pages/data.jsx"
 import Audit from "../../features/audit-logs/pages/audit.jsx"  
 import Settings from "../../features/settings/pages/settings.jsx"
 import Reports from "../../features/reports/pages/reports.jsx"
+import SignIn from "../../features/auth/pages/SignIn.jsx"
+import ProtectedRoute from "../../shared/components/ProtectedRoute.jsx"
 
 function AppRoutes() {
   return (
     <Routes>
 
      
+      <Route path="/login" element={<SignIn />} />
+
+     
+      <Route element={<ProtectedRoute />}>
       <Route path="/" element={<MainLayout />}>
 
         
@@ -40,6 +46,7 @@ function AppRoutes() {
         <Route path="settings" element={<Settings />} />
         <Route path="reports" element={<Reports />} />
 
+      </Route>
       </Route>
 
     </Routes>
