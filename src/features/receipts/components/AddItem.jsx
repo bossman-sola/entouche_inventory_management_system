@@ -1,26 +1,41 @@
-import { useState } from 'react';
-
-const ITEMS_DB = [
-  { id: 1, emoji: '💻', name: 'Dell Latitude 5440',    sku: 'LAP-001', cat: 'Laptops',     unit: 'Piece (PCS)', stock: 120, low: false },
-  { id: 2, emoji: '🖨️', name: 'HP LaserJet Pro M428',  sku: 'PRN-001', cat: 'Printers',    unit: 'Piece (PCS)', stock: 85,  low: false },
-  { id: 3, emoji: '🔗', name: 'USB-C Hub 7-in-1',       sku: 'ACC-003', cat: 'Accessories', unit: 'Piece (PCS)', stock: 250, low: false },
-  { id: 4, emoji: '🪑', name: 'Ergonomic Office Chair', sku: 'CHR-002', cat: 'Furniture',   unit: 'Piece (PCS)', stock: 45,  low: false },
-  { id: 5, emoji: '🖱️', name: 'Wireless Mouse',         sku: 'ACC-005', cat: 'Accessories', unit: 'Piece (PCS)', stock: 300, low: false },
-  { id: 6, emoji: '🖥️', name: '24" LED Monitor',        sku: 'MON-001', cat: 'Monitors',    unit: 'Piece (PCS)', stock: 60,  low: true  },
-];
+import { useState, useEffect } from 'react';
+import { listItems, mapApiItem } from '../../../lib/api.js';
 
 export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew, addedItemIds = [] }) {
   const [search, setSearch] = useState('');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    listItems()
+      .then((data) => {
+        if (cancelled) return;
+        setItems((data || []).map(mapApiItem));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || 'Failed to load items.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const filtered = ITEMS_DB.filter(item => {
+  const filtered = items.filter(item => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
       item.name.toLowerCase().includes(q) ||
-      item.sku.toLowerCase().includes(q) ||
-      item.cat.toLowerCase().includes(q)
+      (item.sku || '').toLowerCase().includes(q) ||
+      (item.cat || '').toLowerCase().includes(q)
     );
   });
 
@@ -34,7 +49,7 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
       {/* Styles */}
       <style>{`
         .aip-overlay {
-          position: fixed; inset: 0; z-index: 10001;
+          position: absolute; inset: 0; z-index: 10001;
           background: rgba(15,20,40,0.5);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 24px 16px; overflow-y: auto;
@@ -72,14 +87,6 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
         }
         .aip-search-input:focus { border-color: #4f6ef7; }
         .aip-search-input::placeholder { color: #b0b8cc; }
-        .aip-filter-btn {
-          display: flex; align-items: center; gap: 6px;
-          padding: 10px 16px; border: 1.5px solid #e4e7ef; border-radius: 9px;
-          font-size: 12.5px; color: #1e2740; cursor: pointer;
-          white-space: nowrap; background: #fff; font-family: inherit;
-          transition: background 0.15s;
-        }
-        .aip-filter-btn:hover { background: #f4f6fb; }
         .aip-divider { border-top: 1px solid #e4e7ef; }
         .aip-table-wrap { border-top: 1px solid #e4e7ef; border-bottom: 1px solid #e4e7ef; }
         .aip-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -89,7 +96,7 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
           color: #6b7591; font-weight: 500; white-space: nowrap;
         }
         .aip-th:first-child { padding-left: 24px; }
-        .aip-tr { transition: background 0.15s; cursor: pointer; }
+        .aip-tr { transition: background 0.15s; }
         .aip-tr:not(:last-child) { border-bottom: 1px solid #f4f6fb; }
         .aip-tr:hover { background: #f8f9fb; }
         .aip-td { padding: 13px 12px; }
@@ -99,13 +106,13 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
           width: 44px; height: 44px; background: #f4f6fb;
           border: 1px solid #e4e7ef; border-radius: 9px;
           display: flex; align-items: center; justify-content: center;
-          font-size: 22px; flex-shrink: 0;
+          font-size: 18px; font-weight: 700; color: #4f6ef7; flex-shrink: 0;
         }
         .aip-item-name { font-size: 13px; font-weight: 600; color: #1e2740; }
         .aip-item-cat  { font-size: 11.5px; color: #9aa1b4; margin-top: 2px; }
         .aip-td-text   { font-size: 13px; color: #6b7591; }
         .aip-stock-num { font-size: 14px; font-weight: 700; color: #1e2740; line-height: 1.2; }
-        .aip-stock-label { font-size: 11.5px; font-weight: 500; margin-top: 2px; }
+        .aip-stock-label { font-size: 11.5px; font-weight: 500; margin-top: 2px; color: #9aa1b4; }
         .aip-add-btn {
           width: 34px; height: 34px; border: 1.5px solid #e4e7ef;
           border-radius: 8px; display: flex; align-items: center;
@@ -155,6 +162,10 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
           padding: 40px 20px; text-align: center;
           font-size: 13px; color: #6b7591;
         }
+        .aip-error {
+          padding: 40px 20px; text-align: center;
+          font-size: 13px; color: #c0392b;
+        }
       `}</style>
 
       <div className="aip-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -183,21 +194,12 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
                 <input
                   type="text"
                   className="aip-search-input"
-                  placeholder="Search item name, SKU, or barcode..."
+                  placeholder="Search item name, SKU, or category..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   autoFocus
                 />
               </div>
-              <button className="aip-filter-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5c657a" strokeWidth="2">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-                </svg>
-                Filters
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -210,13 +212,17 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
                   <th className="aip-th">SKU</th>
                   <th className="aip-th">Category</th>
                   <th className="aip-th">Unit</th>
-                  <th className="aip-th">Current Stock</th>
+                  <th className="aip-th">Unit Cost (₦)</th>
                   <th style={{ padding: '11px 16px' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="aip-empty">No items match your search.</td></tr>
+                {loading ? (
+                  <tr><td colSpan={6} className="aip-empty">Loading items…</td></tr>
+                ) : error ? (
+                  <tr><td colSpan={6} className="aip-error">{error}</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="aip-empty">{items.length === 0 ? 'No items in your inventory yet. Create one below.' : 'No items match your search.'}</td></tr>
                 ) : filtered.map(item => {
                   const isAdded = addedItemIds.includes(item.id);
                   return (
@@ -224,7 +230,7 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
                       {/* Item */}
                       <td className="aip-td">
                         <div className="aip-item-cell">
-                          <div className="aip-item-icon">{item.emoji}</div>
+                          <div className="aip-item-icon">{item.name.charAt(0).toUpperCase()}</div>
                           <div>
                             <div className="aip-item-name">{item.name}</div>
                             <div className="aip-item-cat">{item.cat}</div>
@@ -237,12 +243,10 @@ export default function AddItemPicker({ isOpen, onClose, onAddItem, onCreateNew,
                       <td className="aip-td aip-td-text">{item.cat}</td>
                       {/* Unit */}
                       <td className="aip-td aip-td-text">{item.unit}</td>
-                      {/* Stock */}
+                      {/* Unit cost */}
                       <td className="aip-td">
-                        <div className="aip-stock-num">{item.stock}</div>
-                        <div className="aip-stock-label" style={{ color: item.low ? '#f59e0b' : '#22c27e' }}>
-                          {item.low ? 'Low Stock' : 'In Stock'}
-                        </div>
+                        <div className="aip-stock-num">{item.cost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</div>
+                        <div className="aip-stock-label">Catalog cost</div>
                       </td>
                       {/* Add Button */}
                       <td className="aip-td" style={{ textAlign: 'center', padding: '13px 16px' }}>

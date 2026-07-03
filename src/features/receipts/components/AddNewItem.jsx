@@ -1,19 +1,43 @@
-import { useState } from 'react';
-
-const CATEGORIES = ['Laptops', 'Printers', 'Accessories', 'Furniture', 'Monitors', 'Consumables'];
-const UNITS = ['Piece (PCS)', 'Meter (M)', 'Kilogram (KG)', 'Litre (L)'];
-
-const EMOJI_MAP = {
-  Laptops: '💻', Printers: '🖨️', Accessories: '🔗',
-  Furniture: '🪑', Monitors: '🖥️', Consumables: '📦',
-};
+import { useState, useEffect } from 'react';
+import { listCategories, listUnits, listSuppliers, createItem, mapApiItem } from '../../../lib/api.js';
 
 export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] }) {
   const [form, setForm] = useState({
-    name: '', sku: '', barcode: '',
-    category: '', unit: '', reorderLevel: '', description: '',
+    name: '', barcode: '', categoryId: '', unitId: '', supplierId: '',
+    unitCost: '', sellingPrice: '', reorderLevel: '', description: '',
   });
   const [errors, setErrors] = useState({});
+
+  const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Load categories / units / suppliers from the API whenever the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoadingLookups(true);
+    setLookupError('');
+    Promise.all([listCategories(), listUnits(), listSuppliers()])
+      .then(([cats, uns, sups]) => {
+        if (cancelled) return;
+        setCategories(cats || []);
+        setUnits(uns || []);
+        setSuppliers(sups || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLookupError(err.message || 'Failed to load categories, units, and suppliers.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLookups(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -24,38 +48,59 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim())     e.name     = 'Item name is required';
-    if (!form.sku.trim())      e.sku      = 'SKU is required';
-    if (!form.category)        e.category = 'Category is required';
-    if (!form.unit)            e.unit     = 'Unit of measure is required';
-    if (existingSkus.includes(form.sku.trim())) e.sku = 'This SKU already exists';
+    if (!form.name.trim())   e.name = 'Item name is required';
+    if (!form.categoryId)    e.categoryId = 'Category is required';
+    if (!form.unitId)        e.unitId = 'Unit of measure is required';
     return e;
   };
 
-  const handleSave = () => {
+  const resetForm = () => {
+    setForm({ name: '', barcode: '', categoryId: '', unitId: '', supplierId: '', unitCost: '', sellingPrice: '', reorderLevel: '', description: '' });
+    setErrors({});
+    setSaveError('');
+  };
+
+  const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    const newItem = {
-      id: Date.now(),
-      emoji: EMOJI_MAP[form.category] || '📦',
-      name: form.name.trim(),
-      sku: form.sku.trim(),
-      barcode: form.barcode.trim(),
-      cat: form.category,
-      unit: form.unit,
-      reorderLevel: form.reorderLevel,
-      description: form.description,
-      stock: 0,
-      low: false,
-    };
-    onSave(newItem);
-    setForm({ name: '', sku: '', barcode: '', category: '', unit: '', reorderLevel: '', description: '' });
-    setErrors({});
+
+    setSaving(true);
+    setSaveError('');
+    try {
+      const payload = {
+        name: form.name.trim(),
+        category_id: Number(form.categoryId),
+        unit_of_measure_id: Number(form.unitId),
+        supplier_id: form.supplierId ? Number(form.supplierId) : null,
+        barcode: form.barcode.trim() || null,
+        item_type: 'product',
+        description: form.description || '',
+        unit_cost: form.unitCost ? Number(form.unitCost) : 0,
+        selling_price: form.sellingPrice ? Number(form.sellingPrice) : 0,
+        reorder_level: form.reorderLevel ? Number(form.reorderLevel) : 0,
+        status: 'active',
+      };
+      const created = await createItem(payload);
+      onSave(mapApiItem(created));
+      resetForm();
+    } catch (err) {
+      if (err.errors) {
+        // map Laravel-style validation errors onto the form
+        const fieldMap = { unit_of_measure_id: 'unitId', category_id: 'categoryId', supplier_id: 'supplierId', name: 'name', barcode: 'barcode' };
+        const nextErrors = {};
+        Object.entries(err.errors).forEach(([k, msgs]) => {
+          nextErrors[fieldMap[k] || k] = Array.isArray(msgs) ? msgs[0] : msgs;
+        });
+        setErrors(nextErrors);
+      }
+      setSaveError(err.message || 'Failed to create item.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClose = () => {
-    setForm({ name: '', sku: '', barcode: '', category: '', unit: '', reorderLevel: '', description: '' });
-    setErrors({});
+    resetForm();
     onClose();
   };
 
@@ -63,8 +108,8 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
     <>
       <style>{`
         .ani-overlay {
-          position: fixed; inset: 0; z-index: 10002;
-          background: rgba(30,39,64,0.45);
+          position: absolute; inset: 0; z-index: 10002;
+          
           display: flex; align-items: flex-start; justify-content: center;
           padding: 28px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;
@@ -115,6 +160,7 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
           cursor: pointer; font-size: 13px; font-family: inherit;
           color: #b0b8cc; outline: none; transition: border 0.15s;
         }
+        .ani-select:disabled { cursor: not-allowed; background: #f8f9fb; }
         .ani-select:focus { border-color: #4f6ef7; }
         .ani-select.ani-error { border-color: #f25c54; }
         .ani-select.ani-has-value { color: #1e2740; }
@@ -142,6 +188,11 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
           padding: 13px 16px; background: #f0f4ff; border-radius: 9px;
         }
         .ani-info-text { font-size: 13px; color: #3d4a7a; font-weight: 500; }
+        .ani-error-banner {
+          display: flex; align-items: center; gap: 10px;
+          padding: 13px 16px; background: #fff1f0; border: 1px solid #ffd0ce; border-radius: 9px;
+          font-size: 13px; color: #c0392b; font-weight: 500;
+        }
         .ani-footer {
           display: flex; align-items: center; justify-content: flex-end;
           gap: 10px; padding: 16px 28px;
@@ -159,6 +210,7 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
           border: none; font-family: inherit; transition: background 0.15s;
         }
         .ani-btn-save:hover { background: #3a5be0; }
+        .ani-btn-save:disabled { background: #b7c3f9; cursor: not-allowed; }
       `}</style>
 
       <div className="ani-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
@@ -182,7 +234,10 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
           {/* Form Body */}
           <div className="ani-body">
 
-            {/* Row 1: Item Name | SKU | Barcode */}
+            {lookupError && <div className="ani-error-banner">{lookupError}</div>}
+            {saveError && <div className="ani-error-banner">{saveError}</div>}
+
+            {/* Row 1: Item Name | Barcode | Supplier */}
             <div className="ani-row-3">
               <div className="ani-field">
                 <label className="ani-label">Item Name<span className="ani-req">*</span></label>
@@ -196,17 +251,6 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
                 {errors.name && <span className="ani-error-msg">{errors.name}</span>}
               </div>
               <div className="ani-field">
-                <label className="ani-label">SKU<span className="ani-req">*</span></label>
-                <input
-                  className={`ani-input${errors.sku ? ' ani-error' : ''}`}
-                  type="text"
-                  placeholder="Enter SKU"
-                  value={form.sku}
-                  onChange={e => set('sku', e.target.value)}
-                />
-                {errors.sku && <span className="ani-error-msg">{errors.sku}</span>}
-              </div>
-              <div className="ani-field">
                 <label className="ani-label">Barcode <span className="ani-opt">(optional)</span></label>
                 <input
                   className="ani-input"
@@ -216,6 +260,24 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
                   onChange={e => set('barcode', e.target.value)}
                 />
               </div>
+              <div className="ani-field">
+                <label className="ani-label">Supplier <span className="ani-opt">(optional)</span></label>
+                <div className="ani-sel-wrap">
+                  <select
+                    className={`ani-select${errors.supplierId ? ' ani-error' : ''}${form.supplierId ? ' ani-has-value' : ''}`}
+                    value={form.supplierId}
+                    onChange={e => set('supplierId', e.target.value)}
+                    disabled={loadingLookups}
+                  >
+                    <option value="">{loadingLookups ? 'Loading suppliers…' : 'Select supplier'}</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <svg className="ani-sel-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                {errors.supplierId && <span className="ani-error-msg">{errors.supplierId}</span>}
+              </div>
             </div>
 
             {/* Row 2: Category | Unit of Measure | Reorder Level */}
@@ -224,35 +286,37 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
                 <label className="ani-label">Category<span className="ani-req">*</span></label>
                 <div className="ani-sel-wrap">
                   <select
-                    className={`ani-select${errors.category ? ' ani-error' : ''}${form.category ? ' ani-has-value' : ''}`}
-                    value={form.category}
-                    onChange={e => set('category', e.target.value)}
+                    className={`ani-select${errors.categoryId ? ' ani-error' : ''}${form.categoryId ? ' ani-has-value' : ''}`}
+                    value={form.categoryId}
+                    onChange={e => set('categoryId', e.target.value)}
+                    disabled={loadingLookups}
                   >
-                    <option value="">Select category</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="">{loadingLookups ? 'Loading categories…' : 'Select category'}</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   <svg className="ani-sel-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2">
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
                 </div>
-                {errors.category && <span className="ani-error-msg">{errors.category}</span>}
+                {errors.categoryId && <span className="ani-error-msg">{errors.categoryId}</span>}
               </div>
               <div className="ani-field">
                 <label className="ani-label">Unit of Measure<span className="ani-req">*</span></label>
                 <div className="ani-sel-wrap">
                   <select
-                    className={`ani-select${errors.unit ? ' ani-error' : ''}${form.unit ? ' ani-has-value' : ''}`}
-                    value={form.unit}
-                    onChange={e => set('unit', e.target.value)}
+                    className={`ani-select${errors.unitId ? ' ani-error' : ''}${form.unitId ? ' ani-has-value' : ''}`}
+                    value={form.unitId}
+                    onChange={e => set('unitId', e.target.value)}
+                    disabled={loadingLookups}
                   >
-                    <option value="">Select unit</option>
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    <option value="">{loadingLookups ? 'Loading units…' : 'Select unit'}</option>
+                    {units.map(u => <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>)}
                   </select>
                   <svg className="ani-sel-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2">
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
                 </div>
-                {errors.unit && <span className="ani-error-msg">{errors.unit}</span>}
+                {errors.unitId && <span className="ani-error-msg">{errors.unitId}</span>}
               </div>
               <div className="ani-field">
                 <label className="ani-label">Reorder Level</label>
@@ -265,6 +329,31 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
                   onChange={e => set('reorderLevel', e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Row 3: Unit Cost | Selling Price */}
+            <div className="ani-row-3">
+              <div className="ani-field">
+                <label className="ani-label">Unit Cost (₦) <span className="ani-opt">(optional)</span></label>
+                <input
+                  className="ani-input"
+                  type="number" min="0" step="0.01"
+                  placeholder="0.00"
+                  value={form.unitCost}
+                  onChange={e => set('unitCost', e.target.value)}
+                />
+              </div>
+              <div className="ani-field">
+                <label className="ani-label">Selling Price (₦) <span className="ani-opt">(optional)</span></label>
+                <input
+                  className="ani-input"
+                  type="number" min="0" step="0.01"
+                  placeholder="0.00"
+                  value={form.sellingPrice}
+                  onChange={e => set('sellingPrice', e.target.value)}
+                />
+              </div>
+              <div />
             </div>
 
             {/* Description */}
@@ -289,7 +378,7 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
-              <span className="ani-info-text">This item will be created and added to your receipt.</span>
+              <span className="ani-info-text">This item will be created in your inventory and added to this receipt. SKU is generated automatically.</span>
             </div>
 
           </div>
@@ -297,7 +386,9 @@ export default function AddNewItem({ isOpen, onClose, onSave, existingSkus = [] 
           {/* Footer */}
           <div className="ani-footer">
             <button className="ani-btn-cancel" onClick={handleClose}>Cancel</button>
-            <button className="ani-btn-save" onClick={handleSave}>Save Item</button>
+            <button className="ani-btn-save" onClick={handleSave} disabled={saving || loadingLookups}>
+              {saving ? 'Saving…' : 'Save Item'}
+            </button>
           </div>
 
         </div>

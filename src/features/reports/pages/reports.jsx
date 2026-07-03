@@ -1,28 +1,34 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { api } from "../../../shared/api/entoucheApi"; 
 
-/* ─── seed data ─── */
-const SEED_REPORTS = [
-  { id:1,  icon:"doc",    name:"Inventory Balance Report",   cat:"Inventory Reports",    catColor:"#eef2ff", catText:"#4f6ef7",  desc:"Current inventory balance across all locations",       format:"PDF, Excel", lastGen:"May 27, 2025 09:32 AM", genBy:"Ayomide Ajayi" },
-  { id:2,  icon:"cycle",  name:"Inventory Movement Report",  cat:"Transaction Reports",  catColor:"#e6faf3", catText:"#16a369",  desc:"Summary of all inventory movements",                   format:"PDF, Excel", lastGen:"May 27, 2025 08:15 AM", genBy:"Ayomide Ajayi" },
-  { id:3,  icon:"alert",  name:"Low Stock Report",           cat:"Stock Reports",        catColor:"#fff7ed", catText:"#c27a0a",  desc:"Items below minimum stock level",                      format:"PDF, Excel", lastGen:"May 27, 2025 07:45 AM", genBy:"System" },
-  { id:4,  icon:"dollar", name:"Stock Valuation Report",     cat:"Inventory Reports",    catColor:"#eef2ff", catText:"#4f6ef7",  desc:"Inventory valuation by cost and category",             format:"PDF, Excel", lastGen:"May 26, 2025 04:30 PM", genBy:"Ayomide Ajayi" },
-  { id:5,  icon:"list",   name:"Transaction Detail Report",  cat:"Transaction Reports",  catColor:"#e6faf3", catText:"#16a369",  desc:"Detailed list of all transactions",                    format:"Excel, CSV", lastGen:"May 26, 2025 03:20 PM", genBy:"Ayomide Ajayi" },
-  { id:6,  icon:"trend",  name:"Stock Trend Report",         cat:"Stock Reports",        catColor:"#fff7ed", catText:"#c27a0a",  desc:"Stock trend analysis over time",                       format:"PDF, Excel", lastGen:"May 26, 2025 11:10 AM", genBy:"System" },
-  { id:7,  icon:"user",   name:"User Activity Report",       cat:"User & Activity Reports",catColor:"#f3f0ff",catText:"#8b5cf6",desc:"User activities and system actions",                    format:"PDF, Excel", lastGen:"May 25, 2025 09:05 PM", genBy:"Ayomide Ajayi" },
-  { id:8,  icon:"doc",    name:"Audit Log Report",           cat:"User & Activity Reports",catColor:"#f3f0ff",catText:"#8b5cf6",desc:"Complete audit trail and logs",                         format:"PDF, Excel", lastGen:"May 25, 2025 08:40 PM", genBy:"System" },
-  { id:9,  icon:"cycle",  name:"Receipt Summary Report",     cat:"Transaction Reports",  catColor:"#e6faf3", catText:"#16a369",  desc:"Summary of all goods received",                        format:"PDF, Excel", lastGen:"May 24, 2025 10:15 AM", genBy:"Ibrahim Okafor" },
-  { id:10, icon:"alert",  name:"Reorder Report",             cat:"Stock Reports",        catColor:"#fff7ed", catText:"#c27a0a",  desc:"Items that need to be reordered",                      format:"PDF, Excel", lastGen:"May 24, 2025 09:00 AM", genBy:"System" },
-  { id:11, icon:"dollar", name:"Transfer Report",            cat:"Transaction Reports",  catColor:"#e6faf3", catText:"#16a369",  desc:"Summary of all inventory transfers",                   format:"PDF, Excel", lastGen:"May 23, 2025 04:20 PM", genBy:"Bola David" },
-  { id:12, icon:"user",   name:"Supplier Report",            cat:"Inventory Reports",    catColor:"#eef2ff", catText:"#4f6ef7",  desc:"Inventory received by supplier",                       format:"PDF, Excel", lastGen:"May 23, 2025 11:00 AM", genBy:"Ayomide Ajayi" },
-  { id:13, icon:"list",   name:"Adjustment Report",          cat:"Transaction Reports",  catColor:"#e6faf3", catText:"#16a369",  desc:"All stock adjustments and reasons",                    format:"Excel, CSV", lastGen:"May 22, 2025 03:15 PM", genBy:"System" },
-  { id:14, icon:"trend",  name:"Category Report",            cat:"Inventory Reports",    catColor:"#eef2ff", catText:"#4f6ef7",  desc:"Inventory broken down by category",                    format:"PDF, Excel", lastGen:"May 22, 2025 10:45 AM", genBy:"Ayomide Ajayi" },
-  { id:15, icon:"doc",    name:"Warehouse Report",           cat:"Stock Reports",        catColor:"#fff7ed", catText:"#c27a0a",  desc:"Stock levels per warehouse and location",               format:"PDF, Excel", lastGen:"May 21, 2025 02:30 PM", genBy:"Bola David" },
+/* ─── Report catalog metadata ───
+   The API has no "reports" endpoint, so this defines *what kinds* of
+   reports exist (name/description/format/icon/grouping) — the same way a
+   nav menu defines its own items. Every field that IS real data (last
+   generated date, generated-by, row counts, and the exported file
+   contents) is computed from live API responses below, never hardcoded. */
+const REPORT_DEFS = [
+  { id: 1, icon: "doc", name: "Inventory Balance Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Current inventory balance across all locations", format: "PDF, Excel", dataKey: "items", systemGenerated: false, available: true },
+  { id: 2, icon: "cycle", name: "Inventory Movement Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory movements", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 3, icon: "alert", name: "Low Stock Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Items below minimum stock level", format: "PDF, Excel", dataKey: "low_stock", systemGenerated: true, available: true },
+  { id: 4, icon: "dollar", name: "Stock Valuation Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory valuation by cost and category", format: "PDF, Excel", dataKey: "valuation", systemGenerated: false, available: true },
+  { id: 5, icon: "list", name: "Transaction Detail Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Detailed list of all transactions", format: "Excel, CSV", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 6, icon: "trend", name: "Stock Trend Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock trend analysis over time", format: "PDF, Excel", dataKey: "transactions", systemGenerated: true, available: true },
+  { id: 7, icon: "user", name: "User Activity Report", cat: "User & Activity Reports", catColor: "#f3f0ff", catText: "#8b5cf6", desc: "User activities and system actions", format: "PDF, Excel", dataKey: "users", systemGenerated: false, available: true },
+  { id: 8, icon: "doc", name: "Audit Log Report", cat: "User & Activity Reports", catColor: "#f3f0ff", catText: "#8b5cf6", desc: "Complete audit trail and logs", format: "PDF, Excel", dataKey: null, systemGenerated: true, available: false },
+  { id: 9, icon: "cycle", name: "Receipt Summary Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all goods received", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 10, icon: "alert", name: "Reorder Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Items that need to be reordered", format: "PDF, Excel", dataKey: "low_stock", systemGenerated: true, available: true },
+  { id: 11, icon: "dollar", name: "Transfer Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory transfers", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 12, icon: "user", name: "Supplier Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory received by supplier", format: "PDF, Excel", dataKey: "suppliers", systemGenerated: false, available: true },
+  { id: 13, icon: "list", name: "Adjustment Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "All stock adjustments and reasons", format: "Excel, CSV", dataKey: "transactions", systemGenerated: true, available: true },
+  { id: 14, icon: "trend", name: "Category Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory broken down by category", format: "PDF, Excel", dataKey: "categories", systemGenerated: false, available: true },
+  { id: 15, icon: "doc", name: "Warehouse Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock levels per warehouse and location", format: "PDF, Excel", dataKey: null, systemGenerated: false, available: false },
 ];
 
-const CATS = ["All Report Types","Inventory Reports","Transaction Reports","Stock Reports","User & Activity Reports"];
-const WAREHOUSES = ["All Locations","Storage Area","Receiving Area","Distribution Center"];
-const FORMATS = ["All Formats","PDF","Excel","CSV"];
+const CATS = ["All Report Types", "Inventory Reports", "Transaction Reports", "Stock Reports", "User & Activity Reports"];
+const WAREHOUSES = ["All Locations"]; // no warehouses/locations endpoint exists yet
+const FORMATS = ["All Formats", "PDF", "Excel", "CSV"];
 const PAGE_SIZE = 8;
 
 /* ─── Icons ─── */
@@ -43,10 +49,10 @@ const CAT_ICON_MAP = {
   "User & Activity Reports":{ icon:<svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={1.8}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, color:"#8b5cf6", bg:"#f3f0ff" },
 };
 
-/* ─── DateRange Picker (shared) ─── */
+/* ─── DateRange Picker (shared, unchanged UI) ─── */
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function CalPicker({ value, onChange, onClose }) {
-  const [view, setView] = useState(new Date(2025,4,1));
+  const [view, setView] = useState(value.start || new Date());
   const [lStart, setLS] = useState(value.start);
   const [lEnd,   setLE] = useState(value.end);
   const [hover,  setHov] = useState(null);
@@ -94,30 +100,142 @@ function CalPicker({ value, onChange, onClose }) {
 
 const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e2740",color:"#fff",padding:"10px 20px",borderRadius:9,fontSize:13,fontWeight:500,zIndex:99999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>{msg}</div>);
 
+/* ─── data helpers ─── */
+const fmtDateTime = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+};
+
+const latestTimestamp = (arr, field = "updated_at") => {
+  if (!arr || !arr.length) return null;
+  return arr.reduce((max, row) => {
+    const t = row?.[field] ? new Date(row[field]).getTime() : NaN;
+    return !isNaN(t) && t > max ? t : max;
+  }, 0) || null;
+};
+
+function slugify(name) {
+  return String(name || "").toLowerCase().replace(/\s+/g, "_");
+}
+
 export default function Reports() {
   const [catFilter,  setCatFilter]  = useState("All Report Types");
   const [warehouse,  setWarehouse]  = useState("All Locations");
   const [format,     setFormat]     = useState("All Formats");
   const [search,     setSearch]     = useState("");
-  const [dateRange,  setDateRange]  = useState({ start: new Date(2025,4,21), end: new Date(2025,4,27) });
+  const [dateRange,  setDateRange]  = useState({ start: new Date(Date.now()-6*864e5), end: new Date() });
   const [showCal,    setShowCal]    = useState(false);
   const [page,       setPage]       = useState(1);
   const [toast,      setToast]      = useState(null);
   const calRef = useRef();
 
+  // Live API state — replaces all static seed data.
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stockBalances, setStockBalances] = useState({}); // itemId -> balance
+  const [transactions, setTransactions] = useState([]);
+
   useEffect(()=>{ const h=(e)=>{ if(calRef.current&&!calRef.current.contains(e.target)) setShowCal(false); }; document.addEventListener("mousedown",h); return()=>document.removeEventListener("mousedown",h); },[]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),2600); };
 
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [meRes, itemsRes, categoriesRes, suppliersRes, usersRes] = await Promise.allSettled([
+        api.me(),
+        api.listItems(),
+        api.listCategories(),
+        api.listSuppliers(),
+        api.listUsers(),
+      ]);
+
+      const itemsData = itemsRes.status === "fulfilled" ? (itemsRes.value || []) : [];
+      setCurrentUser(meRes.status === "fulfilled" ? meRes.value : null);
+      setItems(itemsData);
+      setCategories(categoriesRes.status === "fulfilled" ? (categoriesRes.value || []) : []);
+      setSuppliers(suppliersRes.status === "fulfilled" ? (suppliersRes.value || []) : []);
+      setUsers(usersRes.status === "fulfilled" ? (usersRes.value || []) : []);
+
+      if (itemsRes.status === "rejected") {
+        setLoadError(itemsRes.reason?.message || "Failed to load data");
+      }
+
+      // Fetch per-item stock balances and transactions (best-effort; skip failures per item)
+      if (itemsData.length) {
+        const balanceEntries = await Promise.allSettled(itemsData.map(it => api.getItemStockBalance(it.id)));
+        const balances = {};
+        balanceEntries.forEach((r, i) => { if (r.status === "fulfilled") balances[itemsData[i].id] = r.value; });
+        setStockBalances(balances);
+
+        const txEntries = await Promise.allSettled(itemsData.map(it => api.getItemTransactions(it.id)));
+        const allTx = [];
+        txEntries.forEach((r, i) => {
+          if (r.status === "fulfilled" && r.value) {
+            const rows = Array.isArray(r.value) ? r.value : (r.value.data || []);
+            rows.forEach(row => allTx.push({ ...row, itemName: itemsData[i].name, itemSku: itemsData[i].sku }));
+          }
+        });
+        setTransactions(allTx);
+      } else {
+        setStockBalances({});
+        setTransactions([]);
+      }
+    } catch (e) {
+      setLoadError(e.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const dataState = { items, categories, suppliers, users, transactions, stockBalances };
+
+  const sourceFor = (dataKey) => {
+    switch (dataKey) {
+      case "items": return items;
+      case "categories": return categories;
+      case "suppliers": return suppliers;
+      case "users": return users;
+      case "transactions": return transactions;
+      case "valuation": return items;
+      case "low_stock": return items.filter(it => {
+        const b = stockBalances[it.id];
+        const available = b ? Number(b.total_available ?? 0) : 0;
+        return available < Number(it.reorder_level ?? 0);
+      });
+      default: return null;
+    }
+  };
+
+  const reports = useMemo(() => REPORT_DEFS.map(def => {
+    const source = def.available ? sourceFor(def.dataKey) : null;
+    const lastGenTs = source ? latestTimestamp(source) : null;
+    const lastGen = lastGenTs ? fmtDateTime(lastGenTs) : (def.available ? "No data yet" : "Not available");
+    const genBy = !def.available ? "—" : (def.systemGenerated ? "System" : (currentUser?.name || "—"));
+    const recordCount = source ? source.length : 0;
+    return { ...def, lastGen, genBy, recordCount };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [items, categories, suppliers, users, transactions, stockBalances, currentUser]);
+
   const filtered = useMemo(()=>{
-    return SEED_REPORTS.filter(r=>{
+    return reports.filter(r=>{
       const q = search.toLowerCase();
       const mQ = !q || r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q) || r.cat.toLowerCase().includes(q);
       const mC = catFilter==="All Report Types" || r.cat===catFilter;
       const mF = format==="All Formats" || r.format.includes(format);
       return mQ && mC && mF;
     });
-  },[search,catFilter,format]);
+  },[reports,search,catFilter,format]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length/PAGE_SIZE));
   const paginated  = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
@@ -127,10 +245,61 @@ export default function Reports() {
     return `${f(dateRange.start)} – ${f(dateRange.end)}`;
   };
 
+  const buildRows = (report) => {
+    switch (report.dataKey) {
+      case "items":
+        return items.map(it => ({
+          SKU: it.sku, Name: it.name, Category: it.category?.name ?? "",
+          Supplier: it.supplier?.name ?? "", Unit: it.unit?.abbreviation ?? "",
+          "Unit Cost": it.unit_cost, "Selling Price": it.selling_price,
+          "Reorder Level": it.reorder_level, Status: it.status,
+        }));
+      case "valuation":
+        return items.map(it => {
+          const b = stockBalances[it.id];
+          const onHand = b ? Number(b.total_on_hand ?? 0) : 0;
+          return {
+            SKU: it.sku, Name: it.name, Category: it.category?.name ?? "",
+            "Unit Cost": it.unit_cost, "Qty On Hand": onHand,
+            "Total Value": (Number(it.unit_cost || 0) * onHand).toFixed(2),
+          };
+        });
+      case "low_stock":
+        return sourceFor("low_stock").map(it => {
+          const b = stockBalances[it.id];
+          return {
+            SKU: it.sku, Name: it.name, "Available": b?.total_available ?? 0,
+            "Reorder Level": it.reorder_level, Supplier: it.supplier?.name ?? "",
+          };
+        });
+      case "categories":
+        return categories.map(c => ({ Name: c.name, Code: c.code, Status: c.status, "Last Updated": c.updated_at }));
+      case "suppliers":
+        return suppliers.map(s => ({ Name: s.name, Code: s.code, Email: s.email, Phone: s.phone, Address: s.address, Status: s.status }));
+      case "users":
+        return users.map(u => ({
+          Name: u.name, Email: u.email, Phone: u.phone ?? "",
+          Roles: (u.roles || []).map(r => r.name).join(", "), Status: u.status, "Last Updated": u.updated_at,
+        }));
+      case "transactions":
+        return transactions.map(t => ({ Item: t.itemName, SKU: t.itemSku, ...t, itemName: undefined, itemSku: undefined }));
+      default:
+        return [];
+    }
+  };
+
   const handleDownload = (report, fmt) => {
-    if (fmt==="Excel" || fmt==="CSV") {
-      const data = [{ "Report Name":report.name, "Category":report.cat, "Description":report.desc, "Format":report.format, "Last Generated":report.lastGen, "Generated By":report.genBy }];
-      const ws = XLSX.utils.json_to_sheet(data);
+    if (!report.available) {
+      showToast(`${report.name} isn't available yet — no matching endpoint`);
+      return;
+    }
+    const rows = buildRows(report);
+    if (!rows.length) {
+      showToast(`${report.name}: no data to export`);
+      return;
+    }
+    if (fmt === "Excel" || fmt === "CSV") {
+      const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Report");
       XLSX.writeFile(wb, `${report.name.replace(/\s+/g,"_")}.${fmt==="CSV"?"csv":"xlsx"}`);
@@ -141,7 +310,7 @@ export default function Reports() {
   };
 
   const catCounts = {};
-  SEED_REPORTS.forEach(r=>{ catCounts[r.cat]=(catCounts[r.cat]||0)+1; });
+  reports.forEach(r=>{ catCounts[r.cat]=(catCounts[r.cat]||0)+1; });
 
   const pageNums = () => {
     if(totalPages<=5) return Array.from({length:totalPages},(_,i)=>i+1);
@@ -202,6 +371,13 @@ export default function Reports() {
         </div>
       </div>
 
+      {loadError && (
+        <div style={{ background:"#fff5f5", border:"1px solid #fecaca", color:"#b91c1c", borderRadius:10, padding:"10px 16px", marginBottom:16, fontSize:12.5, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+          <span>Couldn't load live data: {loadError}</span>
+          <button onClick={loadAll} style={{ border:"1px solid #fecaca", background:"#fff", color:"#b91c1c", borderRadius:6, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Retry</button>
+        </div>
+      )}
+
       {/* Category Cards */}
       <div className="rpt-cats">
         {Object.entries(CAT_ICON_MAP).map(([cat,cfg])=>(
@@ -247,8 +423,9 @@ export default function Reports() {
           <div>
             <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:5 }}>Warehouse / Location</label>
             <div style={{ position:"relative" }}>
-              <select value={warehouse} onChange={e=>setWarehouse(e.target.value)}
-                style={{ width:"100%",padding:"8px 28px 8px 10px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none",appearance:"none",background:"#fff",cursor:"pointer" }}>
+              <select value={warehouse} onChange={e=>setWarehouse(e.target.value)} disabled={WAREHOUSES.length<=1}
+                title={WAREHOUSES.length<=1 ? "No warehouse/location endpoint available yet" : undefined}
+                style={{ width:"100%",padding:"8px 28px 8px 10px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none",appearance:"none",background:WAREHOUSES.length<=1?"#f8f9fb":"#fff",cursor:WAREHOUSES.length<=1?"default":"pointer" }}>
                 {WAREHOUSES.map(w=><option key={w}>{w}</option>)}
               </select>
               <svg style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -302,7 +479,9 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length===0 ? (
+              {loading ? (
+                <tr><td colSpan={7} style={{ padding:"48px 20px",textAlign:"center",color:"#9aa1b4" }}>Loading reports…</td></tr>
+              ) : paginated.length===0 ? (
                 <tr><td colSpan={7} style={{ padding:"48px 20px",textAlign:"center",color:"#9aa1b4" }}>No reports match your search.</td></tr>
               ) : paginated.map((r,i)=>(
                 <tr key={r.id} className="rpt-row" style={{ borderBottom:i===paginated.length-1?"none":"1px solid #f4f6fb", transition:"background .15s" }}>
@@ -311,7 +490,10 @@ export default function Reports() {
                       <div style={{ width:36, height:36, borderRadius:8, background:"#f4f6fb", border:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"center", color:"#6b7591", flexShrink:0 }}>
                         {ICON_MAP[r.icon]}
                       </div>
-                      <span style={{ fontWeight:600, color:"#1e2740", fontSize:13, whiteSpace:"nowrap" }}>{r.name}</span>
+                      <div>
+                        <div style={{ fontWeight:600, color:"#1e2740", fontSize:13, whiteSpace:"nowrap" }}>{r.name}</div>
+                        {r.available && <div style={{ fontSize:11, color:"#9aa1b4" }}>{r.recordCount} record{r.recordCount===1?"":"s"}</div>}
+                      </div>
                     </div>
                   </td>
                   <td style={{ padding:"14px 12px" }}>
@@ -324,9 +506,9 @@ export default function Reports() {
                   <td style={{ padding:"14px 12px", textAlign:"center" }}>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
                       {/* Download */}
-                      <button onClick={()=>handleDownload(r,"Excel")}
-                        style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s" }}
-                        onMouseEnter={e=>{e.currentTarget.style.background="#eef2ff";e.currentTarget.style.borderColor="#4f6ef7";}} onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor="#e4e7ef";}}>
+                      <button onClick={()=>handleDownload(r,"Excel")} disabled={!r.available}
+                        style={{ width:30,height:30,border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:r.available?"pointer":"not-allowed",opacity:r.available?1:0.4,transition:"all .15s" }}
+                        onMouseEnter={e=>{ if(!r.available) return; e.currentTarget.style.background="#eef2ff";e.currentTarget.style.borderColor="#4f6ef7";}} onMouseLeave={e=>{e.currentTarget.style.background="#fff";e.currentTarget.style.borderColor="#e4e7ef";}}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       </button>
                       {/* More */}

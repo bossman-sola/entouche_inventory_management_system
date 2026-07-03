@@ -3,7 +3,9 @@ import * as XLSX from "xlsx";
 import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
-import { 
+import { listSuppliers } from "../../../lib/api.js";
+import { listReceipts, createReceipt, updateReceipt } from "../../../lib/receiptsStore";
+import {
   Upload
 } from 'lucide-react';
 
@@ -12,11 +14,6 @@ function parseNaira(str) {
 }
 function fmtNaira(n) {
   return "₦" + Math.round(Number(n) || 0).toLocaleString("en-NG");
-}
-function distributeQty(total, n) {
-  const base = Math.floor(total / n) || 0;
-  const remainder = total - base * n;
-  return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
 }
 function buildTimeline(status, fullDate, by) {
   const created = { title: "Receipt Created", date: fullDate, by, status: "done" };
@@ -48,58 +45,6 @@ function nowString() {
   const mm = String(d.getMinutes()).padStart(2, "0");
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h}:${mm} ${ampm}`;
 }
-
-// Turns the original flat seed rows into full records the details modal can use
-function synthesizeDetails(row) {
-  const totalVal = parseNaira(row.val);
-  const unitCost = row.qty ? totalVal / row.qty : 0;
-  const qtyParts = distributeQty(row.qty, row.items);
-  const items = qtyParts.map((q, i) => ({
-    id: `${row.no}-${i + 1}`,
-    name: `Stock Item ${i + 1}`,
-    cat: "General",
-    sku: `${row.no}-SKU${i + 1}`,
-    unit: "Piece (PCS)",
-    qty: q,
-    cost: Math.round(unitCost),
-  }));
-  const dateOnly = row.date.split(",").slice(0, 2).join(",").trim();
-  return {
-    id: row.no,
-    no: row.no,
-    date: row.date,
-    supplier: row.supplier,
-    ref: row.ref,
-    by: row.by,
-    qty: row.qty,
-    val: row.val,
-    status: row.status,
-    deliveryNoteNo: "DN-" + row.ref.replace("PO-", ""),
-    deliveryDate: dateOnly,
-    warehouse: "Main Warehouse",
-    receivingLocation: "Receiving Area",
-    storageLocation: "Storage Area A1-01",
-    notes: "Received in good condition. All items verified and counted.",
-    items,
-    discount: 0,
-    otherCharges: 0,
-    attachments: [],
-    timeline: buildTimeline(row.status, row.date, row.by),
-  };
-}
-
-const seedRows = [
-  { no: "RCPT-000156", date: "May 27, 2025 10:15 AM", supplier: "Tech Universe Ltd.", ref: "PO-2025-0456", by: "Inventory Officer", items: 5, qty: 120, val: "₦1,250,000", status: "Completed" },
-  { no: "RCPT-000155", date: "May 27, 2025 09:32 AM", supplier: "Smart Solutions NG", ref: "PO-2025-0455", by: "Inventory Officer", items: 4, qty: 85, val: "₦850,000", status: "Completed" },
-  { no: "RCPT-000154", date: "May 26, 2025 04:45 PM", supplier: "Office Supplies Co.", ref: "PO-2025-0454", by: "Inventory Officer", items: 8, qty: 250, val: "₦2,450,000", status: "Completed" },
-  { no: "RCPT-000153", date: "May 26, 2025 02:10 PM", supplier: "Global Tech Ltd.", ref: "PO-2025-0453", by: "Inventory Officer", items: 3, qty: 45, val: "₦975,000", status: "Pending" },
-  { no: "RCPT-000152", date: "May 26, 2025 11:05 AM", supplier: "ElectroMart NG", ref: "PO-2025-0452", by: "Inventory Officer", items: 6, qty: 60, val: "₦1,150,000", status: "Completed" },
-  { no: "RCPT-000151", date: "May 25, 2025 03:20 PM", supplier: "Print World Ltd.", ref: "PO-2025-0451", by: "Inventory Officer", items: 2, qty: 30, val: "₦450,000", status: "Pending" },
-  { no: "RCPT-000150", date: "May 25, 2025 10:30 AM", supplier: "Smart Solutions NG", ref: "PO-2025-0450", by: "Inventory Officer", items: 7, qty: 140, val: "₦1,980,000", status: "Completed" },
-  { no: "RCPT-000149", date: "May 24, 2025 09:15 AM", supplier: "Tech Universe Ltd.", ref: "PO-2025-0449", by: "Inventory Officer", items: 3, qty: 25, val: "₦320,000", status: "Cancelled" },
-  { no: "RCPT-000148", date: "May 23, 2025 02:40 PM", supplier: "Office Supplies Co.", ref: "PO-2025-0448", by: "Inventory Officer", items: 4, qty: 90, val: "₦780,000", status: "Completed" },
-  { no: "RCPT-000147", date: "May 23, 2025 11:00 AM", supplier: "ElectroMart NG", ref: "PO-2025-0447", by: "Inventory Officer", items: 5, qty: 110, val: "₦1,050,000", status: "Completed" },
-];
 
 const statusStyle = {
   Completed: { bg: "#e6faf3", color: "#16a369" },
@@ -147,7 +92,11 @@ const MetricCard = ({ iconBg, icon, label, value, sub, subAccent, onClick }) => 
 /* ───────────────────────── page ───────────────────────── */
 
 export default function Receipts() {
-  const [receipts, setReceipts] = useState(() => seedRows.map(synthesizeDetails));
+  const [receipts, setReceipts] = useState([]);
+  const [loadingReceipts, setLoadingReceipts] = useState(true);
+
+  const [supplierOptions, setSupplierOptions] = useState([]); // from live Suppliers API
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState(null);
@@ -161,6 +110,27 @@ export default function Receipts() {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [dateRange, setDateRange] = useState(null); // { start: Date, end: Date }
   const dateBtnRef = useRef(null);
+
+  // Load receipts (local store — see src/lib/receiptsStore.js for why) on mount
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingReceipts(true);
+    listReceipts()
+      .then((rows) => { if (!cancelled) setReceipts(rows); })
+      .finally(() => { if (!cancelled) setLoadingReceipts(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load suppliers from the live API for the filter dropdown (independent of receipts)
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSuppliers(true);
+    listSuppliers()
+      .then((rows) => { if (!cancelled) setSupplierOptions(rows || []); })
+      .catch(() => { if (!cancelled) setSupplierOptions([]); })
+      .finally(() => { if (!cancelled) setLoadingSuppliers(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   // close any open row menu when clicking elsewhere
   useEffect(() => {
@@ -180,31 +150,35 @@ export default function Receipts() {
   };
 
   /* ── save (create or update) a receipt from AddNewReceipt ── */
-  const handleSaveReceipt = (form) => {
+  const handleSaveReceipt = async (form) => {
     const totQty = form.items.reduce((a, r) => a + Number(r.qty || 0), 0);
     const totVal = form.items.reduce((a, r) => a + Number(r.qty || 0) * Number(r.cost || 0), 0);
 
     if (form.id) {
       // update existing
-      setReceipts(prev => prev.map(r => r.id !== form.id ? r : {
-        ...r,
+      const existing = receipts.find(r => r.id === form.id);
+      const patch = {
         supplier: form.supplier,
+        supplierId: form.supplierId,
         by: form.receivedBy,
+        receivedById: form.receivedById,
         warehouse: form.warehouse,
         receivingLocation: form.warehouse,
         storageLocation: form.warehouse,
         date: form.date,
         deliveryDate: form.date,
-        ref: form.poNumber || r.ref,
+        ref: form.poNumber || existing?.ref || "—",
         notes: form.notes,
         items: form.items,
         qty: totQty,
         val: fmtNaira(totVal),
         timeline: [
           { title: "Receipt Updated", date: nowString(), by: form.receivedBy, status: "done" },
-          ...r.timeline,
+          ...(existing?.timeline || []),
         ],
-      }));
+      };
+      const updated = await updateReceipt(form.id, patch);
+      setReceipts(prev => prev.map(r => r.id === form.id ? updated : r));
     } else {
       // create new
       const no = form.no || nextReceiptNo();
@@ -214,8 +188,10 @@ export default function Receipts() {
         no,
         date: form.date,
         supplier: form.supplier,
+        supplierId: form.supplierId,
         ref: form.poNumber || "—",
         by: form.receivedBy,
+        receivedById: form.receivedById,
         qty: totQty,
         val: fmtNaira(totVal),
         status: "Completed",
@@ -231,6 +207,7 @@ export default function Receipts() {
         attachments: [],
         timeline: buildTimeline("Completed", created, form.receivedBy),
       };
+      await createReceipt(newReceipt);
       setReceipts(prev => [newReceipt, ...prev]);
     }
     setEditingReceipt(null);
@@ -240,12 +217,14 @@ export default function Receipts() {
   const openEditReceiptModal = (receipt) => { setDetailsReceipt(null); setEditingReceipt(receipt); setIsAddModalOpen(true); };
 
   /* ── filtering ── */
-  const suppliers = ["All Suppliers", ...Array.from(new Set(receipts.map(r => r.supplier)))];
+  // Supplier filter list comes from the live Suppliers API, not just suppliers
+  // that happen to already be on a receipt — so it's accurate even with 0 receipts.
+  const suppliers = ["All Suppliers", ...supplierOptions.map(s => s.name)];
 
   const filtered = receipts.filter(r => {
     if (search.trim()) {
       const q = search.toLowerCase();
-      const hit = r.no.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q) || r.ref.toLowerCase().includes(q);
+      const hit = r.no.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q) || (r.ref || "").toLowerCase().includes(q);
       if (!hit) return false;
     }
     if (supplierFilter !== "All Suppliers" && r.supplier !== supplierFilter) return false;
@@ -262,6 +241,14 @@ export default function Receipts() {
   const dateLabel = dateRange
     ? `${dateRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${dateRange.end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
     : "All dates";
+
+  /* ── derived metrics ── */
+  const now = new Date();
+  const thisMonthCount = receipts.filter(r => {
+    const d = new Date(r.date);
+    return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const thisMonthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   /* ── export ── */
   const handleExport = () => {
@@ -283,7 +270,10 @@ export default function Receipts() {
   };
 
   return (
-    <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740" }}>
+    // position:relative makes this the containing block for AddNewReceipt / ReceiptDetails,
+    // so those panels render inline within this dashboard page instead of covering the
+    // whole browser viewport (sidebar/topbar chrome outside this component stays visible).
+    <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740", position: "relative", minHeight: "100%" }}>
 
       <AddNewReceipt
         isOpen={isAddModalOpen}
@@ -309,7 +299,8 @@ export default function Receipts() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={handleExport}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, cursor: "pointer", color: "#1e2740", fontWeight: 500 }}
+            disabled={filtered.length === 0}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, cursor: filtered.length === 0 ? "not-allowed" : "pointer", color: filtered.length === 0 ? "#b0b8cc" : "#1e2740", fontWeight: 500 }}
           >
             <Upload size={16} /> Export
           </button>
@@ -327,7 +318,7 @@ export default function Receipts() {
         <MetricCard iconBg="#eef2ff" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>} label="Total Receipts" value={receipts.length} sub="All time" />
         <MetricCard iconBg="#e6faf3" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>} label="Total Qty Received" value={receipts.reduce((a, r) => a + r.qty, 0).toLocaleString()} sub="All time" />
         <MetricCard iconBg="#f3f0ff" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>} label="Total Value" value={fmtNaira(receipts.reduce((a, r) => a + parseNaira(r.val), 0))} sub="All time" />
-        <MetricCard iconBg="#fff7ed" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} label="This Month" value="28" sub="May 2025" />
+        <MetricCard iconBg="#fff7ed" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} label="This Month" value={thisMonthCount} sub={thisMonthLabel} />
         <MetricCard iconBg="#fff1f0" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f25c54" strokeWidth={2}><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8l5 3-5 3V8z" /></svg>} label="Pending Receipts" value={receipts.filter(r => r.status === "Pending").length} sub="View pending" subAccent onClick={() => setStatusFilter("Pending")} />
       </div>
 
@@ -373,7 +364,8 @@ export default function Receipts() {
             <select
               value={supplierFilter}
               onChange={e => setSupplierFilter(e.target.value)}
-              style={{ appearance: "none", padding: "7px 28px 7px 10px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: "pointer", minWidth: 130, color: "#1e2740", fontFamily: "inherit" }}
+              disabled={loadingSuppliers}
+              style={{ appearance: "none", padding: "7px 28px 7px 10px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: loadingSuppliers ? "not-allowed" : "pointer", minWidth: 130, color: "#1e2740", fontFamily: "inherit" }}
             >
               {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -421,10 +413,18 @@ export default function Receipts() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loadingReceipts ? (
                 <tr>
                   <td colSpan={10} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>
-                    No receipts match your filters.
+                    Loading receipts…
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>
+                    {receipts.length === 0
+                      ? 'No receipts yet. Click "New Receipt" to record your first one.'
+                      : "No receipts match your filters."}
                   </td>
                 </tr>
               ) : filtered.map((r) => {

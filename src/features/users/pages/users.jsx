@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "../../../shared/api/entoucheApi.js"; // adjust depth to match this file's location
 
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -30,48 +31,45 @@ const icons = {
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z",
 };
 
-const ROLES_DATA = [
-  {
-    id: 1, name: "System Administrator", icon: icons.adminIcon, color: "text-blue-600", bg: "bg-blue-50",
-    users: 1, permissions: ["Manage users", "Manage permissions", "System settings", "View all reports"],
-  },
-  {
-    id: 2, name: "Warehouse Manager", icon: icons.warehouseIcon, color: "text-green-600", bg: "bg-green-50",
-    users: 2, permissions: ["Oversee warehouse operations", "Approve inventory adjustments", "Approve transfers", "Monitor stock levels"],
-  },
-  {
-    id: 3, name: "Inventory Officer", icon: icons.inventoryIcon, color: "text-teal-600", bg: "bg-teal-50",
-    users: 3, permissions: ["Receive inventory", "Update stock quantities", "Move inventory", "Conduct stock counts"],
-  },
-  {
-    id: 4, name: "Management Viewer", icon: icons.viewerIcon, color: "text-orange-500", bg: "bg-orange-50",
-    users: 3, permissions: ["View dashboards", "View reports", "Audit inventory activity", "Read-only access"],
-  },
-];
-
-const ROLE_COLORS = {
-  "System Administrator": "text-blue-600",
-  "Warehouse Manager": "text-green-600",
-  "Inventory Officer": "text-teal-500",
-  "Management Viewer": "text-orange-500",
+// Presentation metadata for known role slugs — the API doesn't return icons/colors,
+// so this maps a role's real `name` (slug) to how it should look. Unknown roles
+// fall back to DEFAULT_ROLE_META below.
+const ROLE_META = {
+  system_administrator: { icon: icons.adminIcon, color: "text-blue-600", bg: "bg-blue-50", label: "System Administrator" },
+  warehouse_manager:    { icon: icons.warehouseIcon, color: "text-green-600", bg: "bg-green-50", label: "Warehouse Manager" },
+  inventory_officer:    { icon: icons.inventoryIcon, color: "text-teal-600", bg: "bg-teal-50", label: "Inventory Officer" },
+  management_viewer:    { icon: icons.viewerIcon, color: "text-orange-500", bg: "bg-orange-50", label: "Management Viewer" },
 };
+const DEFAULT_ROLE_META = { icon: icons.userGroup, color: "text-gray-600", bg: "bg-gray-50" };
 
-const INITIAL_USERS = [
-  { id: 1, initials: "AM", bg: "bg-blue-600", name: "Ayomide Ajayi", isYou: true, email: "ayomide.ajayi@inventorypro.com", role: "System Administrator", status: "Active", lastLogin: "May 27, 2025 09:32 AM" },
-  { id: 2, initials: "IO", bg: "bg-green-600", name: "Ibrahim Okafor", isYou: false, email: "ibrahim.okafor@inventorypro.com", role: "Warehouse Manager", status: "Active", lastLogin: "May 27, 2025 08:15 AM" },
-  { id: 3, initials: "CS", bg: "bg-orange-500", name: "Chinedu Samuel", isYou: false, email: "chinedu.samuel@inventorypro.com", role: "Inventory Officer", status: "Active", lastLogin: "May 26, 2025 04:45 PM" },
-  { id: 4, initials: "EO", bg: "bg-teal-500", name: "Esther Obi", isYou: false, email: "esther.obi@inventorypro.com", role: "Inventory Officer", status: "Active", lastLogin: "May 26, 2025 02:10 PM" },
-  { id: 5, initials: "BW", bg: "bg-purple-600", name: "Bola David", isYou: false, email: "bola.david@inventorypro.com", role: "Warehouse Manager", status: "Active", lastLogin: "May 26, 2025 11:05 AM" },
-  { id: 6, initials: "MV", bg: "bg-pink-500", name: "Uche Kalu", isYou: false, email: "uche.kalu@inventorypro.com", role: "Management Viewer", status: "Active", lastLogin: "May 24, 2025 03:20 PM" },
-  { id: 7, initials: "MV", bg: "bg-indigo-500", name: "Aisha Ahmed", isYou: false, email: "aisha.ahmed@inventorypro.com", role: "Management Viewer", status: "Active", lastLogin: "May 24, 2025 09:15 AM" },
-  { id: 8, initials: "IO", bg: "bg-red-500", name: "Michael Omotosho", isYou: false, email: "michael.omotosho@inventorypro.com", role: "Inventory Officer", status: "Inactive", lastLogin: "May 22, 2025 05:40 PM" },
-  { id: 9, initials: "TK", bg: "bg-yellow-500", name: "Taiwo Kunle", isYou: false, email: "taiwo.kunle@inventorypro.com", role: "Inventory Officer", status: "Active", lastLogin: "May 21, 2025 10:00 AM" },
-  { id: 10, initials: "NK", bg: "bg-cyan-600", name: "Ngozi Kamara", isYou: false, email: "ngozi.kamara@inventorypro.com", role: "Management Viewer", status: "Active", lastLogin: "May 20, 2025 02:30 PM" },
-  { id: 11, initials: "AO", bg: "bg-lime-600", name: "Ade Okonkwo", isYou: false, email: "ade.okonkwo@inventorypro.com", role: "Warehouse Manager", status: "Inactive", lastLogin: "May 18, 2025 09:00 AM" },
-  { id: 12, initials: "FB", bg: "bg-rose-500", name: "Funmi Babatunde", isYou: false, email: "funmi.babatunde@inventorypro.com", role: "Inventory Officer", status: "Active", lastLogin: "May 17, 2025 01:15 PM" },
-  { id: 13, initials: "KA", bg: "bg-violet-600", name: "Kemi Adeyemi", isYou: false, email: "kemi.adeyemi@inventorypro.com", role: "System Administrator", status: "Active", lastLogin: "May 15, 2025 11:45 AM" },
-  { id: 14, initials: "OI", bg: "bg-amber-600", name: "Obinna Ike", isYou: false, email: "obinna.ike@inventorypro.com", role: "Management Viewer", status: "Active", lastLogin: "May 14, 2025 03:00 PM" },
-];
+const AVATAR_COLORS = ["bg-blue-600","bg-green-600","bg-orange-500","bg-teal-500","bg-purple-600","bg-pink-500","bg-indigo-500","bg-red-500","bg-yellow-500","bg-cyan-600","bg-lime-600","bg-rose-500","bg-violet-600","bg-amber-600"];
+
+function humanize(slug) {
+  return String(slug || "").split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function formatPermission(name) {
+  const [group, action] = String(name).split(".");
+  if (!action) return humanize(group);
+  return `${humanize(group)} — ${humanize(action)}`;
+}
+
+function initialsOf(name) {
+  return String(name || "?").trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// Deterministic color pick so avatars don't shuffle on every re-render.
+function colorFor(id) {
+  const n = Number(id) || 0;
+  return AVATAR_COLORS[n % AVATAR_COLORS.length];
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+}
 
 const Modal = ({ open, onClose, title, children }) => {
   if (!open) return null;
@@ -91,12 +89,15 @@ const Modal = ({ open, onClose, title, children }) => {
   );
 };
 
-const UserForm = ({ user, roles, onSave, onClose }) => {
-  const [form, setForm] = useState(user || { name: "", email: "", role: roles[0]?.name || "", status: "Active" });
+const UserForm = ({ user, roles, onSave, onClose, saving }) => {
+  const [form, setForm] = useState(user || { name: "", email: "", phone: "", password: "", role: roles[0]?.name || "", status: "active" });
+  const [err, setErr] = useState(null);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const isValid = form.name.trim() && form.email.trim() && form.role;
+  const isCreate = !user;
+  const isValid = form.name.trim() && form.email.trim() && form.role && (!isCreate || form.password.trim().length >= 6);
   return (
     <div className="space-y-4">
+      {err && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{err}</div>}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
         <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Enter full name" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -106,10 +107,20 @@ const UserForm = ({ user, roles, onSave, onClose }) => {
         <input value={form.email} onChange={e => set("email", e.target.value)} placeholder="Enter email address" type="email" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
       <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+        <input value={form.phone || ""} onChange={e => set("phone", e.target.value)} placeholder="+1234567890" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      {isCreate && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+          <input value={form.password} onChange={e => set("password", e.target.value)} type="password" placeholder="Min. 6 characters" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      )}
+      <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
         <div className="relative">
           <select value={form.role} onChange={e => set("role", e.target.value)} className="appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8">
-            {roles.map(r => <option key={r.name}>{r.name}</option>)}
+            {roles.map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
           </select>
           <Icon d={icons.chevronDown} size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
@@ -117,8 +128,8 @@ const UserForm = ({ user, roles, onSave, onClose }) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
         <div className="flex gap-3">
-          {["Active", "Inactive"].map(s => (
-            <button key={s} onClick={() => set("status", s)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-all ${form.status === s ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+          {["active", "inactive"].map(s => (
+            <button key={s} onClick={() => set("status", s)} className={`flex-1 py-2 rounded-lg border text-sm font-medium capitalize transition-all ${form.status === s ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}>
               {s}
             </button>
           ))}
@@ -126,8 +137,11 @@ const UserForm = ({ user, roles, onSave, onClose }) => {
       </div>
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
         <button onClick={onClose} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-        <button disabled={!isValid} onClick={() => isValid && onSave(form)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-semibold transition-colors">
-          {user ? "Save Changes" : "Add User"}
+        <button disabled={!isValid || saving} onClick={async () => {
+          if (!isValid) return;
+          try { setErr(null); await onSave(form); } catch (e) { setErr(e.message || "Something went wrong"); }
+        }} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-semibold transition-colors">
+          {saving ? "Saving…" : (user ? "Save Changes" : "Add User")}
         </button>
       </div>
     </div>
@@ -136,8 +150,14 @@ const UserForm = ({ user, roles, onSave, onClose }) => {
 
 export default function UsersRolesPage() {
   const [tab, setTab] = useState("Users");
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [roles, setRoles] = useState(ROLES_DATA);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [rolesRaw, setRolesRaw] = useState([]);
+
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -146,46 +166,112 @@ export default function UsersRolesPage() {
   const [editUser, setEditUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
-  const [editRole, setEditRole] = useState(null);
+  const [viewRole, setViewRole] = useState(null);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [addRoleModal, setAddRoleModal] = useState(false);
-  const [newRoleForm, setNewRoleForm] = useState({ name: "", permissions: [] });
+  const [toast, setToast] = useState(null);
   const PER_PAGE = 8;
 
-  const filtered = users.filter(u =>
-    (!roleFilter || u.role === roleFilter) &&
-    (!statusFilter || u.status === statusFilter) &&
-    (!search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()) || u.role.toLowerCase().includes(search.toLowerCase()))
-  );
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [meRes, usersRes, rolesRes] = await Promise.allSettled([api.me(), api.listUsers(), api.listRoles()]);
+      setCurrentUser(meRes.status === "fulfilled" ? meRes.value : null);
+      setUsers(usersRes.status === "fulfilled" ? (usersRes.value || []) : []);
+      setRolesRaw(rolesRes.status === "fulfilled" ? (rolesRes.value || []) : []);
+      if (usersRes.status === "rejected" || rolesRes.status === "rejected") {
+        setLoadError((usersRes.reason || rolesRes.reason)?.message || "Failed to load data");
+      }
+    } catch (e) {
+      setLoadError(e.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Enrich roles with display metadata + live user counts computed from fetched users.
+  const roles = useMemo(() => rolesRaw.map(r => {
+    const meta = ROLE_META[r.name] || DEFAULT_ROLE_META;
+    return {
+      ...r,
+      icon: meta.icon, color: meta.color, bg: meta.bg,
+      label: meta.label || humanize(r.name),
+      userCount: users.filter(u => (u.roles || []).some(ur => ur.name === r.name)).length,
+      permissionLabels: (r.permissions || []).map(p => formatPermission(p.name)),
+    };
+  }), [rolesRaw, users]);
+
+  const roleLabelFor = (slug) => roles.find(r => r.name === slug)?.label || humanize(slug);
+
+  const filtered = users.filter(u => {
+    const userRoleSlug = u.roles?.[0]?.name || "";
+    return (!roleFilter || userRoleSlug === roleFilter) &&
+      (!statusFilter || u.status === statusFilter) &&
+      (!search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()) || roleLabelFor(userRoleSlug).toLowerCase().includes(search.toLowerCase()));
+  });
 
   const pages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const visible = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-  const activeCount = users.filter(u => u.status === "Active").length;
-  const inactiveCount = users.filter(u => u.status === "Inactive").length;
+  const activeCount = users.filter(u => u.status === "active").length;
+  const inactiveCount = users.filter(u => u.status === "inactive").length;
 
-  const addUser = (form) => {
-    const initials = form.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-    const colors = ["bg-blue-600", "bg-green-600", "bg-orange-500", "bg-teal-500", "bg-purple-600", "bg-pink-500", "bg-indigo-500"];
-    setUsers(p => [...p, { id: Date.now(), initials, bg: colors[Math.floor(Math.random() * colors.length)], name: form.name, isYou: false, email: form.email, role: form.role, status: form.status, lastLogin: "Never" }]);
-    setAddModal(false);
+  const addUser = async (form) => {
+    setBusy(true);
+    try {
+      await api.createUser({ name: form.name, email: form.email, phone: form.phone || null, password: form.password, status: form.status, roles: [form.role] });
+      setAddModal(false);
+      showToast(`${form.name} added ✓`);
+      await loadAll();
+    } finally { setBusy(false); }
   };
 
-  const saveEdit = (form) => {
-    setUsers(p => p.map(u => u.id === editUser.id ? { ...u, ...form } : u));
-    setEditUser(null);
+  const saveEdit = async (form) => {
+    setBusy(true);
+    try {
+      await api.updateUser(editUser.id, { name: form.name, email: form.email, phone: form.phone || null, status: form.status });
+      const currentRoleSlug = editUser.roles?.[0]?.name;
+      if (form.role !== currentRoleSlug) {
+        if (currentRoleSlug) await api.removeRole(editUser.id, currentRoleSlug);
+        await api.assignRole(editUser.id, form.role);
+      }
+      setEditUser(null);
+      showToast("User updated ✓");
+      await loadAll();
+    } finally { setBusy(false); }
   };
 
-  const confirmDelete = () => {
-    setUsers(p => p.filter(u => u.id !== deleteUser.id));
-    setDeleteUser(null);
+  const confirmDelete = async () => {
+    setBusy(true);
+    try {
+      await api.deleteUser(deleteUser.id);
+      setDeleteUser(null);
+      showToast("User deleted ✓");
+      await loadAll();
+    } catch (e) {
+      showToast(e.message || "Failed to delete user");
+    } finally { setBusy(false); }
   };
 
-  const toggleStatus = (id) => {
-    setUsers(p => p.map(u => u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u));
+  const toggleStatus = async (u) => {
+    const next = u.status === "active" ? "inactive" : "active";
+    try {
+      await api.toggleUserStatus(u.id, next);
+      setUsers(p => p.map(x => x.id === u.id ? { ...x, status: next } : x));
+    } catch (e) {
+      showToast(e.message || "Failed to update status");
+    }
   };
 
   return (
     <div className="p-3 sm:p-6 bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
+      {toast && (
+        <div className="fixed bottom-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium z-[9999] shadow-lg whitespace-nowrap">{toast}</div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
@@ -197,13 +283,20 @@ export default function UsersRolesPage() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm flex items-center justify-between gap-3">
+          <span>Couldn't load live data: {loadError}</span>
+          <button onClick={loadAll} className="border border-red-200 bg-white text-red-700 rounded-lg px-3 py-1 text-xs font-semibold hover:bg-red-50">Retry</button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Total Users", value: users.length, link: "View all users →", icon: icons.users, bg: "bg-blue-50", color: "text-blue-500" },
-          { label: "Active Users", value: activeCount, link: "View active users →", icon: icons.shield, bg: "bg-green-50", color: "text-green-500" },
-          { label: "Roles", value: roles.length, link: "View all roles →", icon: icons.userGroup, bg: "bg-orange-50", color: "text-orange-500" },
-          { label: "Inactive Users", value: inactiveCount, link: "View inactive users →", icon: icons.userOff, bg: "bg-purple-50", color: "text-purple-500" },
+          { label: "Total Users", value: users.length, link: "View all users →", icon: icons.users, bg: "bg-blue-50", color: "text-blue-500", onClick: () => { setStatusFilter(""); setRoleFilter(""); setTab("Users"); } },
+          { label: "Active Users", value: activeCount, link: "View active users →", icon: icons.shield, bg: "bg-green-50", color: "text-green-500", onClick: () => { setStatusFilter("active"); setTab("Users"); } },
+          { label: "Roles", value: roles.length, link: "View all roles →", icon: icons.userGroup, bg: "bg-orange-50", color: "text-orange-500", onClick: () => setTab("Roles") },
+          { label: "Inactive Users", value: inactiveCount, link: "View inactive users →", icon: icons.userOff, bg: "bg-purple-50", color: "text-purple-500", onClick: () => { setStatusFilter("inactive"); setTab("Users"); } },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-3">
@@ -212,8 +305,8 @@ export default function UsersRolesPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 truncate">{s.label}</p>
-                <p className="text-3xl font-bold text-gray-900">{s.value}</p>
-                <button className="text-xs text-blue-500 font-medium hover:text-blue-700 mt-0.5 whitespace-nowrap">{s.link}</button>
+                <p className="text-3xl font-bold text-gray-900">{loading ? "—" : s.value}</p>
+                <button onClick={s.onClick} className="text-xs text-blue-500 font-medium hover:text-blue-700 mt-0.5 whitespace-nowrap">{s.link}</button>
               </div>
             </div>
           </div>
@@ -244,15 +337,15 @@ export default function UsersRolesPage() {
                   <div className="relative flex-1 sm:flex-none">
                     <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }} className="appearance-none w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       <option value="">All Roles</option>
-                      {roles.map(r => <option key={r.name}>{r.name}</option>)}
+                      {roles.map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
                     </select>
                     <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   </div>
                   <div className="relative flex-1 sm:flex-none">
                     <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="appearance-none w-full sm:w-auto border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       <option value="">All Statuses</option>
-                      <option>Active</option>
-                      <option>Inactive</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
                     </select>
                     <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   </div>
@@ -270,59 +363,67 @@ export default function UsersRolesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visible.map(u => (
-                      <tr key={u.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-full ${u.bg} flex items-center justify-center text-white text-xs font-bold shrink-0`}>{u.initials}</div>
-                            <span className="text-sm font-medium text-gray-800 whitespace-nowrap">{u.name}</span>
-                            {u.isYou && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium shrink-0">You</span>}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{u.email}</td>
-                        <td className="py-3 px-4">
-                          <span className={`text-sm font-medium whitespace-nowrap ${ROLE_COLORS[u.role] || "text-gray-600"}`}>{u.role}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${u.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{u.status}</span>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-500 whitespace-nowrap">{u.lastLogin}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setEditUser(u)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
-                              <Icon d={icons.edit} size={14} />
-                            </button>
-                            <div className="relative">
-                              <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
-                                <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
-                              </button>
-                              {openMenu === u.id && (
-                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-44 py-1">
-                                  <button onClick={() => { setEditUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                                    <Icon d={icons.edit} size={13} /> Edit User
-                                  </button>
-                                  <button onClick={() => { toggleStatus(u.id); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                                    <Icon d={icons.eye} size={13} /> {u.status === "Active" ? "Deactivate" : "Activate"}
-                                  </button>
-                                  {!u.isYou && (
-                                    <button onClick={() => { setDeleteUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
-                                      <Icon d={icons.trash} size={13} /> Delete User
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                    {loading ? (
+                      <tr><td colSpan={6} className="py-10 text-center text-sm text-gray-400">Loading users…</td></tr>
+                    ) : visible.length === 0 ? (
+                      <tr><td colSpan={6} className="py-10 text-center text-sm text-gray-400">No users match your filters.</td></tr>
+                    ) : visible.map(u => {
+                      const roleSlug = u.roles?.[0]?.name || "";
+                      const meta = ROLE_META[roleSlug];
+                      return (
+                        <tr key={u.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-8 h-8 rounded-full ${colorFor(u.id)} flex items-center justify-center text-white text-xs font-bold shrink-0`}>{initialsOf(u.name)}</div>
+                              <span className="text-sm font-medium text-gray-800 whitespace-nowrap">{u.name}</span>
+                              {currentUser?.id === u.id && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium shrink-0">You</span>}
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{u.email}</td>
+                          <td className="py-3 px-4">
+                            <span className={`text-sm font-medium whitespace-nowrap ${meta?.color || "text-gray-600"}`}>{roleSlug ? roleLabelFor(roleSlug) : "—"}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap capitalize ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{u.status}</span>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-400 whitespace-nowrap" title="Login history isn't exposed by the API yet">—</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => setEditUser(u)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
+                                <Icon d={icons.edit} size={14} />
+                              </button>
+                              <div className="relative">
+                                <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
+                                  <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
+                                </button>
+                                {openMenu === u.id && (
+                                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-44 py-1">
+                                    <button onClick={() => { setEditUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                      <Icon d={icons.edit} size={13} /> Edit User
+                                    </button>
+                                    <button onClick={() => { toggleStatus(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                      <Icon d={icons.eye} size={13} /> {u.status === "active" ? "Deactivate" : "Activate"}
+                                    </button>
+                                    {currentUser?.id !== u.id && (
+                                      <button onClick={() => { setDeleteUser(u); setOpenMenu(null); }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2">
+                                        <Icon d={icons.trash} size={13} /> Delete User
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               {/* Pagination */}
               <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <p className="text-xs text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} users</p>
+                <p className="text-xs text-gray-500 text-center sm:text-left">Showing {filtered.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} users</p>
                 <div className="flex items-center gap-1 flex-wrap justify-center">
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="w-7 h-7 flex items-center justify-center border border-gray-200 rounded text-gray-500 hover:bg-gray-100 disabled:opacity-40">
                     <Icon d={icons.chevronLeft} size={13} />
@@ -341,8 +442,8 @@ export default function UsersRolesPage() {
           {tab === "Roles" && (
             <div className="p-4 sm:p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
-                <p className="text-sm text-gray-500">{roles.length} roles defined in the system</p>
-                <button onClick={() => setAddRoleModal(true)} className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
+                <p className="text-sm text-gray-500">{loading ? "Loading…" : `${roles.length} roles defined in the system`}</p>
+                <button onClick={() => showToast("Role creation isn't supported by the API yet")} className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
                   <Icon d={icons.plus} size={13} /> Add Role
                 </button>
               </div>
@@ -355,22 +456,25 @@ export default function UsersRolesPage() {
                           <Icon d={r.icon} size={18} className={r.color} />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-800 truncate">{r.name}</p>
-                          <p className="text-xs text-gray-500">{r.users} user{r.users !== 1 ? "s" : ""}</p>
+                          <p className="font-semibold text-gray-800 truncate">{r.label}</p>
+                          <p className="text-xs text-gray-500">{r.userCount} user{r.userCount !== 1 ? "s" : ""}</p>
                         </div>
                       </div>
                       <div className="flex gap-2 items-center shrink-0">
-                        <button onClick={() => setEditRole(r)} className="px-3 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Edit</button>
+                        <button onClick={() => setViewRole(r)} className="px-3 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">View</button>
                         <Icon d={icons.chevronRight} size={16} className="text-gray-400 mt-0.5" />
                       </div>
                     </div>
                     <ul className="mt-3 space-y-1">
-                      {r.permissions.map(p => (
+                      {r.permissionLabels.slice(0, 6).map(p => (
                         <li key={p} className="text-xs text-gray-500 flex items-center gap-1.5 ml-13">
                           <span className="w-1 h-1 rounded-full bg-gray-400 shrink-0" />
                           {p}
                         </li>
                       ))}
+                      {r.permissionLabels.length > 6 && (
+                        <li className="text-xs text-blue-500 ml-13 cursor-pointer" onClick={() => setViewRole(r)}>+{r.permissionLabels.length - 6} more</li>
+                      )}
                     </ul>
                   </div>
                 ))}
@@ -383,25 +487,25 @@ export default function UsersRolesPage() {
         <div className="w-full lg:w-64 shrink-0 bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-800">Roles Overview</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{roles.length} roles defined in the system</p>
+            <p className="text-xs text-gray-500 mt-0.5">{loading ? "Loading…" : `${roles.length} roles defined in the system`}</p>
           </div>
           <div className="p-3 space-y-2">
             {roles.map(r => (
-              <div key={r.id} className="p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all cursor-pointer">
+              <div key={r.id} onClick={() => setViewRole(r)} className="p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between mb-2 gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${r.bg}`}>
                       <Icon d={r.icon} size={14} className={r.color} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-gray-800 leading-tight truncate">{r.name}</p>
-                      <p className="text-xs text-gray-400">{r.users} user{r.users !== 1 ? "s" : ""}</p>
+                      <p className="text-xs font-semibold text-gray-800 leading-tight truncate">{r.label}</p>
+                      <p className="text-xs text-gray-400">{r.userCount} user{r.userCount !== 1 ? "s" : ""}</p>
                     </div>
                   </div>
                   <Icon d={icons.chevronRight} size={13} className="text-gray-400 shrink-0" />
                 </div>
                 <ul className="space-y-0.5">
-                  {r.permissions.map(p => (
+                  {r.permissionLabels.slice(0, 4).map(p => (
                     <li key={p} className="text-xs text-gray-500 flex items-center gap-1.5">
                       <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
                       {p}
@@ -421,12 +525,12 @@ export default function UsersRolesPage() {
 
       {/* Add User Modal */}
       <Modal open={addModal} onClose={() => setAddModal(false)} title="Add New User">
-        <UserForm roles={roles} onSave={addUser} onClose={() => setAddModal(false)} />
+        <UserForm roles={roles} saving={busy} onSave={addUser} onClose={() => setAddModal(false)} />
       </Modal>
 
       {/* Edit User Modal */}
       <Modal open={!!editUser} onClose={() => setEditUser(null)} title="Edit User">
-        {editUser && <UserForm user={editUser} roles={roles} onSave={saveEdit} onClose={() => setEditUser(null)} />}
+        {editUser && <UserForm user={{ name: editUser.name, email: editUser.email, phone: editUser.phone, status: editUser.status, role: editUser.roles?.[0]?.name || roles[0]?.name }} roles={roles} saving={busy} onSave={saveEdit} onClose={() => setEditUser(null)} />}
       </Modal>
 
       {/* Delete Confirm Modal */}
@@ -437,7 +541,7 @@ export default function UsersRolesPage() {
             <p className="text-sm text-red-500 mb-5">This action cannot be undone.</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={() => setDeleteUser(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button onClick={confirmDelete} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold transition-colors">Delete</button>
+              <button disabled={busy} onClick={confirmDelete} className="flex-1 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white rounded-lg text-sm font-semibold transition-colors">{busy ? "Deleting…" : "Delete"}</button>
             </div>
           </div>
         )}
@@ -453,69 +557,43 @@ export default function UsersRolesPage() {
                   <Icon d={r.icon} size={13} className={r.color} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{r.name}</p>
-                  <p className="text-xs text-gray-500">{r.users} users</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{r.label}</p>
+                  <p className="text-xs text-gray-500">{r.userCount} users</p>
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => { setEditRole(r); setRoleModalOpen(false); }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Edit</button>
-                <button onClick={() => setRoles(p => p.filter(x => x.id !== r.id))} className="px-2.5 py-1 text-xs border border-red-200 rounded-lg text-red-500 hover:bg-red-50">Delete</button>
+                <button onClick={() => { setViewRole(r); setRoleModalOpen(false); }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">View</button>
+                <button onClick={() => showToast("Role deletion isn't supported by the API yet")} className="px-2.5 py-1 text-xs border border-red-200 rounded-lg text-red-500 hover:bg-red-50">Delete</button>
               </div>
             </div>
           ))}
         </div>
         <div className="mt-4 pt-4 border-t border-gray-100">
-          <button onClick={() => { setRoleModalOpen(false); setAddRoleModal(true); }} className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+          <button onClick={() => showToast("Role creation isn't supported by the API yet")} className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
             <Icon d={icons.plus} size={14} /> Add New Role
           </button>
         </div>
       </Modal>
 
-      {/* Edit Role Modal */}
-      <Modal open={!!editRole} onClose={() => setEditRole(null)} title="Edit Role">
-        {editRole && (
+      {/* View Role Modal (read-only — no update-role endpoint exists yet) */}
+      <Modal open={!!viewRole} onClose={() => setViewRole(null)} title={viewRole?.label || "Role"}>
+        {viewRole && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
-              <input defaultValue={editRole.name} onChange={e => setEditRole(p => ({ ...p, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
+            <p className="text-xs text-gray-500">{viewRole.userCount} user{viewRole.userCount !== 1 ? "s" : ""} assigned to this role</p>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
               <div className="space-y-2">
-                {editRole.permissions.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 gap-2">
-                    <span className="text-sm text-gray-700">{p}</span>
-                    <button onClick={() => setEditRole(r => ({ ...r, permissions: r.permissions.filter((_, j) => j !== i) }))} className="text-red-400 hover:text-red-600 shrink-0">
-                      <Icon d={icons.x} size={13} />
-                    </button>
-                  </div>
+                {viewRole.permissionLabels.length === 0 ? (
+                  <p className="text-sm text-gray-400">No permissions on this role.</p>
+                ) : viewRole.permissionLabels.map((p, i) => (
+                  <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">{p}</div>
                 ))}
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button onClick={() => setEditRole(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button onClick={() => { setRoles(p => p.map(r => r.id === editRole.id ? editRole : r)); setEditRole(null); }} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">Save Changes</button>
-            </div>
+            <p className="text-xs text-gray-400">Editing permissions isn't supported by the API yet — this view is read-only.</p>
+            <button onClick={() => setViewRole(null)} className="w-full py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Close</button>
           </div>
         )}
-      </Modal>
-
-      {/* Add Role Modal */}
-      <Modal open={addRoleModal} onClose={() => setAddRoleModal(false)} title="Add New Role">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role Name <span className="text-red-500">*</span></label>
-            <input value={newRoleForm.name} onChange={e => setNewRoleForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Stock Auditor" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button onClick={() => setAddRoleModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button disabled={!newRoleForm.name.trim()} onClick={() => {
-              setRoles(p => [...p, { id: Date.now(), name: newRoleForm.name, icon: icons.adminIcon, color: "text-blue-600", bg: "bg-blue-50", users: 0, permissions: [] }]);
-              setNewRoleForm({ name: "", permissions: [] });
-              setAddRoleModal(false);
-            }} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-semibold">Add Role</button>
-          </div>
-        </div>
       </Modal>
     </div>
   );
