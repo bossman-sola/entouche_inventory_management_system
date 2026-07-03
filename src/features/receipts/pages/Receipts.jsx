@@ -3,9 +3,7 @@ import * as XLSX from "xlsx";
 import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
-import { 
-  Upload
-} from 'lucide-react';
+
 
 function parseNaira(str) {
   return Number(String(str).replace(/[₦,]/g, "")) || 0;
