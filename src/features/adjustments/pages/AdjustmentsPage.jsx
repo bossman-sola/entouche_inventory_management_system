@@ -349,17 +349,14 @@ const NewAdjustmentModal = ({ open, onClose, onSave, allItems, itemsLoading, use
                       <tr key={row.id} className="border-b border-gray-100 last:border-0">
                         <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
                         <td className="py-2 px-3">
-                          <ItemPicker row={row} allItems={allItems} itemsLoading={itemsLoading} onPick={(it) => handlePickItem(row.id, it)} />
+                          <input value={row.item} onChange={e => updateItem(row.id, "item", e.target.value)} placeholder="Search item..." className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </td>
                         <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
-                        <td className="py-2 px-3 text-sm text-gray-700">
-                          {row.stockLoading ? <Loader2 size={13} className="animate-spin text-gray-400" /> : row.currentStock}
-                        </td>
+                        <td className="py-2 px-3 text-sm text-gray-700">{row.currentStock}</td>
                         <td className="py-2 px-3">
                           <select value={row.unit} onChange={e => updateItem(row.id, "unit", e.target.value)} className="text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Unit</option>
-                            {row.unit && <option value={row.unit}>{row.unit}</option>}
-                            {["pcs", "kg", "box", "carton", "set"].filter(u => u !== row.unit).map(u => <option key={u}>{u}</option>)}
+                            {["pcs", "kg", "box", "carton", "set"].map(u => <option key={u}>{u}</option>)}
                           </select>
                         </td>
                         <td className="py-2 px-3">
@@ -533,8 +530,8 @@ export default function AdjustmentsPage() {
           <p className="text-sm text-gray-500 mt-0.5">Record and manage inventory quantity adjustments.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExportCsv} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
-            <Upload size={16} /> Export
+          <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+            <Icon d={icons.download} size={15} /> Export
           </button>
           <button onClick={() => setModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
             <Icon d={icons.plus} size={15} /> New Adjustment
@@ -557,7 +554,7 @@ export default function AdjustmentsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Adjustments" value={adjustments.length} sub="This session" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
+        <StatCard label="Total Adjustments" value="124" sub="All time" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
         <StatCard label="Total Increases" value={totalIncreases} sub={`+ ${totalIncUnits.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" />
         <StatCard label="Total Decreases" value={totalDecreases} sub={`- ${totalDecUnits.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" />
         <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="This session" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" />
@@ -573,6 +570,9 @@ export default function AdjustmentsPage() {
             placeholder="Search adjustments by reference, item, or reason..."
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500 border-l border-gray-200 pl-3 whitespace-nowrap">
+          <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
         </div>
         <Select value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }} options={["Increase", "Decrease", "Set Stock"]} placeholder="All Types" className="w-full sm:w-36" />
         <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
@@ -593,13 +593,6 @@ export default function AdjustmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.length === 0 && (
-                <tr>
-                  <td colSpan={11} className="py-10 text-center text-sm text-gray-400">
-                    No adjustments recorded yet. Click "New Adjustment" to create one.
-                  </td>
-                </tr>
-              )}
               {visible.map(a => (
                 <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                   <td className="py-3 px-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{a.id}</td>
@@ -640,9 +633,7 @@ export default function AdjustmentsPage() {
           </table>
         </div>
         <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
-          <p className="text-sm text-gray-500 text-center sm:text-left">
-            {filtered.length === 0 ? "No adjustments" : `Showing ${(page - 1) * PER_PAGE + 1} to ${Math.min(page * PER_PAGE, filtered.length)} of ${filtered.length} adjustments`}
-          </p>
+          <p className="text-sm text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} adjustments</p>
           <div className="flex items-center gap-1 flex-wrap justify-center">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
             {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (

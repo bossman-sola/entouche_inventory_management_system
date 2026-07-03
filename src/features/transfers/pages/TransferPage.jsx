@@ -363,6 +363,13 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
                 <Icon d={icons.plus} size={14} /> Add Item
               </button>
             </div>
+            <div className="flex gap-2">
+              <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-full sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <Select value={searchUnit} onChange={setSearchUnit} options={["pcs", "kg", "box", "carton", "set"]} placeholder="Select unit" className="w-full sm:w-36" />
+              <button onClick={addItem} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap shrink-0">
+                <Icon d={icons.plus} size={14} /> Add Item
+              </button>
+            </div>
           </div>
 
           {/* Items table */}
@@ -394,13 +401,7 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
                       <td className="py-2 px-3 text-sm text-gray-800 font-medium whitespace-nowrap">{row.item}</td>
                       <td className="py-2 px-3 text-sm text-gray-400">{row.sku}</td>
                       <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "—"}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">
-                        {row.availableStock === null
-                          ? <Spinner size={12} className="text-gray-400" />
-                          : row.stockError
-                            ? <span className="text-gray-400">—</span>
-                            : row.availableStock}
-                      </td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{row.availableStock}</td>
                       <td className="py-2 px-3">
                         <input
                           type="number"
@@ -504,7 +505,7 @@ export default function TransfersPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
-              <Upload size={16} /> Export
+              <Icon d={icons.download} size={15} /> Export
             </button>
             <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <Icon d={icons.filter} size={15} /> Filters
@@ -520,7 +521,7 @@ export default function TransfersPage() {
           </div>
         </div>
 
-        {/* Stats — derived from the local transfer log until /transfers exists */}
+        {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[
             { label: "Total Transfers", value: String(transfers.length), icon: icons.transferAlt, bg: "bg-blue-50 text-blue-500" },
@@ -535,7 +536,7 @@ export default function TransfersPage() {
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500 truncate">{s.label}</p>
                   <p className="text-xl font-bold text-gray-900 truncate">{s.value}</p>
-                  {s.sub && <p className={`text-xs ${s.subColor} truncate`}>{s.sub}</p>}
+                  <p className={`text-xs ${s.subColor} truncate`}>{s.sub}</p>
                 </div>
               </div>
             </div>
@@ -544,8 +545,11 @@ export default function TransfersPage() {
 
         {/* Filters bar */}
         <div className="bg-white border border-gray-200 rounded-xl mb-4 p-3 flex items-center gap-3 flex-wrap">
-          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={LOCATIONS} placeholder="From Location" className="w-full sm:w-40" />
-          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={LOCATIONS} placeholder="To Location" className="w-full sm:w-40" />
+          <div className="flex items-center gap-2 text-sm text-gray-500 sm:border-r border-gray-200 sm:pr-3 whitespace-nowrap">
+            <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
+          </div>
+          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={locs} placeholder="From Location" className="w-full sm:w-40" />
+          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={locs} placeholder="To Location" className="w-full sm:w-40" />
           <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
           {(fromFilter || toFilter || statusFilter) && (
             <button onClick={() => { setFromFilter(""); setToFilter(""); setStatusFilter(""); setPage(1); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear filters</button>
@@ -564,17 +568,6 @@ export default function TransfersPage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="py-14 text-center">
-                      <div className="flex flex-col items-center gap-2 text-gray-400">
-                        <Icon d={icons.transferAlt} size={32} strokeWidth={1} />
-                        <p className="text-sm font-medium text-gray-500">No transfers yet</p>
-                        <p className="text-xs">Create a transfer to move stock between locations.</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
                 {visible.map(t => (
                   <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="py-3 px-4 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{t.id}</td>
@@ -609,9 +602,7 @@ export default function TransfersPage() {
             </table>
           </div>
           <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-sm text-gray-500 text-center sm:text-left">
-              {filtered.length === 0 ? "No transfers" : `Showing ${(page - 1) * PER_PAGE + 1} to ${Math.min(page * PER_PAGE, filtered.length)} of ${filtered.length} transfers`}
-            </p>
+            <p className="text-sm text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} transfers</p>
             <div className="flex items-center gap-1 flex-wrap justify-center">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
               {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (
