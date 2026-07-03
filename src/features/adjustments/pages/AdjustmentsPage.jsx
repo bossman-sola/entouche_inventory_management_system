@@ -1,4 +1,45 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Upload, Loader2, AlertCircle } from "lucide-react";
+
+// ── API CONFIG ───────────────────────────────────────────────────────────────
+// Same base URL your other pages (Items, Categories, Suppliers, Units, Users)
+// are already pointed at.
+const API_BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com";
+
+// Wherever your app stores the JWT from POST /api/v1/auth/login — swap this
+// for your existing auth context/hook if you're not using localStorage.
+const getAuthToken = () => localStorage.getItem("access_token");
+
+async function apiRequest(path, { method = "GET", body, params } = {}) {
+  const url = new URL(`${API_BASE_URL}/api/v1${path}`);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
+    });
+  }
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  let json = null;
+  try { json = await res.json(); } catch { /* empty body */ }
+
+  if (!res.ok || (json && json.success === false)) {
+    const message = json?.message || `Request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    err.errors = json?.errors;
+    throw err;
+  }
+  return json;
+}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
@@ -38,11 +79,11 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
-const Select = ({ value, onChange, options, placeholder, className = "" }) => (
+const Select = ({ value, onChange, options, placeholder, className = "", disabled = false }) => (
   <div className={`relative ${className}`}>
-    <select value={value} onChange={e => onChange(e.target.value)} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+    <select disabled={disabled} value={value} onChange={e => onChange(e.target.value)} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full disabled:bg-gray-50 disabled:text-gray-400">
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o}>{o}</option>)}
+      {options.map(o => (typeof o === "string" ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>))}
     </select>
     <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
   </div>
@@ -99,10 +140,52 @@ const AdjTypeButton = ({ id, icon, color, bg, label, sub, selected, onClick }) =
   </button>
 );
 
-// ── New Adjustment Modal ─────────────────────────────────────────────────────
-const emptyItem = () => ({ id: Date.now() + Math.random(), item: "", sku: "", unit: "", currentStock: 0, adjQty: 0, unitCost: 0 });
+// ── Item typeahead (backed by GET /api/v1/items) ────────────────────────────
+const ItemPicker = ({ row, allItems, itemsLoading, onPick }) => {
+  const [query, setQuery] = useState(row.item);
+  const [open, setOpen] = useState(false);
 
-const NewAdjustmentModal = ({ open, onClose, onSave }) => {
+  useEffect(() => setQuery(row.item), [row.item]);
+
+  const matches = query.trim().length
+    ? allItems.filter(it => it.name.toLowerCase().includes(query.toLowerCase()) || (it.sku || "").toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    : allItems.slice(0, 8);
+
+  return (
+    <div className="relative">
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={itemsLoading ? "Loading items..." : "Search item..."}
+        disabled={itemsLoading}
+        className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+      />
+      {open && !itemsLoading && (
+        <div className="absolute z-10 mt-1 w-64 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+          {matches.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No items found</p>}
+          {matches.map(it => (
+            <button
+              key={it.id}
+              type="button"
+              onMouseDown={() => { onPick(it); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2"
+            >
+              <span className="truncate">{it.name}</span>
+              <span className="text-xs text-gray-400 shrink-0">{it.sku}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── New Adjustment Modal ─────────────────────────────────────────────────────
+const emptyItem = () => ({ id: Date.now() + Math.random(), itemId: null, item: "", sku: "", unit: "", currentStock: 0, adjQty: 0, unitCost: 0, stockLoading: false });
+
+const NewAdjustmentModal = ({ open, onClose, onSave, allItems, itemsLoading, users, usersLoading }) => {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
   const [location, setLocation] = useState("");
   const [adjType, setAdjType] = useState("Increase");
@@ -111,10 +194,15 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
   const [adjustedBy, setAdjustedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([emptyItem()]);
+  const [saving, setSaving] = useState(false);
 
+  // Locations & reasons: not part of the tested API collection yet (no
+  // /warehouses, /locations, or /adjustment-reasons endpoint). Keeping these
+  // as static config for now — swap for a fetch as soon as one exists.
   const locs = ["Receiving Area", "Storage Area", "Storage Area A1-01", "Storage Area A1-02", "Storage Area B2-01", "Storage Area B2-02", "Dispatch Area", "Dispatch Area D1-01", "Damaged Goods Area"];
-  const users = ["Inventory Officer", "Warehouse Manager", "System Administrator"];
   const reasons = ["Damaged items", "Lost during handling", "Stock count variance adjustment", "Supplier sent extra items", "Additional stock found in store", "New stock found", "Customer return – damaged", "Not working", "Received missing items from supplier"];
+
+  const userOptions = users.map(u => ({ value: String(u.id), label: u.name }));
 
   const adjTypes = [
     { id: "Increase", icon: icons.plus, color: "#16a34a", label: "Increase Stock", sub: "Add stock to inventory" },
@@ -126,11 +214,51 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
   const removeItem = id => setItems(p => p.filter(r => r.id !== id));
   const updateItem = (id, field, val) => setItems(p => p.map(r => r.id === id ? { ...r, [field]: val } : r));
 
+  const handlePickItem = async (rowId, apiItem) => {
+    setItems(p => p.map(r => r.id === rowId ? {
+      ...r,
+      itemId: apiItem.id,
+      item: apiItem.name,
+      sku: apiItem.sku || "",
+      unit: apiItem.unit?.abbreviation || apiItem.unit?.name || "",
+      unitCost: apiItem.unit_cost ?? r.unitCost,
+      stockLoading: true,
+    } : r));
+
+    // GET /api/v1/items/{id}/stock-balance — pulls live on-hand quantity
+    try {
+      const res = await apiRequest(`/items/${apiItem.id}/stock-balance`);
+      setItems(p => p.map(r => r.id === rowId ? { ...r, currentStock: res.data?.total_available ?? res.data?.total_on_hand ?? 0, stockLoading: false } : r));
+    } catch {
+      setItems(p => p.map(r => r.id === rowId ? { ...r, stockLoading: false } : r));
+    }
+  };
+
   const totalQty = items.reduce((s, r) => s + Math.abs(+r.adjQty), 0);
   const totalImpact = items.reduce((s, r) => s + r.adjQty * r.unitCost, 0);
 
-  const handleSave = () => {
-    onSave({ adjType, date, location, reason, items });
+  const handleSave = async () => {
+    setSaving(true);
+    const payload = {
+      type: adjType,
+      date,
+      location,
+      reason,
+      reference_number: refNum || null,
+      adjusted_by: adjustedBy,
+      notes: notes || null,
+      items: items.map(r => ({ item_id: r.itemId, sku: r.sku, unit: r.unit, quantity: r.adjQty, unit_cost: r.unitCost })),
+    };
+
+    // NOTE: There's no adjustments endpoint in the tested API collection yet
+    // (no POST /api/v1/adjustments). Once it exists, swap the block below for:
+    //
+    //   const res = await apiRequest("/adjustments", { method: "POST", body: payload });
+    //   onSave(res.data);
+    //
+    // For now this just saves locally so the page stays usable.
+    onSave(payload);
+    setSaving(false);
     onClose();
   };
 
@@ -154,7 +282,6 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
             <span className="font-semibold text-gray-800">Adjustment Information</span>
           </div>
 
-          {/* Adjustment Type */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Type<span className="text-red-500">*</span></label>
             <div className="flex flex-wrap gap-3">
@@ -180,7 +307,7 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Adjusted By<span className="text-red-500">*</span></label>
-              <Select value={adjustedBy} onChange={setAdjustedBy} options={users} placeholder="Select user" />
+              <Select value={adjustedBy} onChange={setAdjustedBy} options={userOptions} placeholder={usersLoading ? "Loading users..." : "Select user"} disabled={usersLoading} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -267,26 +394,14 @@ const NewAdjustmentModal = ({ open, onClose, onSave }) => {
 
         <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Save Adjustment</button>
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+            {saving && <Loader2 size={14} className="animate-spin" />} Save Adjustment
+          </button>
         </div>
       </div>
     </Modal>
   );
 };
-
-// ── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_ADJ = [
-  { id: "ADJ-000124", date: "May 27, 2025", time: "02:45 PM", item: "Dell Latitude 5440", sku: "LAP-001", type: "Increase", location: "Storage Area A1-01", qtyChange: +10, valueImpact: 6250000, reason: "Received missing items from supplier", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000123", date: "May 27, 2025", time: "11:20 AM", item: "HP LaserJet Pro M428", sku: "PRN-001", type: "Decrease", location: "Storage Area A1-02", qtyChange: -2, valueImpact: 1700000, reason: "Damaged items", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000122", date: "May 26, 2025", time: "04:15 PM", item: "Ergonomic Office Chair", sku: "CHR-002", type: "Increase", location: "Storage Area B2-01", qtyChange: +5, valueImpact: 750000, reason: "Stock count variance adjustment", adjustedBy: "Warehouse Manager", status: "Completed" },
-  { id: "ADJ-000121", date: "May 26, 2025", time: "10:05 AM", item: "Cat6 Ethernet Cable 2M", sku: "CAB-002", type: "Decrease", location: "Storage Area A1-03", qtyChange: -15, valueImpact: 75000, reason: "Lost during handling", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000120", date: "May 25, 2025", time: "03:30 PM", item: "USB-C Hub 7-in-1", sku: "ACC-003", type: "Increase", location: "Storage Area A1-04", qtyChange: +8, valueImpact: 296000, reason: "Additional stock found in store", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000119", date: "May 25, 2025", time: "09:45 AM", item: '24" LED Monitor', sku: "MON-001", type: "Decrease", location: "Dispatch Area D1-01", qtyChange: -3, valueImpact: 165000, reason: "Damaged in transit", adjustedBy: "Warehouse Manager", status: "Pending" },
-  { id: "ADJ-000118", date: "May 24, 2025", time: "02:10 PM", item: "HP 58A Toner Cartridge", sku: "CON-001", type: "Increase", location: "Storage Area B2-02", qtyChange: +12, valueImpact: 180000, reason: "Supplier sent extra items", adjustedBy: "Inventory Officer", status: "Completed" },
-  { id: "ADJ-000117", date: "May 24, 2025", time: "10:30 AM", item: "Wireless Keyboard", sku: "ACC-004", type: "Decrease", location: "Storage Area A1-05", qtyChange: -6, valueImpact: 90000, reason: "Not working", adjustedBy: "Inventory Officer", status: "Cancelled" },
-  { id: "ADJ-000116", date: "May 23, 2025", time: "04:50 PM", item: "Wireless Mouse", sku: "ACC-005", type: "Increase", location: "Storage Area B2-03", qtyChange: +20, valueImpact: 200000, reason: "New stock found", adjustedBy: "Warehouse Manager", status: "Completed" },
-  { id: "ADJ-000115", date: "May 23, 2025", time: "09:15 AM", item: "Office Desk", sku: "DSK-001", type: "Decrease", location: "Dispatch Area D1-02", qtyChange: -1, valueImpact: 180000, reason: "Customer return – damaged", adjustedBy: "Inventory Officer", status: "Completed" },
-];
 
 // ── Stat Card ────────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, subColor, icon, bg }) => (
@@ -307,12 +422,58 @@ const StatCard = ({ label, value, sub, subColor, icon, bg }) => (
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function AdjustmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
-  const [adjustments, setAdjustments] = useState(MOCK_ADJ);
+
+  // There's no GET /api/v1/adjustments in the tested collection yet, so this
+  // list starts empty and only grows from adjustments saved in this session.
+  // Swap the effect below in for a real fetch once the endpoint ships:
+  //
+  //   useEffect(() => {
+  //     apiRequest("/adjustments").then(res => setAdjustments(res.data));
+  //   }, []);
+  const [adjustments, setAdjustments] = useState([]);
+  const [adjustmentsNote] = useState(true); // shows the "endpoint not live yet" banner
+
+  const [allItems, setAllItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const [itemsError, setItemsError] = useState(null);
+
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
+
+  // GET /api/v1/items — feeds the item picker inside the "New Adjustment" modal
+  const fetchItems = useCallback(async () => {
+    setItemsLoading(true);
+    setItemsError(null);
+    try {
+      const res = await apiRequest("/items", { params: { per_page: 100 } });
+      setAllItems(res.data || []);
+    } catch (e) {
+      setItemsError(e.message);
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
+
+  // GET /api/v1/users — feeds the "Adjusted By" dropdown
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const res = await apiRequest("/users");
+      setUsers(res.data || []);
+    } catch {
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchItems(); fetchUsers(); }, [fetchItems, fetchUsers]);
 
   const filtered = adjustments.filter(a =>
     (!typeFilter || a.type === typeFilter) &&
@@ -330,20 +491,34 @@ export default function AdjustmentsPage() {
   const totalValueImpact = adjustments.reduce((s, a) => s + a.valueImpact, 0);
 
   const handleSave = (data) => {
+    const firstItem = data.items[0] || {};
+    const adjustedByUser = users.find(u => String(u.id) === String(data.adjusted_by));
     setAdjustments(p => [{
       id: `ADJ-${String(Math.floor(Math.random() * 99999)).padStart(6, "0")}`,
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      item: data.items[0]?.item || "New Item",
-      sku: "NEW-001",
-      type: data.adjType === "Increase" ? "Increase" : data.adjType === "Decrease" ? "Decrease" : "Set Stock",
-      location: data.location || "Storage Area",
-      qtyChange: data.adjType === "Increase" ? +data.items[0]?.adjQty : -Math.abs(data.items[0]?.adjQty || 0),
-      valueImpact: 0,
+      item: firstItem.sku ? allItems.find(it => it.id === firstItem.item_id)?.name || "Item" : "Item",
+      sku: firstItem.sku || "—",
+      type: data.type,
+      location: data.location || "—",
+      qtyChange: data.type === "Increase" ? Math.abs(firstItem.quantity || 0) : -Math.abs(firstItem.quantity || 0),
+      valueImpact: (firstItem.quantity || 0) * (firstItem.unit_cost || 0),
       reason: data.reason || "Manual adjustment",
-      adjustedBy: "System Administrator",
+      adjustedBy: adjustedByUser?.name || "—",
       status: "Pending",
     }, ...p]);
+  };
+
+  const handleExportCsv = () => {
+    if (!filtered.length) return;
+    const headers = ["Adjustment No.", "Date", "Time", "Item", "SKU", "Type", "Location", "Qty Change", "Value Impact", "Reason", "Adjusted By", "Status"];
+    const rows = filtered.map(a => [a.id, a.date, a.time, a.item, a.sku, a.type, a.location, a.qtyChange, a.valueImpact, a.reason, a.adjustedBy, a.status]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "adjustments.csv"; a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -364,12 +539,25 @@ export default function AdjustmentsPage() {
         </div>
       </div>
 
+      {itemsError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+          <AlertCircle size={15} /> Couldn't load items from the API: {itemsError}
+          <button onClick={fetchItems} className="ml-auto underline font-medium">Retry</button>
+        </div>
+      )}
+
+      {adjustmentsNote && (
+        <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg px-3 py-2">
+          <AlertCircle size={15} /> There's no adjustments endpoint in the API yet, so entries below only live in this session. Items, stock levels, and users are pulled live.
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Adjustments" value="124" sub="All time" subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" />
         <StatCard label="Total Increases" value={totalIncreases} sub={`+ ${totalIncUnits.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" />
         <StatCard label="Total Decreases" value={totalDecreases} sub={`- ${totalDecUnits.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" />
-        <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="All time" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" />
+        <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="This session" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" />
       </div>
 
       {/* Filters */}
@@ -457,7 +645,15 @@ export default function AdjustmentsPage() {
         </div>
       </div>
 
-      <NewAdjustmentModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} />
+      <NewAdjustmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSave}
+        allItems={allItems}
+        itemsLoading={itemsLoading}
+        users={users}
+        usersLoading={usersLoading}
+      />
     </div>
   );
 }

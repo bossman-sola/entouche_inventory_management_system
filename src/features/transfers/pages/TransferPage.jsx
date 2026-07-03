@@ -1,4 +1,62 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  Upload
+} from 'lucide-react';
+
+// ── API config ───────────────────────────────────────────────────────────────
+// Checked against `api-tested-endpoints.md`: there is currently no /transfers
+// or /locations endpoint in the API. Everything below is wired to what DOES
+// exist (Items, Users). Transfers themselves stay client-side/local until the
+// backend adds transfer endpoints — search for "NO ENDPOINT YET" to find those
+// spots quickly when they land.
+const API_BASE = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+
+// TODO: wire this to whatever your app already uses to store the auth token
+// (the same place your other connected pages read it from — e.g. an
+// AuthContext, a redux slice, or your existing `api` client). Browser storage
+// APIs (localStorage/sessionStorage) aren't used directly in this file so it
+// stays portable — just plug your real token source in here.
+function useAccessToken() {
+  // Example if you keep it in localStorage elsewhere in the app:
+  //   const [token] = useState(() => window.localStorage.getItem("access_token"));
+  //   return token;
+  const [token] = useState(null);
+  return token;
+}
+
+async function apiRequest(path, token, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Accept": "application/json",
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* no body */ }
+  if (!res.ok || (json && json.success === false)) {
+    const message = json?.message || `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return json;
+}
+
+// Fetches every page of a Laravel-style paginated list (data/meta/links shape)
+async function fetchAllPages(path, token, maxPages = 10) {
+  let page = 1;
+  let all = [];
+  while (page <= maxPages) {
+    const json = await apiRequest(`${path}${path.includes("?") ? "&" : "?"}page=${page}`, token);
+    const data = Array.isArray(json?.data) ? json.data : [];
+    all = all.concat(data);
+    const lastPage = json?.meta?.last_page || 1;
+    if (page >= lastPage) break;
+    page += 1;
+  }
+  return all;
+}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
@@ -25,8 +83,10 @@ const icons = {
   arrowRight: "M13 7l5 5m0 0l-5 5m5-5H6",
   box: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
   info: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  alert: "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z",
   book: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
   clearAll: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
+  spinner: "M12 3a9 9 0 100 18",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,11 +99,15 @@ const StatusBadge = ({ status }) => {
   return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
 
-const Select = ({ value, onChange, options, placeholder, className = "" }) => (
+const Spinner = ({ size = 14, className = "" }) => (
+  <Icon d={icons.spinner} size={size} className={`animate-spin ${className}`} />
+);
+
+const Select = ({ value, onChange, options, placeholder, className = "", disabled = false }) => (
   <div className={`relative ${className}`}>
-    <select value={value} onChange={e => onChange(e.target.value)} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+    <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full disabled:bg-gray-50 disabled:text-gray-400">
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o}>{o}</option>)}
+      {options.map(o => (typeof o === "string" ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>))}
     </select>
     <Icon d={icons.chevronDown} size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
   </div>
@@ -83,10 +147,14 @@ const Modal = ({ open, onClose, children }) => {
   );
 };
 
-// ── New Transfer Modal ───────────────────────────────────────────────────────
-const emptyItem = () => ({ id: Date.now() + Math.random(), item: "", sku: "", unit: "", qty: "", availableStock: 0 });
+// NO ENDPOINT YET: there's no /locations (or /warehouses) endpoint in the API
+// doc, so source/destination locations stay local until the backend adds one.
+// Swap this for a fetched list the same way ITEMS/USERS are wired below.
+const LOCATIONS = ["Receiving Area", "Storage Area", "Storage Area A1-01", "Storage Area A1-02", "Storage Area B2-01", "Dispatch Area", "Damaged Goods Area"];
+const UNITS = ["pcs", "kg", "box", "carton", "set"];
 
-const NewTransferModal = ({ open, onClose, onSave }) => {
+// ── New Transfer Modal ───────────────────────────────────────────────────────
+const NewTransferModal = ({ open, onClose, onSave, token }) => {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 16));
   const [fromLoc, setFromLoc] = useState("");
   const [toLoc, setToLoc] = useState("");
@@ -94,17 +162,87 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
   const [refNum, setRefNum] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([]);
+
+  // Item search — backed by GET /api/v1/items
+  const [catalog, setCatalog] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
   const [searchItem, setSearchItem] = useState("");
   const [searchQty, setSearchQty] = useState("");
   const [searchUnit, setSearchUnit] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
 
-  const locs = ["Receiving Area", "Storage Area", "Storage Area A1-01", "Storage Area A1-02", "Storage Area B2-01", "Dispatch Area", "Damaged Goods Area"];
-  const users = ["Inventory Officer", "Warehouse Manager", "System Administrator"];
+  // Requested By — backed by GET /api/v1/users
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
 
-  const addItem = () => {
-    if (!searchItem) return;
-    setItems(p => [...p, { id: Date.now(), item: searchItem, sku: "—", unit: searchUnit, qty: searchQty || 0, availableStock: Math.floor(Math.random() * 100) }]);
-    setSearchItem(""); setSearchQty(""); setSearchUnit("");
+  // Load items + users once the modal opens
+  useEffect(() => {
+    if (!open) return;
+
+    setCatalogLoading(true);
+    setCatalogError("");
+    fetchAllPages("/items", token)
+      .then(setCatalog)
+      .catch(err => setCatalogError(err.message || "Couldn't load items"))
+      .finally(() => setCatalogLoading(false));
+
+    setUsersLoading(true);
+    setUsersError("");
+    fetchAllPages("/users", token)
+      .then(setUsers)
+      .catch(err => setUsersError(err.message || "Couldn't load users"))
+      .finally(() => setUsersLoading(false));
+  }, [open, token]);
+
+  // Reset the form each time the modal is opened fresh
+  useEffect(() => {
+    if (open) {
+      setDate(new Date().toISOString().slice(0, 16));
+      setFromLoc(""); setToLoc(""); setRequestedBy(""); setRefNum(""); setNotes("");
+      setItems([]); setSearchItem(""); setSearchQty(""); setSearchUnit(""); setSelectedItem(null);
+    }
+  }, [open]);
+
+  const suggestions = searchItem.trim().length === 0
+    ? []
+    : catalog.filter(i => {
+        const q = searchItem.toLowerCase();
+        return i.name?.toLowerCase().includes(q) || i.sku?.toLowerCase().includes(q) || i.barcode?.toLowerCase().includes(q);
+      }).slice(0, 8);
+
+  const pickSuggestion = (item) => {
+    setSelectedItem(item);
+    setSearchItem(item.name);
+    setSearchUnit(item.unit?.abbreviation || "");
+    setShowSuggestions(false);
+  };
+
+  const addItem = async () => {
+    if (!selectedItem) return;
+    const rowId = Date.now() + Math.random();
+    setItems(p => [...p, {
+      id: rowId,
+      itemId: selectedItem.id,
+      item: selectedItem.name,
+      sku: selectedItem.sku || "—",
+      unit: searchUnit || selectedItem.unit?.abbreviation || "",
+      qty: searchQty || 0,
+      availableStock: null, // fetched below
+      stockError: false,
+    }]);
+    setSearchItem(""); setSearchQty(""); setSearchUnit(""); setSelectedItem(null);
+
+    // Live stock balance from GET /api/v1/items/{id}/stock-balance
+    try {
+      const json = await apiRequest(`/items/${selectedItem.id}/stock-balance`, token);
+      const available = json?.data?.total_available ?? 0;
+      setItems(p => p.map(r => r.id === rowId ? { ...r, availableStock: available } : r));
+    } catch {
+      setItems(p => p.map(r => r.id === rowId ? { ...r, availableStock: 0, stockError: true } : r));
+    }
   };
 
   const removeItem = id => setItems(p => p.filter(r => r.id !== id));
@@ -112,7 +250,7 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
   const totalQty = items.reduce((s, r) => s + +r.qty, 0);
 
   const handleSave = () => {
-    onSave({ fromLoc, toLoc, date, items });
+    onSave({ fromLoc, toLoc, date, refNum, notes, requestedBy, items });
     onClose();
   };
 
@@ -142,16 +280,26 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
               <input value={refNum} onChange={e => setRefNum(e.target.value)} placeholder="Enter reference number (e.g. PO, Ticket #)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Requested By<span className="text-red-500">*</span></label>
-              <Select value={requestedBy} onChange={setRequestedBy} options={users} placeholder="Select user" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Requested By<span className="text-red-500">*</span>
+                {usersLoading && <Spinner size={11} className="inline ml-1.5 text-gray-400 align-middle" />}
+              </label>
+              <Select
+                value={requestedBy}
+                onChange={setRequestedBy}
+                options={users.map(u => ({ value: String(u.id), label: u.name }))}
+                placeholder={usersError ? "Couldn't load users" : "Select user"}
+                disabled={usersLoading || !!usersError}
+              />
+              {usersError && <p className="text-xs text-red-500 mt-1">{usersError}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">From Location<span className="text-red-500">*</span></label>
-              <Select value={fromLoc} onChange={setFromLoc} options={locs} placeholder="Select source location" />
+              <Select value={fromLoc} onChange={setFromLoc} options={LOCATIONS} placeholder="Select source location" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">To Location<span className="text-red-500">*</span></label>
-              <Select value={toLoc} onChange={setToLoc} options={locs} placeholder="Select destination location" />
+              <Select value={toLoc} onChange={setToLoc} options={LOCATIONS} placeholder="Select destination location" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -165,7 +313,14 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
           <div className="flex items-center gap-2 mb-4">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">2</span>
             <span className="font-semibold text-gray-800">Items</span>
+            {catalogLoading && <span className="flex items-center gap-1 text-xs text-gray-400"><Spinner size={11} /> Loading items…</span>}
           </div>
+
+          {catalogError && (
+            <div className="mb-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+              <Icon d={icons.alert} size={14} className="shrink-0" /> {catalogError}
+            </div>
+          )}
 
           {/* Add item bar */}
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
@@ -173,10 +328,40 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
               <Icon d={icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={searchItem}
-                onChange={e => setSearchItem(e.target.value)}
+                onChange={e => { setSearchItem(e.target.value); setSelectedItem(null); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 placeholder="Search item by name, SKU or barcode"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={catalogLoading || !!catalogError}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                  {suggestions.map(i => (
+                    <button
+                      key={i.id}
+                      type="button"
+                      onMouseDown={() => pickSuggestion(i)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between gap-2"
+                    >
+                      <span className="text-gray-800 font-medium truncate">{i.name}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{i.sku}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showSuggestions && searchItem.trim() && suggestions.length === 0 && !catalogLoading && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
+                  No matching items
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-full sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <Select value={searchUnit} onChange={setSearchUnit} options={UNITS} placeholder="Select unit" className="w-full sm:w-36" />
+              <button onClick={addItem} disabled={!selectedItem} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap shrink-0">
+                <Icon d={icons.plus} size={14} /> Add Item
+              </button>
             </div>
             <div className="flex gap-2">
               <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-full sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -261,31 +446,22 @@ const NewTransferModal = ({ open, onClose, onSave }) => {
   );
 };
 
-// ── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_TRANSFERS = [
-  { id: "TRF-000312", date: "May 27, 2025", time: "02:45 PM", item: "Dell Latitude 5440", sku: "LAP-001", from: "Receiving Area", to: "Storage Area", qty: 20, requestedBy: "Inventory Officer", status: "Completed" },
-  { id: "TRF-000311", date: "May 27, 2025", time: "11:20 AM", item: "Ergonomic Office Chair", sku: "CHR-002", from: "Storage Area", to: "Dispatch Area", qty: 3, requestedBy: "Inventory Officer", status: "Completed" },
-  { id: "TRF-000310", date: "May 26, 2025", time: "04:15 PM", item: "USB-C Hub 7-in-1", sku: "ACC-003", from: "Storage Area", to: "Damaged Goods Area", qty: -5, requestedBy: "Warehouse Manager", status: "Completed" },
-  { id: "TRF-000309", date: "May 26, 2025", time: "10:05 AM", item: "HP LaserJet Pro M428", sku: "PRN-001", from: "Receiving Area", to: "Storage Area", qty: 10, requestedBy: "Inventory Officer", status: "Completed" },
-  { id: "TRF-000308", date: "May 25, 2025", time: "03:30 PM", item: "Cat6 Ethernet Cable 2M", sku: "CAB-002", from: "Storage Area", to: "Dispatch Area", qty: 30, requestedBy: "Inventory Officer", status: "Pending" },
-  { id: "TRF-000307", date: "May 25, 2025", time: "09:45 AM", item: '24" LED Monitor', sku: "MON-001", from: "Storage Area", to: "Receiving Area", qty: 5, requestedBy: "Inventory Officer", status: "Pending" },
-  { id: "TRF-000306", date: "May 24, 2025", time: "02:10 PM", item: "Mechanical Keyboard", sku: "ACC-006", from: "Storage Area", to: "Dispatch Area", qty: 12, requestedBy: "Inventory Officer", status: "Completed" },
-  { id: "TRF-000305", date: "May 24, 2025", time: "10:30 AM", item: "HP 58A Toner Cartridge", sku: "CON-001", from: "Storage Area", to: "Storage Area B", qty: 2, requestedBy: "Warehouse Manager", status: "Cancelled" },
-  { id: "TRF-000304", date: "May 23, 2025", time: "04:50 PM", item: "Wireless Mouse", sku: "ACC-005", from: "Dispatch Area", to: "Storage Area", qty: 15, requestedBy: "Inventory Officer", status: "Completed" },
-  { id: "TRF-000303", date: "May 23, 2025", time: "09:15 AM", item: "Office Desk", sku: "DSK-001", from: "Storage Area", to: "Dispatch Area", qty: 2, requestedBy: "Inventory Officer", status: "Completed" },
-];
+// NO ENDPOINT YET: there is no GET/POST /api/v1/transfers in the API doc, so
+// the transfer log below stays local/in-memory (seeded empty). Once the
+// backend ships transfer endpoints, replace this block the same way the
+// items/users calls are wired above — fetch on mount, POST on save.
+const INITIAL_TRANSFERS = [];
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function TransfersPage() {
+  const token = useAccessToken();
   const [modalOpen, setModalOpen] = useState(false);
-  const [transfers, setTransfers] = useState(MOCK_TRANSFERS);
+  const [transfers, setTransfers] = useState(INITIAL_TRANSFERS);
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
-
-  const locs = ["Receiving Area", "Storage Area", "Dispatch Area", "Damaged Goods Area"];
 
   const filtered = transfers.filter(t =>
     (!fromFilter || t.from === fromFilter) &&
@@ -297,18 +473,22 @@ export default function TransfersPage() {
   const visible = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const pendingCount = transfers.filter(t => t.status === "Pending").length;
+  const totalQtyTransferred = transfers.reduce((s, t) => s + Math.abs(t.qty || 0), 0);
 
   const handleSave = (data) => {
+    // NO ENDPOINT YET: this pushes to local state only. Swap for a
+    // `POST /api/v1/transfers` call (via apiRequest) once it exists, then
+    // refresh the list from the response instead of constructing it here.
     setTransfers(p => [{
       id: `TRF-${String(Math.floor(Math.random() * 99999)).padStart(6, "0")}`,
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       item: data.items[0]?.item || "New Item",
-      sku: "NEW-001",
+      sku: data.items[0]?.sku || "—",
       from: data.fromLoc || "—",
       to: data.toLoc || "—",
       qty: data.items.reduce((s, r) => s + +r.qty, 0),
-      requestedBy: "System Administrator",
+      requestedBy: data.requestedBy || "—",
       status: "Pending",
     }, ...p]);
   };
@@ -329,7 +509,11 @@ export default function TransfersPage() {
             </button>
             <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <Icon d={icons.filter} size={15} /> Filters
-              <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">2</span>
+              {(fromFilter || toFilter || statusFilter) && (
+                <span className="bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {[fromFilter, toFilter, statusFilter].filter(Boolean).length}
+                </span>
+              )}
             </button>
             <button onClick={() => setModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
               <Icon d={icons.plus} size={15} /> New Transfer
@@ -340,10 +524,9 @@ export default function TransfersPage() {
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[
-            { label: "Total Transfers", value: "312", sub: "▲ 9.4% vs last 7 days", subColor: "text-green-600", icon: icons.transferAlt, bg: "bg-blue-50 text-blue-500" },
-            { label: "Total Qty Transferred", value: "2,845", sub: "▲ 11.6% vs last 7 days", subColor: "text-green-600", icon: icons.box, bg: "bg-green-50 text-green-500" },
-            { label: "Total Value Transferred", value: "₦28,450,000", sub: "▲ 7.2% vs last 7 days", subColor: "text-green-600", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", bg: "bg-orange-50 text-orange-500" },
-            { label: "Pending Transfers", value: `${pendingCount}`, sub: "Pending approval/processing", subColor: "text-orange-500", icon: icons.clock, bg: "bg-red-50 text-red-500" },
+            { label: "Total Transfers", value: String(transfers.length), icon: icons.transferAlt, bg: "bg-blue-50 text-blue-500" },
+            { label: "Total Qty Transferred", value: totalQtyTransferred.toLocaleString(), icon: icons.box, bg: "bg-green-50 text-green-500" },
+            { label: "Pending Transfers", value: String(pendingCount), sub: "Pending approval/processing", subColor: "text-orange-500", icon: icons.clock, bg: "bg-red-50 text-red-500" },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center gap-3">
@@ -472,12 +655,11 @@ export default function TransfersPage() {
 
         {/* Transfer Summary */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="font-semibold text-gray-800 mb-3">Transfer Summary <span className="text-xs text-gray-400 font-normal">(This Month)</span></h3>
+          <h3 className="font-semibold text-gray-800 mb-3">Transfer Summary</h3>
           <div className="space-y-3">
             {[
-              { label: "Total Transfers", value: "78" },
-              { label: "Quantity Transferred", value: "642" },
-              { label: "Value Transferred", value: "₦7,950,000" },
+              { label: "Total Transfers", value: String(transfers.length) },
+              { label: "Quantity Transferred", value: totalQtyTransferred.toLocaleString() },
               { label: "Pending Transfers", value: pendingCount, valueClass: "text-orange-500" },
             ].map(s => (
               <div key={s.label} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
@@ -486,9 +668,6 @@ export default function TransfersPage() {
               </div>
             ))}
           </div>
-          <button className="mt-3 text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
-            View full report <Icon d={icons.arrowRight} size={13} />
-          </button>
         </div>
 
         {/* Help */}
@@ -499,13 +678,10 @@ export default function TransfersPage() {
           </div>
           <p className="text-xs font-medium text-gray-700 mb-1">Learn how transfers work</p>
           <p className="text-xs text-gray-500 mb-3">Transfers move items between locations without affecting total stock.</p>
-          <button className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1">
-            View Guide <Icon d={icons.arrowRight} size={13} />
-          </button>
         </div>
       </div>
 
-      <NewTransferModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} />
+      <NewTransferModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} token={token} />
     </div>
   );
 }

@@ -309,7 +309,7 @@ export default function Receipts() {
             onClick={handleExport}
             style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, cursor: "pointer", color: "#1e2740", fontWeight: 500 }}
           >
-            <DownloadIcon /> Export
+            <Upload size={16} /> Export
           </button>
 
           <button
