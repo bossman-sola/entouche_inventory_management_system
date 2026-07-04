@@ -36,7 +36,7 @@ const MainLayout = () => {
           </div>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="font-bold text-base leading-tight tracking-tight">InventoryPro</span>
+              <span className="font-bold text-base leading-tight tracking-tight">Entouche</span>
               <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">Enterprise Inventory</span>
             </div>
           )}

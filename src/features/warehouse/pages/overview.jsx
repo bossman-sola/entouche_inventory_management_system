@@ -1,4 +1,59 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+
+const API_BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+
+// Adjust this to however your app actually stores the access token
+// (e.g. pull it from an auth context/provider instead) — this matches
+// the `access_token` key returned by POST /auth/login.
+const getAccessToken = () => localStorage.getItem("access_token");
+
+async function apiFetch(path, options = {}) {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || (json && json.success === false)) {
+    throw new Error(json?.message || `Request failed (${res.status})`);
+  }
+  return json;
+}
+
+// Items are paginated — walk every page so totals aren't just page 1.
+async function fetchAllItems() {
+  let page = 1;
+  let all = [];
+  while (page <= 50) { // hard stop so a bad API response can't loop forever
+    const json = await apiFetch(`/items?per_page=100&page=${page}`);
+    all = all.concat(json.data || []);
+    const meta = json.meta;
+    if (!meta || page >= meta.last_page) break;
+    page += 1;
+  }
+  return all;
+}
+
+// NOTE: there is currently no bulk/aggregate stock endpoint, so this calls
+// GET /items/{id}/stock-balance once per item. Fine for a small catalog;
+// worth asking the backend for a bulk endpoint if the item count grows large.
+async function fetchStockBalances(items) {
+  const settled = await Promise.allSettled(
+    items.map((item) => apiFetch(`/items/${item.id}/stock-balance`))
+  );
+  return settled.map((r, idx) => ({
+    item: items[idx],
+    balance: r.status === "fulfilled" ? r.value.data : null,
+  }));
+}
+
+const currency = (value) =>
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(value || 0);
 
 
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5, className = "" }) => (
@@ -14,6 +69,8 @@ const icons = {
   pie: "M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z",
   calendar: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
   chevronDown: "M19 9l-7 7-7-7",
+  chevronLeft: "M15 19l-7-7 7-7",
+  chevronRight: "M9 5l7 7-7 7",
   check: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   warning: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   xCircle: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z",
@@ -23,16 +80,18 @@ const icons = {
   dispatch: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
   receive: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
   damaged: "M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97L13.75 4a2 2 0 00-3.5 0l-6.25 11A2 2 0 005.07 19z",
+  inbox: "M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z",
 };
 
-
+// These chart primitives are kept ready to go for whenever the
+// Locations/movements endpoints exist — currently unused because there's
+// no real location data to feed them yet.
 const DonutChart = ({ segments, total }) => {
   const size = 140;
   const cx = size / 2;
   const cy = size / 2;
   const r = 52;
   const innerR = 36;
-  const circumference = 2 * Math.PI * r;
 
   let cumulative = 0;
   const paths = segments.map((seg) => {
@@ -72,14 +131,10 @@ const DonutChart = ({ segments, total }) => {
   );
 };
 
-
 const UtilBar = ({ label, pct, color }) => (
   <div className="mb-4 last:mb-0">
     <div className="flex items-center justify-between mb-1.5 gap-2">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate">{label}</p>
-        <p className="text-xs text-gray-400">*</p>
-      </div>
+      <p className="text-sm font-medium text-gray-800 truncate">{label}</p>
       <span className="text-sm font-semibold text-gray-700 shrink-0">{pct}%</span>
     </div>
     <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
@@ -87,36 +142,6 @@ const UtilBar = ({ label, pct, color }) => (
     </div>
   </div>
 );
-
-
-const DateRangePicker = () => {
-  const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState("May 21 – May 27, 2025");
-  const ranges = ["Today", "Last 7 days", "May 21 – May 27, 2025", "This month", "Last 30 days", "Custom range"];
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
-      >
-        <Icon d={icons.calendar} size={14} className="text-gray-500 shrink-0" />
-        <span className="truncate">{label}</span>
-        <Icon d={icons.chevronDown} size={13} className="text-gray-400 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-48 py-1">
-          {ranges.map(r => (
-            <button key={r} onClick={() => { setLabel(r === "Last 7 days" ? "May 21 – May 27, 2025" : r); setOpen(false); }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 
 const StatusBadge = ({ status }) => {
   const s = {
@@ -126,7 +151,6 @@ const StatusBadge = ({ status }) => {
   };
   return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${s[status] || "bg-gray-100 text-gray-600"}`}>{status}</span>;
 };
-
 
 const LocationIcon = ({ type }) => {
   const configs = {
@@ -143,7 +167,6 @@ const LocationIcon = ({ type }) => {
   );
 };
 
-
 const MiniUtilBar = ({ pct, color }) => (
   <div className="flex items-center gap-2">
     <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden shrink-0">
@@ -154,36 +177,354 @@ const MiniUtilBar = ({ pct, color }) => (
 );
 
 
-const LOCATIONS = [
-  { name: "Storage Area", desc: "Main storage location", qty: 2348, value: "₦38,240,000", util: 73, utilColor: "#22c55e", status: "Active" },
-  { name: "Dispatch Area", desc: "Outgoing goods area", qty: 215, value: "₦4,320,500", util: 42, utilColor: "#f59e0b", status: "Active" },
-  { name: "Receiving Area", desc: "Incoming goods area", qty: 128, value: "₦2,180,750", util: 18, utilColor: "#3b82f6", status: "Active" },
-  { name: "Damaged Goods Area", desc: "Damaged items storage", qty: 38, value: "₦1,039,000", util: 10, utilColor: "#a855f7", status: "Attention" },
-];
+// ---------------- Date helpers ----------------
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const endOfDay = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const sameDay = (a, b) => a && b && a.toDateString() === b.toDateString();
+const isBetween = (d, a, b) => a && b && d > a && d < b;
 
-const MOVEMENTS = [
-  { date: "May 27, 2025 10:15 AM", item: "Dell Latitude 5440", from: "Receiving Area", to: "Storage Area", qty: 20, user: "Inventory Officer" },
-  { date: "May 27, 2025 09:32 AM", item: "Office Chair", from: "Storage Area", to: "Dispatch Area", qty: 3, user: "Inventory Officer" },
-  { date: "May 26, 2025 04:45 PM", item: "USB-C Hub 7-in-1", from: "Storage Area", to: "Damaged Goods Area", qty: 5, user: "Warehouse Manager" },
-  { date: "May 26, 2025 02:10 PM", item: "HP LaserJet Toner", from: "Receiving Area", to: "Storage Area", qty: 10, user: "Inventory Officer" },
-  { date: "May 26, 2025 11:05 AM", item: "Wireless Mouse", from: "Storage Area", to: "Dispatch Area", qty: 15, user: "Inventory Officer" },
-];
+const formatShort = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const formatFull = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-const DONUT_SEGS = [
-  { label: "Storage Area", value: 2348, color: "#22c55e", pct: "86.0%" },
-  { label: "Dispatch Area", value: 215, color: "#f59e0b", pct: "7.9%" },
-  { label: "Receiving Area", value: 128, color: "#3b82f6", pct: "4.7%" },
-  { label: "Damaged Goods Area", value: 38, color: "#ef4444", pct: "1.4%" },
-];
+const formatRangeLabel = (start, end) => {
+  if (sameDay(start, end)) return formatFull(start);
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+  if (sameMonth) {
+    return `${start.toLocaleDateString("en-US", { month: "short" })} ${start.getDate()} – ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  if (sameYear) {
+    return `${formatShort(start)} – ${formatShort(end)}, ${end.getFullYear()}`;
+  }
+  return `${formatFull(start)} – ${formatFull(end)}`;
+};
 
-const UTIL_BARS = [
-  { label: "Storage Area", pct: 73, color: "#22c55e" },
-  { label: "Dispatch Area", pct: 42, color: "#f59e0b" },
-  { label: "Receiving Area", pct: 18, color: "#3b82f6" },
-  { label: "Damaged Goods Area", pct: 10, color: "#a855f7" },
-];
+const buildPresets = () => {
+  const today = new Date();
+  return [
+    { key: "today", label: "Today", start: startOfDay(today), end: endOfDay(today) },
+    { key: "last7", label: "Last 7 days", start: startOfDay(addDays(today, -6)), end: endOfDay(today) },
+    { key: "last30", label: "Last 30 days", start: startOfDay(addDays(today, -29)), end: endOfDay(today) },
+    { key: "thisMonth", label: "This month", start: startOfDay(new Date(today.getFullYear(), today.getMonth(), 1)), end: endOfDay(today) },
+    { key: "lastMonth", label: "Last month", start: startOfDay(new Date(today.getFullYear(), today.getMonth() - 1, 1)), end: endOfDay(new Date(today.getFullYear(), today.getMonth(), 0)) },
+  ];
+};
+
+const buildMonthGrid = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = firstOfMonth.getDay(); // 0 = Sun
+  const gridStart = addDays(firstOfMonth, -startWeekday);
+  const days = [];
+  for (let i = 0; i < 42; i++) {
+    days.push(addDays(gridStart, i));
+  }
+  return days;
+};
+
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+
+// ---------------- Mini calendar month grid ----------------
+const CalendarMonth = ({ year, month, rangeStart, rangeEnd, hoverDate, onHover, onPick, today }) => {
+  const days = buildMonthGrid(year, month);
+  const monthLabel = new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const effectiveEnd = rangeEnd || hoverDate;
+
+  return (
+    <div className="w-full">
+      <p className="text-xs font-semibold text-gray-700 text-center mb-2">{monthLabel}</p>
+      <div className="grid grid-cols-7 gap-y-1">
+        {WEEKDAY_LABELS.map((w, i) => (
+          <div key={i} className="text-[10px] font-medium text-gray-400 text-center h-6 flex items-center justify-center">{w}</div>
+        ))}
+        {days.map((d, i) => {
+          const inMonth = d.getMonth() === month;
+          const isStart = sameDay(d, rangeStart);
+          const isEnd = sameDay(d, rangeEnd);
+          const inRange = rangeStart && effectiveEnd && isBetween(startOfDay(d), startOfDay(rangeStart), startOfDay(effectiveEnd));
+          const isToday = sameDay(d, today);
+          const isFuture = startOfDay(d) > startOfDay(today);
+
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={isFuture}
+              onMouseEnter={() => onHover(d)}
+              onClick={() => onPick(d)}
+              className={[
+                "h-7 text-xs rounded-md flex items-center justify-center transition-colors",
+                !inMonth ? "text-gray-300" : "text-gray-700",
+                isFuture ? "opacity-30 cursor-not-allowed" : "hover:bg-blue-50 cursor-pointer",
+                inRange && !isStart && !isEnd ? "bg-blue-50" : "",
+                isStart || isEnd ? "bg-blue-600 text-white font-semibold hover:bg-blue-600" : "",
+                isToday && !isStart && !isEnd ? "ring-1 ring-inset ring-blue-300" : "",
+              ].join(" ")}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+// ---------------- DateRangePicker (fully functional) ----------------
+const DateRangePicker = ({ onChange }) => {
+  const today = new Date();
+  const presets = buildPresets();
+
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState("list"); // "list" | "custom"
+  const [activeKey, setActiveKey] = useState("last7");
+  const [range, setRange] = useState(presets.find(p => p.key === "last7"));
+
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [pickStart, setPickStart] = useState(null);
+  const [pickEnd, setPickEnd] = useState(null);
+  const [hoverDate, setHoverDate] = useState(null);
+
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+        setMode("list");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && (setOpen(false), setMode("list"));
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const applyPreset = (preset) => {
+    setActiveKey(preset.key);
+    setRange(preset);
+    onChange && onChange({ start: preset.start, end: preset.end, label: preset.label });
+    setOpen(false);
+    setMode("list");
+  };
+
+  const openCustom = () => {
+    setPickStart(range.start ? startOfDay(range.start) : null);
+    setPickEnd(range.end ? startOfDay(range.end) : null);
+    setViewYear(today.getFullYear());
+    setViewMonth(today.getMonth());
+    setMode("custom");
+  };
+
+  const handlePick = (d) => {
+    const day = startOfDay(d);
+    if (!pickStart || (pickStart && pickEnd)) {
+      setPickStart(day);
+      setPickEnd(null);
+    } else if (day < pickStart) {
+      setPickEnd(pickStart);
+      setPickStart(day);
+    } else {
+      setPickEnd(day);
+    }
+  };
+
+  const applyCustom = () => {
+    if (!pickStart) return;
+    const start = startOfDay(pickStart);
+    const end = endOfDay(pickEnd || pickStart);
+    const label = formatRangeLabel(start, end);
+    setActiveKey("custom");
+    setRange({ key: "custom", label, start, end });
+    onChange && onChange({ start, end, label });
+    setOpen(false);
+    setMode("list");
+  };
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+    if (isCurrentMonth) return;
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-white rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+      >
+        <Icon d={icons.calendar} size={14} className="text-gray-500 shrink-0" />
+        <span className="truncate">{range.label}</span>
+        <Icon d={icons.chevronDown} size={13} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+          {mode === "list" ? (
+            <div className="w-52 py-1">
+              {presets.map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => applyPreset(p)}
+                  className="w-full flex items-center justify-between text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <span>{p.label}</span>
+                  {activeKey === p.key && <Icon d={icons.check} size={14} className="text-blue-600" />}
+                </button>
+              ))}
+              <div className="border-t border-gray-100 mt-1 pt-1">
+                <button
+                  onClick={openCustom}
+                  className="w-full flex items-center justify-between text-left px-4 py-2 text-sm font-medium text-blue-600 hover:bg-gray-50 transition-colors"
+                >
+                  <span>Custom range</span>
+                  {activeKey === "custom" && <Icon d={icons.check} size={14} className="text-blue-600" />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="w-72 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <button type="button" onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500">
+                  <Icon d={icons.chevronLeft} size={14} />
+                </button>
+                <div className="text-xs text-gray-500">
+                  {pickStart ? formatFull(pickStart) : "Start date"}
+                  <span className="mx-1 text-gray-300">→</span>
+                  {pickEnd ? formatFull(pickEnd) : "End date"}
+                </div>
+                <button
+                  type="button"
+                  onClick={nextMonth}
+                  disabled={viewYear === today.getFullYear() && viewMonth === today.getMonth()}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500 disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Icon d={icons.chevronRight} size={14} />
+                </button>
+              </div>
+
+              <CalendarMonth
+                year={viewYear}
+                month={viewMonth}
+                rangeStart={pickStart}
+                rangeEnd={pickEnd}
+                hoverDate={hoverDate}
+                onHover={setHoverDate}
+                onPick={handlePick}
+                today={today}
+              />
+
+              <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setMode("list")}
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={applyCustom}
+                  disabled={!pickStart}
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// Reusable stat tile with real loading/error handling.
+const StatCard = ({ iconD, iconBg, iconColor, label, value, sub, subColor = "text-gray-400", loading, error }) => (
+  <div className="bg-white border border-gray-200 rounded-xl p-4">
+    <div className="flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <Icon d={iconD} size={18} className={iconColor} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-gray-500 mb-0.5 truncate">{label}</p>
+        {loading ? (
+          <div className="h-7 w-16 bg-gray-100 rounded animate-pulse" />
+        ) : error ? (
+          <p className="text-sm text-red-500 font-medium">—</p>
+        ) : (
+          <p className="text-3xl font-bold text-gray-900 truncate">{value}</p>
+        )}
+        {!loading && !error && sub && <p className={`text-xs font-medium mt-0.5 truncate ${subColor}`}>{sub}</p>}
+      </div>
+    </div>
+  </div>
+);
+
+// Honest placeholder for widgets that need endpoints which don't exist yet
+// (there is no Locations / Transfers / Movements module in the tested API).
+const NotConnectedPanel = ({ title, description, className = "" }) => (
+  <div className={`bg-white border border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center ${className}`}>
+    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+      <Icon d={icons.inbox} size={18} className="text-gray-400" />
+    </div>
+    <p className="text-sm font-semibold text-gray-700 mb-1">{title}</p>
+    <p className="text-xs text-gray-400 max-w-xs leading-relaxed">{description}</p>
+  </div>
+);
+
 
 export default function WarehouseOverviewPage() {
+  const [range, setRange] = useState(null);
+
+  const [items, setItems] = useState([]);
+  const [balances, setBalances] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fetchedItems = await fetchAllItems();
+      const fetchedBalances = await fetchStockBalances(fetchedItems);
+      setItems(fetchedItems);
+      setBalances(fetchedBalances);
+    } catch (err) {
+      setError(err.message || "Couldn't load inventory data.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const totalItems = items.length;
+  const activeItems = items.filter(i => i.status === "active").length;
+  const totalQuantity = balances.reduce((sum, b) => sum + (b.balance?.total_on_hand || 0), 0);
+  const totalValue = balances.reduce((sum, b) => {
+    const qty = b.balance?.total_on_hand || 0;
+    const cost = parseFloat(b.item.unit_cost) || 0;
+    return sum + qty * cost;
+  }, 0);
+
   return (
     <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
 
@@ -191,243 +532,101 @@ export default function WarehouseOverviewPage() {
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Warehouse Overview</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Real-time overview of your warehouse locations and inventory distribution</p>
+          <p className="text-sm text-gray-500 mt-0.5">Real-time overview of your item inventory</p>
         </div>
-        <DateRangePicker />
+        <DateRangePicker onChange={setRange} />
       </div>
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <p className="text-sm text-red-600 font-medium flex items-center gap-2">
+            <Icon d={icons.warning} size={16} className="text-red-500 shrink-0" /> {error}
+          </p>
+          <button onClick={load} className="text-xs font-semibold text-red-600 hover:text-red-700 whitespace-nowrap">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Total Locations */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-              <Icon d={icons.location} size={18} className="text-blue-500" fill="none" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Locations</p>
-              <p className="text-3xl font-bold text-gray-900">4</p>
-              <p className="text-xs text-blue-500 font-medium mt-0.5 truncate">All operational locations</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          iconD={icons.hexagon}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-500"
+          label="Total Items"
+          value={totalItems.toLocaleString()}
+          sub="All items in catalog"
+          subColor="text-blue-500"
+          loading={loading}
+          error={error}
+        />
 
-        {/* Total Inventory Quantity */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-              <Icon d={icons.hexagon} size={18} className="text-green-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Inventory Quantity</p>
-              <p className="text-3xl font-bold text-gray-900">2,729</p>
-              <p className="text-xs text-green-600 font-medium mt-0.5 flex items-center gap-1">
-                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} className="shrink-0" />
-                <span className="truncate">6.7% vs last 7 days</span>
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          iconD={icons.check}
+          iconBg="bg-green-50"
+          iconColor="text-green-500"
+          label="Active Items"
+          value={activeItems.toLocaleString()}
+          sub={totalItems ? `${Math.round((activeItems / totalItems) * 100)}% of catalog` : "No items yet"}
+          subColor="text-green-600"
+          loading={loading}
+          error={error}
+        />
 
-        {/* Total Inventory Value */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-              <Icon d={icons.briefcase} size={18} className="text-orange-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 mb-0.5 truncate">Total Inventory Value</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900 truncate">₦45,780,250</p>
-              <p className="text-xs text-green-600 font-medium mt-0.5 flex items-center gap-1">
-                <Icon d={icons.arrowUp} size={11} strokeWidth={2.5} className="shrink-0" />
-                <span className="truncate">8.4% vs last 7 days</span>
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          iconD={icons.storage}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-500"
+          label="Total Inventory Quantity"
+          value={totalQuantity.toLocaleString()}
+          sub="Sum of on-hand stock"
+          subColor="text-purple-500"
+          loading={loading}
+          error={error}
+        />
 
-        {/* Utilization Rate */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-              <Icon d={icons.pie} size={18} className="text-purple-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 mb-0.5 truncate">Utilization Rate</p>
-              <p className="text-3xl font-bold text-gray-900">68.4%</p>
-              <p className="text-xs text-purple-500 font-medium mt-0.5 truncate">Overall capacity utilization</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          iconD={icons.briefcase}
+          iconBg="bg-orange-50"
+          iconColor="text-orange-500"
+          label="Total Inventory Value"
+          value={currency(totalValue)}
+          sub="At unit cost"
+          subColor="text-orange-500"
+          loading={loading}
+          error={error}
+        />
       </div>
 
       {/* ── Middle Row: 3 panels ── */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 mb-4">
-
-        {/* Inventory by Location */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Inventory by Location</h2>
-          <div className="flex justify-center mb-4">
-            <DonutChart segments={DONUT_SEGS} total={2729} />
-          </div>
-          <div className="space-y-2">
-            {DONUT_SEGS.map(s => (
-              <div key={s.label} className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs text-gray-700">{s.label}</span>
-                </div>
-                <span className="text-xs text-gray-500 shrink-0">{s.value.toLocaleString()} ({s.pct})</span>
-              </div>
-            ))}
-          </div>
-          <button className="mt-4 text-xs text-blue-600 font-medium hover:text-blue-700">View all locations</button>
-        </div>
-
-        {/* Capacity Utilization by Location */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-gray-800 mb-5">Capacity Utilization by Location</h2>
-          <div>
-            {UTIL_BARS.map(b => <UtilBar key={b.label} {...b} />)}
-          </div>
-          <button className="mt-4 text-xs text-blue-600 font-medium hover:text-blue-700">View capacity details</button>
-        </div>
-
-        {/* Location Status Summary */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">Location Status Summary</h2>
-          <div className="space-y-3">
-            {/* Active */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/60 border border-green-100 gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                  <Icon d={icons.check} size={15} className="text-green-600" fill="none" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">Active Locations</p>
-                  <p className="text-xs text-gray-500 truncate">All systems operational</p>
-                </div>
-              </div>
-              <span className="text-2xl font-bold text-green-600 shrink-0">3</span>
-            </div>
-
-            {/* Attention */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-yellow-50/60 border border-yellow-100 gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
-                  <Icon d={icons.warning} size={14} className="text-yellow-600" fill="none" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">Attention Required</p>
-                  <p className="text-xs text-gray-500 truncate">Requires monitoring</p>
-                </div>
-              </div>
-              <span className="text-2xl font-bold text-yellow-500 shrink-0">1</span>
-            </div>
-
-            {/* Inactive */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-red-50/40 border border-red-100 gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <Icon d={icons.xCircle} size={14} className="text-red-400" fill="none" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">Inactive Locations</p>
-                  <p className="text-xs text-gray-500 truncate">Currently inactive</p>
-                </div>
-              </div>
-              <span className="text-2xl font-bold text-red-400 shrink-0">0</span>
-            </div>
-          </div>
-          <button className="mt-4 text-xs text-blue-600 font-medium hover:text-blue-700">View all locations</button>
-        </div>
+        <NotConnectedPanel
+          title="Inventory by Location"
+          description="No Locations endpoints are available yet, so stock can't be broken down by location."
+        />
+        <NotConnectedPanel
+          title="Capacity Utilization by Location"
+          description="Capacity data isn't exposed by the API yet — this needs a Locations module with capacity fields."
+        />
+        <NotConnectedPanel
+          title="Location Status Summary"
+          description="Waiting on a Locations endpoint to report active/attention/inactive status."
+        />
       </div>
 
       {/* ── Bottom Row: Location Summary + Recent Movements ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Location Summary */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-800">Location Summary</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {["Location", "Description", "Quantity", "Inventory Value", "Utilization", "Status", ""].map(h => (
-                    <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {LOCATIONS.map((loc, i) => (
-                  <tr key={loc.name} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors`}>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <LocationIcon type={loc.name} />
-                        <span className="text-sm font-medium text-gray-800 whitespace-nowrap">{loc.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-500 whitespace-nowrap">{loc.desc}</td>
-                    <td className="py-3 px-4 text-sm font-semibold text-gray-800 whitespace-nowrap">{loc.qty.toLocaleString()}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700 whitespace-nowrap">{loc.value}</td>
-                    <td className="py-3 px-4">
-                      <MiniUtilBar pct={loc.util} color={loc.utilColor} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <StatusBadge status={loc.status} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <button className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600">
-                        <Icon d={icons.dotsV} size={15} fill="currentColor" stroke="none" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-xs text-gray-500">Showing 1 to 4 of 4 locations</p>
-            <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all locations</button>
-          </div>
-        </div>
-
-        {/* Recent Location Movements */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">Recent Location Movements</h2>
-            <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px]">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {["Date & Time", "Item", "From", "To", "Qty", "User"].map(h => (
-                    <th key={h} className="py-2.5 px-4 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MOVEMENTS.map((m, i) => (
-                  <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.date}</td>
-                    <td className="py-3 px-4 text-sm font-medium text-gray-800 whitespace-nowrap">{m.item}</td>
-                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.from}</td>
-                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.to}</td>
-                    <td className="py-3 px-4 text-sm font-semibold text-gray-800 whitespace-nowrap">{m.qty}</td>
-                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{m.user}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end">
-            <button className="text-xs text-blue-600 font-medium hover:text-blue-700">View all movements</button>
-          </div>
-        </div>
-
+        <NotConnectedPanel
+          className="min-h-[220px]"
+          title="Location Summary"
+          description="A GET /locations endpoint would populate this table — not present in the tested API yet."
+        />
+        <NotConnectedPanel
+          className="min-h-[220px]"
+          title="Recent Location Movements"
+          description="This needs Transfers/Receipts endpoints (permissions like transfers.view exist, but no endpoints are tested yet)."
+        />
       </div>
     </div>
   );

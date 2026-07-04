@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
 import AddItemPicker from './AddItem';
 import AddNewItem from './AddNewItem';
+import { listSuppliers, listUsers } from '../../../lib/api.js';
 
 function fmt(n) {
   return '₦' + Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function todayLabel() {
+  const d = new Date();
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 const chevron = (
@@ -12,9 +19,9 @@ const chevron = (
   </svg>
 );
 
-const emptyForm = { supplier: '', receivedBy: '', warehouse: '', date: 'May 15, 2025', poNumber: '', notes: '' };
+const emptyForm = { supplier: '', receivedBy: '', warehouse: '', date: '', poNumber: '', notes: '' };
 
-export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = 'REC-2025-00029' }) {
+export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '—' }) {
   const [receiptItems, setReceiptItems] = useState([]);
   const [showPicker, setShowPicker]     = useState(false);
   const [showNewItem, setShowNewItem]   = useState(false);
@@ -22,32 +29,60 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
   const [errors, setErrors]             = useState({});
 
   // Form fields
-  const [supplier, setSupplier]   = useState('');
-  const [receivedBy, setReceivedBy] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [receivedById, setReceivedById] = useState('');
   const [warehouse, setWarehouse] = useState('');
-  const [date, setDate]           = useState(emptyForm.date);
+  const [date, setDate]           = useState(todayLabel());
   const [poNumber, setPoNumber]   = useState('');
   const [notes, setNotes]         = useState('');
 
+  // Live lookups
+  const [suppliers, setSuppliers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+
   const isEditing = !!editData;
+
+  // Load suppliers + users from the API whenever the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoadingLookups(true);
+    setLookupError('');
+    Promise.all([listSuppliers(), listUsers()])
+      .then(([sups, usrs]) => {
+        if (cancelled) return;
+        setSuppliers(sups || []);
+        setUsers(usrs || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLookupError(err.message || 'Failed to load suppliers and users.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLookups(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   // Seed (or reset) the form whenever the modal opens
   useEffect(() => {
     if (!isOpen) return;
     if (editData) {
-      setSupplier(editData.supplier || '');
-      setReceivedBy(editData.by || editData.receivedBy || '');
+      setSupplierId(editData.supplierId || '');
+      setReceivedById(editData.receivedById || '');
       setWarehouse(editData.warehouse || '');
-      setDate(editData.date || emptyForm.date);
+      setDate(editData.date || todayLabel());
       setPoNumber(editData.ref || editData.poNumber || '');
       setNotes(editData.notes || '');
       setNoteLen((editData.notes || '').length);
       setReceiptItems((editData.items || []).map(it => ({ ...it })));
     } else {
-      setSupplier(emptyForm.supplier);
-      setReceivedBy(emptyForm.receivedBy);
+      setSupplierId(emptyForm.supplier);
+      setReceivedById(emptyForm.receivedBy);
       setWarehouse(emptyForm.warehouse);
-      setDate(emptyForm.date);
+      setDate(todayLabel());
       setPoNumber(emptyForm.poNumber);
       setNotes(emptyForm.notes);
       setNoteLen(0);
@@ -63,17 +98,15 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
   const totQty   = receiptItems.reduce((a, r) => a + Number(r.qty || 0), 0);
   const totCost  = receiptItems.reduce((a, r) => a + (Number(r.qty || 0) * Number(r.cost || 0)), 0);
 
-  const existingSkus = receiptItems.map(r => r.sku);
-
   /* ── item picker handlers ── */
   const handleAddFromPicker = (item) => {
     if (receiptItems.some(r => r.id === item.id)) return;
-    setReceiptItems(prev => [...prev, { ...item, qty: 1, cost: 0 }]);
+    setReceiptItems(prev => [...prev, { ...item, qty: 1, cost: item.cost || 0 }]);
   };
 
   /* ── new item handler ── */
   const handleSaveNewItem = (newItem) => {
-    setReceiptItems(prev => [...prev, { ...newItem, qty: 1, cost: 0 }]);
+    setReceiptItems(prev => [...prev, { ...newItem, qty: 1, cost: newItem.cost || 0 }]);
     setShowNewItem(false);
   };
 
@@ -92,16 +125,25 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
   /* ── save receipt ── */
   const handleSave = () => {
     const e = {};
-    if (!supplier)  e.supplier  = true;
-    if (!receivedBy) e.receivedBy = true;
-    if (!warehouse) e.warehouse = true;
+    if (!supplierId)   e.supplier = true;
+    if (!receivedById) e.receivedBy = true;
+    if (!warehouse.trim()) e.warehouse = true;
     if (receiptItems.length === 0) e.items = true;
     if (Object.keys(e).length > 0) { setErrors(e); return; }
+
+    const supplierObj = suppliers.find(s => String(s.id) === String(supplierId));
+    const userObj = users.find(u => String(u.id) === String(receivedById));
+
     if (onSave) {
       onSave({
         id: editData ? editData.id : undefined,
         no: editData ? editData.no : receiptNumber,
-        supplier, receivedBy, warehouse, date, poNumber, notes,
+        supplier: supplierObj?.name || '',
+        supplierId,
+        receivedBy: userObj?.name || '',
+        receivedById,
+        warehouse: warehouse.trim(),
+        date, poNumber, notes,
         items: receiptItems,
       });
     }
@@ -113,7 +155,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     setShowPicker(false);
     setShowNewItem(false);
     setErrors({});
-    setSupplier(''); setReceivedBy(''); setWarehouse('');
+    setSupplierId(''); setReceivedById(''); setWarehouse('');
     setPoNumber(''); setNotes(''); setNoteLen(0);
     onClose();
   };
@@ -122,8 +164,8 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     <>
       <style>{`
         .anr-overlay {
-          position: fixed; inset: 0; z-index: 9999;
-          background: #e8eaf0;
+          position: absolute; inset: 0; z-index: 9999;
+          
           display: flex; align-items: flex-start; justify-content: center;
           padding: 20px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;
@@ -172,6 +214,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
           cursor: pointer; color: #b0b8cc; font-family: inherit; font-size: 12.5px; outline: none;
           transition: border 0.15s;
         }
+        .anr-select:disabled { cursor: not-allowed; background: #f8f9fb; }
         .anr-select:focus { border-color: #4f6ef7; }
         .anr-select.anr-err      { border-color: #f25c54; }
         .anr-select.anr-has-val  { color: #1e2740; }
@@ -322,6 +365,8 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
               {/* Receipt Information */}
               <div className="anr-section-title">Receipt Information</div>
 
+              {lookupError && <div className="anr-banner-err">{lookupError}</div>}
+
               {/* Row 1 */}
               <div className="anr-row-3">
                 <div className="anr-field">
@@ -361,34 +406,32 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                   <label className="anr-label">Supplier <span className="anr-req">*</span></label>
                   <div className="anr-sel-wrap">
                     <select
-                      className={`anr-select${errors.supplier ? ' anr-err' : ''}${supplier ? ' anr-has-val' : ''}`}
-                      value={supplier}
-                      onChange={e => { setSupplier(e.target.value); setErrors(p => ({ ...p, supplier: false })); }}
+                      className={`anr-select${errors.supplier ? ' anr-err' : ''}${supplierId ? ' anr-has-val' : ''}`}
+                      value={supplierId}
+                      onChange={e => { setSupplierId(e.target.value); setErrors(p => ({ ...p, supplier: false })); }}
+                      disabled={loadingLookups}
                     >
-                      <option value="">Select supplier</option>
-                      <option>Tech Universe Ltd.</option>
-                      <option>Smart Solutions NG</option>
-                      <option>Office Supplies Co.</option>
-                      <option>Global Tech Ltd.</option>
-                      <option>ElectroMart NG</option>
-                      <option>Print World Ltd.</option>
+                      <option value="">{loadingLookups ? 'Loading suppliers…' : 'Select supplier'}</option>
+                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                     <span className="anr-sel-arrow">{chevron}</span>
                   </div>
                   {errors.supplier && <span className="anr-err-msg">Required</span>}
+                  {!loadingLookups && suppliers.length === 0 && !errors.supplier && (
+                    <span className="anr-err-msg" style={{ color: '#9aa1b4' }}>No suppliers found. Add one in Suppliers first.</span>
+                  )}
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Received By <span className="anr-req">*</span></label>
                   <div className="anr-sel-wrap">
                     <select
-                      className={`anr-select${errors.receivedBy ? ' anr-err' : ''}${receivedBy ? ' anr-has-val' : ''}`}
-                      value={receivedBy}
-                      onChange={e => { setReceivedBy(e.target.value); setErrors(p => ({ ...p, receivedBy: false })); }}
+                      className={`anr-select${errors.receivedBy ? ' anr-err' : ''}${receivedById ? ' anr-has-val' : ''}`}
+                      value={receivedById}
+                      onChange={e => { setReceivedById(e.target.value); setErrors(p => ({ ...p, receivedBy: false })); }}
+                      disabled={loadingLookups}
                     >
-                      <option value="">Select user</option>
-                      <option>Ayomide Ajayi</option>
-                      <option>Ibrahim Okafor</option>
-                      <option>Inventory Officer</option>
+                      <option value="">{loadingLookups ? 'Loading users…' : 'Select user'}</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                     </select>
                     <span className="anr-sel-arrow">{chevron}</span>
                   </div>
@@ -396,19 +439,12 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Warehouse / Location <span className="anr-req">*</span></label>
-                  <div className="anr-sel-wrap">
-                    <select
-                      className={`anr-select${errors.warehouse ? ' anr-err' : ''}${warehouse ? ' anr-has-val' : ''}`}
-                      value={warehouse}
-                      onChange={e => { setWarehouse(e.target.value); setErrors(p => ({ ...p, warehouse: false })); }}
-                    >
-                      <option value="">Select warehouse / location</option>
-                      <option>Storage Area</option>
-                      <option>Receiving Area</option>
-                      <option>Main Warehouse</option>
-                    </select>
-                    <span className="anr-sel-arrow">{chevron}</span>
-                  </div>
+                  <input
+                    className={`anr-input${errors.warehouse ? ' anr-err' : ''}`}
+                    placeholder="e.g. Main Warehouse"
+                    value={warehouse}
+                    onChange={e => { setWarehouse(e.target.value); setErrors(p => ({ ...p, warehouse: false })); }}
+                  />
                   {errors.warehouse && <span className="anr-err-msg">Required</span>}
                 </div>
               </div>
@@ -593,7 +629,6 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         isOpen={showNewItem}
         onClose={() => setShowNewItem(false)}
         onSave={handleSaveNewItem}
-        existingSkus={existingSkus}
       />
     </>
   );

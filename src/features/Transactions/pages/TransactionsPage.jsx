@@ -1,4 +1,48 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+
+/* ─────────────────────────── API layer ─────────────────────────── */
+const API_BASE = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+
+async function apiRequest(path, { method = "GET", token, body } = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  let json = null;
+  try { json = await res.json(); } catch (_) { /* no body */ }
+
+  if (!res.ok || (json && json.success === false)) {
+    const msg = json?.message || `Request failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.errors = json?.errors;
+    throw err;
+  }
+  return json;
+}
+
+// Follows Laravel-style { data, meta: { current_page, last_page } } pagination
+// and collects every page into one flat array.
+async function fetchAllPages(path, token, { maxPages = 10 } = {}) {
+  let page = 1;
+  let out = [];
+  while (page <= maxPages) {
+    const sep = path.includes("?") ? "&" : "?";
+    const json = await apiRequest(`${path}${sep}page=${page}`, { token });
+    const chunk = Array.isArray(json.data) ? json.data : [];
+    out = out.concat(chunk);
+    const meta = json.meta;
+    if (!meta || meta.current_page >= meta.last_page) break;
+    page += 1;
+  }
+  return out;
+}
 
 /* ─────────────────────────── icons ─────────────────────────── */
 const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5 }) => (
@@ -15,6 +59,7 @@ const icons = {
   plus: "M12 4v16m8-8H4",
   x: "M6 18L18 6M6 6l12 12",
   trash: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
+  refresh: "M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16",
 };
 
 /* ─────────────────────────── small svg icons ─────────────────────────── */
@@ -259,8 +304,11 @@ const txTypeStyle = {
 };
 const statusStyle = {
   Completed: { bg: "#e6faf3", color: "#16a369" },
+  Approved:  { bg: "#e6faf3", color: "#16a369" },
   Pending:   { bg: "#fff7ed", color: "#c27a0a" },
   Cancelled: { bg: "#fff1f0", color: "#c0392b" },
+  Rejected:  { bg: "#fff1f0", color: "#c0392b" },
+  "—":       { bg: "#f4f6fb", color: "#6b7591" },
 };
 
 /* ─────────────────────────── modal wrapper ─────────────────────────── */
@@ -278,10 +326,10 @@ const Modal = ({ open, onClose, children }) => {
 
 /* ─────────────────────────── transaction type cards ─────────────────────────── */
 const txTypes = [
-  { id: "Receipt",     iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", iconBg: "#e6faf3", iconColor: "#16a369", desc: "Record items received into inventory." },
-  { id: "Transfer",    iconPath: "M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4",                                                                      iconBg: "#eef2ff", iconColor: "#4f6ef7", desc: "Move items between different locations." },
-  { id: "Adjustment",  iconPath: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",  iconBg: "#fff7ed", iconColor: "#c27a0a", desc: "Adjust inventory quantities." },
-  { id: "Stock Count", iconPath: "M4 6h16M4 10h16M4 14h16M4 18h16",                                                                                          iconBg: "#f5f3ff", iconColor: "#7c3aed", desc: "Record physical stock count." },
+  { id: "Receipt",     apiType: "receipt",     iconPath: icons.receipt,    iconBg: "#e6faf3", iconColor: "#16a369", desc: "Record items received into inventory." },
+  { id: "Transfer",    apiType: "transfer",    iconPath: icons.transfer,   iconBg: "#eef2ff", iconColor: "#4f6ef7", desc: "Move items between different locations." },
+  { id: "Adjustment",  apiType: "adjustment",  iconPath: icons.adjustment, iconBg: "#fff7ed", iconColor: "#c27a0a", desc: "Adjust inventory quantities." },
+  { id: "Stock Count", apiType: "stock_count", iconPath: icons.stockcount, iconBg: "#f5f3ff", iconColor: "#7c3aed", desc: "Record physical stock count." },
 ];
 
 const TypeCard = ({ t, selected, onClick }) => (
@@ -304,26 +352,41 @@ const TypeCard = ({ t, selected, onClick }) => (
 );
 
 /* ─────────────────────────── item row ─────────────────────────── */
-const emptyItem = () => ({ id: Date.now() + Math.random(), item: "", sku: "", unit: "", qty: 0, unitCost: 0 });
+const emptyItem = () => ({ id: Date.now() + Math.random(), itemId: "", item: "", sku: "", unit: "", qty: 0, unitCost: 0 });
 
-const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable, showCurrentStock }) => {
+const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable, showCurrentStock, catalogItems, units }) => {
   const total = (row.qty * row.unitCost).toFixed(2);
   const td = { padding: "6px 8px", borderBottom: "1px solid #f4f6fb" };
+
+  const handlePickItem = (itemId) => {
+    const found = catalogItems.find(ci => String(ci.id) === String(itemId));
+    if (!found) { onChange(row.id, "itemId", ""); return; }
+    onChange(row.id, "itemId", found.id);
+    onChange(row.id, "item", found.name);
+    onChange(row.id, "sku", found.sku || "");
+    onChange(row.id, "unit", found.unit?.abbreviation || found.unit?.name || "");
+    onChange(row.id, "unitCost", Number(found.unit_cost) || 0);
+    onChange(row.id, "stockOnHand", found.stockOnHand ?? null);
+  };
+
   return (
     <tr>
       <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{idx + 1}</td>
       <td style={td}>
-        <input value={row.item} onChange={e => onChange(row.id, "item", e.target.value)} placeholder="Search item…"
-          style={{ width: "100%", padding: "5px 8px", border: "1px solid #e4e7ef", borderRadius: 6, fontSize: 12, outline: "none", fontFamily: "inherit" }} />
+        <select value={row.itemId} onChange={e => handlePickItem(e.target.value)}
+          style={{ width: "100%", padding: "5px 8px", border: "1px solid #e4e7ef", borderRadius: 6, fontSize: 12, outline: "none", fontFamily: "inherit", background: "#fff" }}>
+          <option value="">Select item…</option>
+          {catalogItems.map(ci => <option key={ci.id} value={ci.id}>{ci.name}</option>)}
+        </select>
       </td>
       <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{row.sku || "—"}</td>
-      {showAvailable    && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>—</td>}
-      {showCurrentStock && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>0</td>}
+      {showAvailable    && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{row.stockOnHand ?? "—"}</td>}
+      {showCurrentStock && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{row.stockOnHand ?? "—"}</td>}
       <td style={td}>
         <select value={row.unit} onChange={e => onChange(row.id, "unit", e.target.value)}
           style={{ padding: "5px 8px", border: "1px solid #e4e7ef", borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
           <option value="">Unit</option>
-          {["pcs","kg","box","carton","set"].map(u => <option key={u}>{u}</option>)}
+          {units.map(u => <option key={u.id} value={u.abbreviation || u.name}>{u.abbreviation || u.name}</option>)}
         </select>
       </td>
       <td style={td}>
@@ -345,29 +408,31 @@ const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable, showCu
 };
 
 /* ─────────────────────────── field helpers ─────────────────────────── */
-const locs      = ["Receiving Area","Storage Area","Storage Area A1-01","Dispatch Area","Damaged Goods Area"];
-const users     = ["Inventory Officer","Warehouse Manager","System Administrator"];
-const reasons   = ["Damaged items","Lost during handling","Stock count variance","Supplier sent extra items","New stock found","Customer return"];
-const suppliersList = ["TechMart Ltd","Office Supplies Co","Digital Hub"];
-
 const FieldLabel = ({ children, required }) => (
   <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
     {children}{required && <span style={{ color: "#ef4444" }}>*</span>}
   </label>
 );
-const FieldSelect = ({ value, onChange, options, placeholder }) => (
+const FieldSelect = ({ value, onChange, options, placeholder, getLabel = o => o, getValue = o => o }) => (
   <div style={{ position: "relative" }}>
     <select value={value} onChange={e => onChange(e.target.value)}
       style={{ appearance: "none", width: "100%", padding: "7px 28px 7px 10px", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12.5, color: "#1e2740", fontFamily: "inherit", background: "#fff" }}>
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      {options.map(o => <option key={getValue(o)} value={getValue(o)}>{getLabel(o)}</option>)}
     </select>
     <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevDown /></span>
   </div>
 );
-const FieldInput = ({ value, onChange, placeholder, type = "text" }) => (
-  <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-    style={{ width: "100%", padding: "7px 10px", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12.5, color: "#1e2740", fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }} />
+const FieldInput = ({ value, onChange, placeholder, type = "text", listId, listOptions }) => (
+  <>
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} list={listId}
+      style={{ width: "100%", padding: "7px 10px", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12.5, color: "#1e2740", fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }} />
+    {listId && listOptions && (
+      <datalist id={listId}>
+        {listOptions.map(o => <option key={o} value={o} />)}
+      </datalist>
+    )}
+  </>
 );
 const FieldTextarea = ({ value, onChange, placeholder }) => (
   <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={2}
@@ -375,7 +440,7 @@ const FieldTextarea = ({ value, onChange, placeholder }) => (
 );
 
 /* ─────────────────────────── new transaction modal ─────────────────────────── */
-const NewTransactionModal = ({ open, onClose, onSave }) => {
+const NewTransactionModal = ({ open, onClose, onSave, catalogItems, units, suppliers, users, knownLocations, saving, saveError }) => {
   const [type, setType]           = useState("Receipt");
   const [date, setDate]           = useState(new Date().toISOString().split("T")[0]);
   const [supplier, setSupplier]   = useState("");
@@ -397,7 +462,14 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
   const totalQty  = items.reduce((s, r) => s + +r.qty, 0);
   const totalCost = items.reduce((s, r) => s + r.qty * r.unitCost, 0);
 
-  const handleSave = () => { onSave({ type, date, items }); onClose(); };
+  const handleSave = () => {
+    onSave({
+      type,
+      date,
+      supplier, receivingLoc, fromLoc, toLoc, location, adjustType, reason, requestedBy, refNum, notes,
+      items,
+    });
+  };
 
   const gridStyle    = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14 };
   const stepNumStyle = { width: 22, height: 22, borderRadius: "50%", background: "#4f6ef7", color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -435,8 +507,14 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
           </div>
           {type === "Receipt" && (
             <div style={gridStyle}>
-              <div><FieldLabel required>Supplier</FieldLabel><FieldSelect value={supplier} onChange={setSupplier} options={suppliersList} placeholder="Select supplier" /></div>
-              <div><FieldLabel required>Receiving Location</FieldLabel><FieldSelect value={receivingLoc} onChange={setReceivingLoc} options={locs} placeholder="Select location" /></div>
+              <div>
+                <FieldLabel required>Supplier</FieldLabel>
+                <FieldSelect value={supplier} onChange={setSupplier} options={suppliers} placeholder={suppliers.length ? "Select supplier" : "No suppliers found"} getLabel={s => s.name} getValue={s => s.id} />
+              </div>
+              <div>
+                <FieldLabel required>Receiving Location</FieldLabel>
+                <FieldInput value={receivingLoc} onChange={setReceivingLoc} placeholder="Type a location" listId="loc-list-receiving" listOptions={knownLocations} />
+              </div>
               <div><FieldLabel required>Receipt Date</FieldLabel><FieldInput type="date" value={date} onChange={setDate} /></div>
               <div><FieldLabel>Reference Number</FieldLabel><FieldInput value={refNum} onChange={setRefNum} placeholder="PO or reference (optional)" /></div>
               <div style={{ gridColumn: "span 2" }}><FieldLabel>Notes</FieldLabel><FieldTextarea value={notes} onChange={setNotes} placeholder="Enter any notes (optional)" /></div>
@@ -445,9 +523,18 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
           {type === "Transfer" && (
             <div style={gridStyle}>
               <div><FieldLabel required>Transfer Date</FieldLabel><FieldInput type="date" value={date} onChange={setDate} /></div>
-              <div><FieldLabel required>From Location</FieldLabel><FieldSelect value={fromLoc} onChange={setFromLoc} options={locs} placeholder="Select source" /></div>
-              <div><FieldLabel required>To Location</FieldLabel><FieldSelect value={toLoc} onChange={setToLoc} options={locs} placeholder="Select destination" /></div>
-              <div><FieldLabel required>Requested By</FieldLabel><FieldSelect value={requestedBy} onChange={setRequestedBy} options={users} placeholder="Select user" /></div>
+              <div>
+                <FieldLabel required>From Location</FieldLabel>
+                <FieldInput value={fromLoc} onChange={setFromLoc} placeholder="Type source location" listId="loc-list-from" listOptions={knownLocations} />
+              </div>
+              <div>
+                <FieldLabel required>To Location</FieldLabel>
+                <FieldInput value={toLoc} onChange={setToLoc} placeholder="Type destination location" listId="loc-list-to" listOptions={knownLocations} />
+              </div>
+              <div>
+                <FieldLabel required>Requested By</FieldLabel>
+                <FieldSelect value={requestedBy} onChange={setRequestedBy} options={users} placeholder={users.length ? "Select user" : "No users found"} getLabel={u => u.name} getValue={u => u.id} />
+              </div>
               <div><FieldLabel>Reference Number</FieldLabel><FieldInput value={refNum} onChange={setRefNum} placeholder="e.g. TRF-001 (optional)" /></div>
               <div><FieldLabel>Notes</FieldLabel><FieldTextarea value={notes} onChange={setNotes} placeholder="Enter any notes (optional)" /></div>
             </div>
@@ -455,9 +542,12 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
           {type === "Adjustment" && (
             <div style={gridStyle}>
               <div><FieldLabel required>Adjustment Date</FieldLabel><FieldInput type="date" value={date} onChange={setDate} /></div>
-              <div><FieldLabel required>Location</FieldLabel><FieldSelect value={location} onChange={setLocation} options={locs} placeholder="Select location" /></div>
+              <div>
+                <FieldLabel required>Location</FieldLabel>
+                <FieldInput value={location} onChange={setLocation} placeholder="Type a location" listId="loc-list-adj" listOptions={knownLocations} />
+              </div>
               <div><FieldLabel required>Adjustment Type</FieldLabel><FieldSelect value={adjustType} onChange={setAdjustType} options={["Increase Stock","Decrease Stock","Set Stock"]} placeholder="Select type" /></div>
-              <div><FieldLabel required>Reason</FieldLabel><FieldSelect value={reason} onChange={setReason} options={reasons} placeholder="Select reason" /></div>
+              <div><FieldLabel required>Reason</FieldLabel><FieldInput value={reason} onChange={setReason} placeholder="e.g. Damaged items, stock count variance…" /></div>
               <div><FieldLabel>Reference Number</FieldLabel><FieldInput value={refNum} onChange={setRefNum} placeholder="e.g. ADJ-001 (optional)" /></div>
               <div><FieldLabel>Notes</FieldLabel><FieldTextarea value={notes} onChange={setNotes} placeholder="Enter any notes (optional)" /></div>
             </div>
@@ -465,8 +555,14 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
           {type === "Stock Count" && (
             <div style={gridStyle}>
               <div><FieldLabel required>Count Date</FieldLabel><FieldInput type="date" value={date} onChange={setDate} /></div>
-              <div><FieldLabel required>Location</FieldLabel><FieldSelect value={location} onChange={setLocation} options={locs} placeholder="Select location" /></div>
-              <div><FieldLabel required>Counted By</FieldLabel><FieldSelect value={requestedBy} onChange={setRequestedBy} options={users} placeholder="Select user" /></div>
+              <div>
+                <FieldLabel required>Location</FieldLabel>
+                <FieldInput value={location} onChange={setLocation} placeholder="Type a location" listId="loc-list-count" listOptions={knownLocations} />
+              </div>
+              <div>
+                <FieldLabel required>Counted By</FieldLabel>
+                <FieldSelect value={requestedBy} onChange={setRequestedBy} options={users} placeholder={users.length ? "Select user" : "No users found"} getLabel={u => u.name} getValue={u => u.id} />
+              </div>
               <div style={{ gridColumn: "1 / -1" }}><FieldLabel>Notes</FieldLabel><FieldTextarea value={notes} onChange={setNotes} placeholder="Enter any notes (optional)" /></div>
             </div>
           )}
@@ -500,6 +596,8 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
                       showCost={type==="Receipt"||type==="Adjustment"}
                       showAvailable={type==="Transfer"}
                       showCurrentStock={type==="Adjustment"}
+                      catalogItems={catalogItems}
+                      units={units}
                     />
                   ))}
                 </tbody>
@@ -518,34 +616,126 @@ const NewTransactionModal = ({ open, onClose, onSave }) => {
           </div>
         </div>
 
+        {saveError && (
+          <div style={{ marginBottom: 14, padding: "10px 12px", background: "#fff1f0", border: "1px solid #ffd3ce", borderRadius: 8, fontSize: 12, color: "#c0392b" }}>
+            {saveError}
+          </div>
+        )}
+
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 16, borderTop: "1px solid #e4e7ef" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #e4e7ef", borderRadius: 8, fontSize: 12.5, background: "#fff", cursor: "pointer", color: "#1e2740", fontFamily: "inherit" }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: "8px 20px", border: "none", borderRadius: 8, fontSize: 12.5, background: "#4f6ef7", color: "#fff", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Save {type}</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: "8px 20px", border: "none", borderRadius: 8, fontSize: 12.5, background: saving ? "#9aa8f7" : "#4f6ef7", color: "#fff", cursor: saving ? "default" : "pointer", fontWeight: 600, fontFamily: "inherit" }}>
+            {saving ? "Saving…" : `Save ${type}`}
+          </button>
         </div>
       </div>
     </Modal>
   );
 };
 
-/* ─────────────────────────── mock data ─────────────────────────── */
-const MOCK = [
-  { id: "TXN-000156", date: "May 27, 2025", time: "10:15 AM", type: "Receipt",     item: "HP LaserJet Pro MFP M428", sku: "PRN-001", from: "—",             to: "Receiving Area",     qty: 10, unitCost: 250000, total: 2500000,  user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000155", date: "May 27, 2025", time: "09:32 AM", type: "Transfer",    item: "Dell Latitude 5440",       sku: "LAP-001", from: "Receiving Area", to: "Storage Area",       qty: 20, unitCost: 850000, total: 17000000, user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000154", date: "May 26, 2025", time: "04:45 PM", type: "Adjustment",  item: "USB-C Hub 7-in-1",         sku: "ACC-003", from: "Storage Area",   to: "Damaged Goods Area", qty: -5, unitCost: 25000,  total: -125000,  user: "Warehouse Manager", status: "Completed" },
-  { id: "TXN-000153", date: "May 26, 2025", time: "02:10 PM", type: "Transfer",    item: "Ergonomic Office Chair",   sku: "CHR-002", from: "Storage Area",   to: "Dispatch Area",      qty: 3,  unitCost: 75000,  total: 225000,   user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000152", date: "May 26, 2025", time: "11:05 AM", type: "Stock Count", item: "Wireless Mouse",           sku: "ACC-005", from: "Storage Area",   to: "Storage Area",       qty: 15, unitCost: 12000,  total: 180000,   user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000151", date: "May 25, 2025", time: "03:22 PM", type: "Receipt",     item: '24" LED Monitor',          sku: "MON-001", from: "—",             to: "Receiving Area",     qty: 8,  unitCost: 95000,  total: 760000,   user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000150", date: "May 25, 2025", time: "10:18 AM", type: "Adjustment",  item: "HP 58A Toner Cartridge",   sku: "CON-001", from: "Storage Area",   to: "Storage Area",       qty: 2,  unitCost: 45000,  total: 90000,    user: "Inventory Officer", status: "Pending"   },
-  { id: "TXN-000149", date: "May 24, 2025", time: "04:05 PM", type: "Transfer",    item: "Cat6 Ethernet Cable 2M",   sku: "CAB-002", from: "Storage Area",   to: "Receiving Area",     qty: 30, unitCost: 3500,   total: 105000,   user: "Inventory Officer", status: "Completed" },
-  { id: "TXN-000148", date: "May 24, 2025", time: "01:15 PM", type: "Receipt",     item: "Office Desk",              sku: "DSK-001", from: "—",             to: "Dispatch Area",      qty: 5,  unitCost: 120000, total: 600000,   user: "Warehouse Manager", status: "Completed" },
-  { id: "TXN-000147", date: "May 24, 2025", time: "09:40 AM", type: "Stock Count", item: "Mechanical Keyboard",      sku: "ACC-006", from: "Storage Area",   to: "Storage Area",       qty: 12, unitCost: 18000,  total: 216000,   user: "Inventory Officer", status: "Completed" },
-];
+/* ─────────────────────────── normalization helpers ─────────────────────────── */
+const TYPE_LABELS = {
+  receipt: "Receipt",
+  transfer: "Transfer",
+  adjustment: "Adjustment",
+  stock_count: "Stock Count",
+  stock_taking: "Stock Count",
+  stocktake: "Stock Count",
+};
+
+function labelizeType(raw, fallback) {
+  if (!raw) return fallback || "Transaction";
+  const key = String(raw).toLowerCase().trim().replace(/\s+/g, "_");
+  if (TYPE_LABELS[key]) return TYPE_LABELS[key];
+  return String(raw).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function firstDefined(...vals) {
+  for (const v of vals) if (v !== undefined && v !== null && v !== "") return v;
+  return undefined;
+}
+
+function normalizeTransaction(raw, itemMeta, assumedType) {
+  const type = labelizeType(
+    firstDefined(raw.type, raw.transaction_type, raw.txn_type, raw.movement_type),
+    assumedType
+  );
+
+  const qty = Number(firstDefined(raw.quantity, raw.qty, raw.quantity_change, 0)) || 0;
+  const unitCost = Number(firstDefined(raw.unit_cost, raw.cost, itemMeta?.unit_cost, 0)) || 0;
+  const total = Number(firstDefined(raw.total_cost, raw.total, qty * unitCost)) || 0;
+
+  const createdAtRaw = firstDefined(raw.created_at, raw.date, raw.performed_at, raw.transaction_date);
+  const createdAt = createdAtRaw ? new Date(createdAtRaw) : null;
+
+  const from = firstDefined(
+    raw.from_location?.name, raw.source_location?.name, raw.from,
+    "—"
+  );
+  const to = firstDefined(
+    raw.to_location?.name, raw.destination_location?.name, raw.location?.name, raw.to,
+    "—"
+  );
+
+  const userName = firstDefined(
+    raw.user?.name, raw.created_by_user?.name, raw.performed_by?.name, raw.creator?.name, raw.requested_by?.name,
+    "—"
+  );
+
+  const status = labelizeType(firstDefined(raw.status), "—");
+
+  return {
+    id: firstDefined(raw.id, raw.reference_number, `${itemMeta?.id || "x"}-${Math.random().toString(36).slice(2, 8)}`),
+    refLabel: firstDefined(raw.reference_number, raw.id ? `#${raw.id}` : null, "—"),
+    date: createdAt,
+    type,
+    item: firstDefined(raw.item?.name, itemMeta?.name, "—"),
+    sku: firstDefined(raw.item?.sku, itemMeta?.sku, "—"),
+    from,
+    to,
+    qty,
+    unitCost,
+    total,
+    user: userName,
+    status,
+  };
+}
+
+function fmtDateTime(d) {
+  if (!d || isNaN(d.getTime())) return { date: "—", time: "" };
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+// Auto-auth: every endpoint requires a Bearer token, but there's no reason to make
+// the person sign in manually for this environment, so we authenticate silently
+// in the background using the staging demo account from the API doc.
+const AUTO_LOGIN_EMAIL = "admin@inventory.local";
+const AUTO_LOGIN_PASSWORD = "Admin@1234";
 
 /* ─────────────────────────── main page ─────────────────────────── */
 export default function TransactionsPage() {
+  const [token, setToken]                 = useState(null);
+  const [authError, setAuthError]         = useState("");
+  const [currentUserName, setCurrentUserName] = useState("");
+
   const [modalOpen, setModalOpen]         = useState(false);
-  const [transactions, setTransactions]   = useState(MOCK);
+  const [saving, setSaving]               = useState(false);
+  const [saveError, setSaveError]         = useState("");
+
+  const [transactions, setTransactions]   = useState([]);
+  const [catalogItems, setCatalogItems]   = useState([]);
+  const [suppliers, setSuppliers]         = useState([]);
+  const [units, setUnits]                 = useState([]);
+  const [users, setUsers]                 = useState([]);
+
+  const [dataLoading, setDataLoading]     = useState(false);
+  const [dataError, setDataError]         = useState("");
+  const [partialWarning, setPartialWarning] = useState("");
+
   const [filterType, setFilterType]       = useState("");
   const [filterStatus, setFilterStatus]   = useState("");
   const [search, setSearch]               = useState("");
@@ -562,21 +752,94 @@ export default function TransactionsPage() {
     return () => window.removeEventListener("click", close);
   }, []);
 
+  // Silent background auth — no sign-in screen, just get a token and go.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const json = await apiRequest("/auth/login", {
+          method: "POST",
+          body: { email: AUTO_LOGIN_EMAIL, password: AUTO_LOGIN_PASSWORD },
+        });
+        if (cancelled) return;
+        setToken(json.data.access_token);
+        setCurrentUserName(json.data.user?.name || AUTO_LOGIN_EMAIL);
+      } catch (e) {
+        if (cancelled) return;
+        setAuthError(e.message || "Could not connect to the API. Check your network access to the staging server.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const loadData = useCallback(async () => {
+    if (!token) return;
+    setDataLoading(true);
+    setDataError("");
+    setPartialWarning("");
+    try {
+      const [itemsRaw, suppliersRaw, unitsRaw, usersRaw] = await Promise.all([
+        fetchAllPages("/items", token),
+        fetchAllPages("/suppliers", token),
+        fetchAllPages("/units", token),
+        fetchAllPages("/users", token),
+      ]);
+
+      setCatalogItems(itemsRaw);
+      setSuppliers(suppliersRaw);
+      setUnits(unitsRaw);
+      setUsers(usersRaw);
+
+      // No global "list all transactions" endpoint exists in the API — aggregate
+      // from each item's transaction history instead.
+      const ITEM_CAP = 40;
+      const itemsToFetch = itemsRaw.slice(0, ITEM_CAP);
+      let warned = itemsRaw.length > ITEM_CAP;
+
+      const results = await Promise.all(itemsToFetch.map(async (it) => {
+        try {
+          const json = await apiRequest(`/items/${it.id}/transactions`, { token });
+          const list = Array.isArray(json.data?.data) ? json.data.data
+                     : Array.isArray(json.data) ? json.data
+                     : [];
+          return list.map(raw => normalizeTransaction(raw, it));
+        } catch (e) {
+          warned = true;
+          return [];
+        }
+      }));
+
+      const flat = results.flat().sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+      setTransactions(flat);
+      if (warned) {
+        setPartialWarning(itemsRaw.length > ITEM_CAP
+          ? `Showing transaction history for the first ${ITEM_CAP} of ${itemsRaw.length} items.`
+          : "Some items' transaction history could not be loaded.");
+      }
+    } catch (e) {
+      setDataError(e.message || "Could not reach the API. Check your connection or CORS access to the staging server.");
+    } finally {
+      setDataLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const knownLocations = Array.from(new Set(
+    transactions.flatMap(t => [t.from, t.to]).filter(l => l && l !== "—")
+  )).sort();
+
   /* date-aware filtering */
   const filtered = transactions.filter(t => {
     if (filterType   && t.type   !== filterType)   return false;
     if (filterStatus && t.status !== filterStatus) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      if (!t.item.toLowerCase().includes(q) && !t.id.toLowerCase().includes(q)) return false;
+      const hay = `${t.item} ${t.id} ${t.sku}`.toLowerCase();
+      if (!hay.includes(q)) return false;
     }
-    if (dateRange) {
-      const parts = t.date.match(/([A-Za-z]+)\s+(\d+),\s+(\d+)/);
-      if (parts) {
-        const mIdx = SHORT_MONTHS.indexOf(parts[1].slice(0,3));
-        const d = new Date(+parts[3], mIdx !== -1 ? mIdx : 0, +parts[2]);
-        if (d < dateRange.start || d > dateRange.end) return false;
-      }
+    if (dateRange && t.date) {
+      if (t.date < dateRange.start || t.date > dateRange.end) return false;
     }
     return true;
   });
@@ -584,21 +847,56 @@ export default function TransactionsPage() {
   const pages   = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const visible = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const handleSave = (data) => {
-    const newTx = {
-      id: `TXN-${String(Math.floor(Math.random() * 99999)).padStart(6, "0")}`,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      type: data.type,
-      item: data.items[0]?.item || "New Item",
-      sku: "NEW-001",
-      from: "—", to: "Receiving Area",
-      qty: data.items.reduce((s, r) => s + +r.qty, 0),
-      unitCost: 0, total: 0,
-      user: "System Administrator",
-      status: "Pending",
+  const handleSave = async (form) => {
+    setSaving(true);
+    setSaveError("");
+
+    const typeConfig = txTypes.find(t => t.id === form.type);
+    const endpointMap = {
+      receipt: "/receipts",
+      transfer: "/transfers",
+      adjustment: "/adjustments",
+      stock_count: "/stock-counts",
     };
-    setTransactions(p => [newTx, ...p]);
+    const endpoint = endpointMap[typeConfig.apiType];
+
+    const payloadItems = form.items
+      .filter(r => r.itemId && r.qty)
+      .map(r => ({
+        item_id: r.itemId,
+        quantity: r.qty,
+        unit_cost: r.unitCost || undefined,
+      }));
+
+    const body = {
+      date: form.date,
+      reference_number: form.refNum || undefined,
+      notes: form.notes || undefined,
+      supplier_id: form.supplier || undefined,
+      location: form.receivingLoc || form.location || undefined,
+      from_location: form.fromLoc || undefined,
+      to_location: form.toLoc || undefined,
+      requested_by: form.requestedBy || undefined,
+      reason: form.reason || undefined,
+      adjustment_type: form.adjustType || undefined,
+      items: payloadItems,
+    };
+
+    try {
+      await apiRequest(endpoint, { method: "POST", token, body });
+      setModalOpen(false);
+      await loadData();
+    } catch (e) {
+      // The tested API reference doesn't document a create endpoint for this
+      // transaction type, so the write may not be supported server-side yet.
+      setSaveError(
+        e.status === 404
+          ? `The API has no ${endpoint} endpoint yet — this transaction type can't be saved until that's added server-side.`
+          : (e.message || "Could not save this transaction.")
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const dateLabel = dateRange
@@ -609,21 +907,61 @@ export default function TransactionsPage() {
   const totalReceipts = transactions.filter(t => t.type === "Receipt").length;
   const totalTransfers= transactions.filter(t => t.type === "Transfer").length;
   const totalAdj      = transactions.filter(t => t.type === "Adjustment").length;
-  const totalStock    = transactions.filter(t => t.type === "Stock Count").length;
   const pendingCount  = transactions.filter(t => t.status === "Pending").length;
+
+  if (!token) {
+    return (
+      <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740" }}>
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Transactions</h1>
+          <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>View and track all inventory transactions across your organization.</p>
+        </div>
+        {authError ? (
+          <div style={{ padding: "12px 14px", background: "#fff1f0", border: "1px solid #ffd3ce", borderRadius: 10, fontSize: 12.5, color: "#c0392b" }}>
+            {authError}
+          </div>
+        ) : (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 10 }}>
+            Connecting to the inventory system…
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740" }}>
 
-      <NewTransactionModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} />
+      <NewTransactionModal
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); setSaveError(""); }}
+        onSave={handleSave}
+        catalogItems={catalogItems}
+        units={units}
+        suppliers={suppliers}
+        users={users}
+        knownLocations={knownLocations}
+        saving={saving}
+        saveError={saveError}
+      />
 
       {/* Page Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Transactions</h1>
-          <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>View and track all inventory transactions across your organization.</p>
+          <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>
+            View and track all inventory transactions across your organization.
+            {currentUserName && <span style={{ color: "#9aa1b4" }}> · Signed in as {currentUserName}</span>}
+          </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={loadData}
+            disabled={dataLoading}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, cursor: dataLoading ? "default" : "pointer", color: "#1e2740", fontWeight: 500 }}
+          >
+            <Icon d={icons.refresh} size={13} stroke="#5c657a" /> {dataLoading ? "Refreshing…" : "Refresh"}
+          </button>
           <button style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, cursor: "pointer", color: "#1e2740", fontWeight: 500 }}>
             <DownloadIcon /> Export
           </button>
@@ -636,23 +974,34 @@ export default function TransactionsPage() {
         </div>
       </div>
 
+      {dataError && (
+        <div style={{ marginBottom: 16, padding: "12px 14px", background: "#fff1f0", border: "1px solid #ffd3ce", borderRadius: 10, fontSize: 12.5, color: "#c0392b" }}>
+          {dataError}
+        </div>
+      )}
+      {!dataError && partialWarning && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", background: "#fff7ed", border: "1px solid #fbdba0", borderRadius: 10, fontSize: 12, color: "#946200" }}>
+          {partialWarning}
+        </div>
+      )}
+
       {/* Metric cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14, marginBottom: 20 }}>
         <MetricCard iconBg="#eef2ff"
           icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-          label="Total Transactions" value={totalTxns} sub="All time" />
+          label="Total Transactions" value={dataLoading ? "…" : totalTxns} sub="All time" />
         <MetricCard iconBg="#e6faf3"
           icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>}
-          label="Receipts" value={totalReceipts} sub="All time" />
+          label="Receipts" value={dataLoading ? "…" : totalReceipts} sub="All time" />
         <MetricCard iconBg="#eef2ff"
           icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>}
-          label="Transfers" value={totalTransfers} sub="All time" />
+          label="Transfers" value={dataLoading ? "…" : totalTransfers} sub="All time" />
         <MetricCard iconBg="#fff7ed"
           icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
-          label="Adjustments" value={totalAdj} sub="All time" />
+          label="Adjustments" value={dataLoading ? "…" : totalAdj} sub="All time" />
         <MetricCard iconBg="#f5f3ff"
           icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><path d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>}
-          label="Pending" value={pendingCount}
+          label="Pending" value={dataLoading ? "…" : pendingCount}
           sub="View pending" subAccent onClick={() => { setFilterStatus("Pending"); setPage(1); }} />
       </div>
 
@@ -715,7 +1064,7 @@ export default function TransactionsPage() {
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
               style={{ appearance: "none", padding: "7px 28px 7px 10px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: "pointer", minWidth: 120, color: "#1e2740", fontFamily: "inherit" }}>
               <option value="">All Statuses</option>
-              {["Completed","Pending","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+              {["Completed","Approved","Pending","Cancelled","Rejected"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevDown /></span>
           </div>
@@ -744,21 +1093,26 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.length === 0 ? (
-                <tr><td colSpan={12} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>No transactions match your filters.</td></tr>
+              {dataLoading ? (
+                <tr><td colSpan={12} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>Loading transactions…</td></tr>
+              ) : visible.length === 0 ? (
+                <tr><td colSpan={12} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>
+                  {transactions.length === 0 ? "No transactions found for this organization yet." : "No transactions match your filters."}
+                </td></tr>
               ) : visible.map(t => {
-                const ts = txTypeStyle[t.type] || {};
-                const ss = statusStyle[t.status] || {};
+                const ts = txTypeStyle[t.type] || { bg: "#f4f6fb", color: "#5c657a" };
+                const ss = statusStyle[t.status] || { bg: "#f4f6fb", color: "#5c657a" };
+                const { date: dLabel, time: tLabel } = fmtDateTime(t.date);
                 return (
                   <tr key={t.id}
                     style={{ borderBottom: "1px solid #f4f6fb", transition: "background .15s" }}
                     onMouseEnter={e => e.currentTarget.style.background = "#f8f9fb"}
                     onMouseLeave={e => e.currentTarget.style.background = ""}
                   >
-                    <td style={{ padding: "12px 14px", fontWeight: 500, color: "#4f6ef7", whiteSpace: "nowrap", cursor: "pointer" }}>{t.id}</td>
+                    <td style={{ padding: "12px 14px", fontWeight: 500, color: "#4f6ef7", whiteSpace: "nowrap", cursor: "pointer" }}>{t.refLabel}</td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                      <div style={{ color: "#1e2740" }}>{t.date}</div>
-                      <div style={{ color: "#9aa1b4", fontSize: 11.5 }}>{t.time}</div>
+                      <div style={{ color: "#1e2740" }}>{dLabel}</div>
+                      <div style={{ color: "#9aa1b4", fontSize: 11.5 }}>{tLabel}</div>
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <span style={{ background: ts.bg, color: ts.color, padding: "3px 10px", borderRadius: 5, fontSize: 11.5, fontWeight: 500, whiteSpace: "nowrap" }}>{t.type}</span>

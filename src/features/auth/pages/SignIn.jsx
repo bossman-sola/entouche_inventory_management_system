@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAuth } from "../hooks/useAuth.js"
+import inventoryIllustration from "../../../assets/images/inventory-illustration.png"
 
 const IconMail = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
@@ -99,16 +100,10 @@ function SignIn() {
   return (
     <div className="min-h-screen w-full flex bg-white">
       
-      <div className="hidden lg:flex lg:flex-1 relative bg-[#0b1120] text-white flex-col justify-between overflow-hidden px-16 py-14">
+      {/* Left panel: narrower now so the form side can take more space */}
+      <div className="hidden lg:flex lg:w-[40%] xl:w-[38%] relative bg-[#0b1120] text-white flex-col justify-between overflow-hidden px-12 py-14">
       
-        <svg className="pointer-events-none absolute right-24 top-10 h-28 w-52 opacity-40" viewBox="0 0 200 120" fill="none">
-          <path d="M10 20 L90 100 L190 5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <svg className="pointer-events-none absolute left-24 top-64 h-24 w-24 opacity-40" viewBox="0 0 100 100" fill="none">
-          <path d="M60 5 C60 40, 60 55, 20 58 L20 95" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
 
-      
         <div>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
@@ -116,26 +111,35 @@ function SignIn() {
             </div>
             <div>
               <p className="text-lg font-bold leading-tight">
-                Inventory<span className="text-blue-500">Pro</span>
+                Entouche<span className="text-blue-500"></span>
               </p>
               <p className="text-xs text-slate-400">Enterprise inventory management</p>
             </div>
           </div>
 
           
-          <h1 className="mt-14 text-4xl font-bold leading-tight">
+          <h1 className="mt-10 text-4xl font-bold leading-tight">
             Smarter inventory.
             <br />
             <span className="text-blue-500">Stronger business.</span>
           </h1>
           <p className="mt-5 max-w-sm text-sm text-slate-400">
-            InventoryPro helps you track, manage and optimize your inventory
+            Entouche helps you track, manage and optimize your inventory
             across all locations in real time.
           </p>
         </div>
 
+        {/* Hero illustration */}
+        <div className="relative -mx-2 flex flex-1 items-center justify-center py-6">
+          <img
+            src={inventoryIllustration}
+            alt="InventoryPro dashboard preview with a warehouse illustration"
+            className="w-full max-w-md object-contain drop-shadow-2xl"
+          />
+        </div>
+
         
-        <div className="relative grid grid-cols-3 gap-8 pt-10">
+        <div className="relative grid grid-cols-3 gap-6 pt-4">
           <div>
             <IconShield className="h-5 w-5 text-blue-500" />
             <p className="mt-3 text-sm font-semibold">Secure &amp; reliable</p>
@@ -161,12 +165,13 @@ function SignIn() {
       </div>
 
       
-      <div className="flex flex-1 items-center justify-center px-6 py-12 sm:px-10">
-        <div className="w-full max-w-[380px]">
+      {/* Right panel: now takes the remaining, larger share of the width */}
+      <div className="flex flex-1 items-center justify-center px-6 py-12 sm:px-10 lg:px-16">
+        <div className="w-full max-w-[420px]">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
             <p className="mt-2 text-sm text-gray-500">
-              Sign in to your InventoryPro account
+              Sign in to your Entouche account
             </p>
           </div>
 
@@ -220,7 +225,7 @@ function SignIn() {
               </button>
             </div>
 
-            {/* Remember me / Forgot password */}
+            
             <div className="mt-4 flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
@@ -236,7 +241,7 @@ function SignIn() {
               </a>
             </div>
 
-            {/* Submit */}
+            
             <button
               type="submit"
               disabled={isSubmitting}

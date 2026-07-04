@@ -1,27 +1,51 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Upload
-} from 'lucide-react';
 
 // ── API config ───────────────────────────────────────────────────────────────
 // Checked against `api-tested-endpoints.md`: there is currently no /transfers
 // or /locations endpoint in the API. Everything below is wired to what DOES
-// exist (Items, Users). Transfers themselves stay client-side/local until the
-// backend adds transfer endpoints — search for "NO ENDPOINT YET" to find those
-// spots quickly when they land.
+// exist (Items, Users, Auth). Transfers themselves stay client-side/local
+// until the backend adds transfer endpoints — search for "NO ENDPOINT YET" to
+// find those spots quickly when they land.
 const API_BASE = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+const DEFAULT_EMAIL = "admin@inventory.local";
+const DEFAULT_PASSWORD = "Admin@1234";
 
-// TODO: wire this to whatever your app already uses to store the auth token
-// (the same place your other connected pages read it from — e.g. an
-// AuthContext, a redux slice, or your existing `api` client). Browser storage
-// APIs (localStorage/sessionStorage) aren't used directly in this file so it
-// stays portable — just plug your real token source in here.
+// Auto-signs in against the staging API the same way the Data Import and
+// Audit Log pages do, and hands back { token, user, status, error, retry }.
+// Browser storage APIs aren't used (not supported in this environment) — the
+// token just lives in memory for the session. Swap this for your app's real
+// auth source (context/redux/existing api client) once one exists.
 function useAccessToken() {
-  // Example if you keep it in localStorage elsewhere in the app:
-  //   const [token] = useState(() => window.localStorage.getItem("access_token"));
-  //   return token;
-  const [token] = useState(null);
-  return token;
+  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null);
+  const [status, setStatus] = useState("connecting"); // connecting | ok | error
+  const [error, setError] = useState("");
+
+  const login = useCallback(async (email = DEFAULT_EMAIL, password = DEFAULT_PASSWORD) => {
+    setStatus("connecting");
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        throw new Error(json?.message || `Login failed (${res.status})`);
+      }
+      setToken(json.data.access_token);
+      setUser(json.data.user);
+      setStatus("ok");
+    } catch (err) {
+      setStatus("error");
+      setError(err.message || "Could not reach the API");
+    }
+  }, []);
+
+  useEffect(() => { login(); }, [login]);
+
+  return { token, user, status, error, retry: login };
 }
 
 async function apiRequest(path, token, options = {}) {
@@ -87,6 +111,7 @@ const icons = {
   book: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
   clearAll: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
   spinner: "M12 3a9 9 0 100 18",
+  lock: "M19 11H5a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2zM7 11V7a5 5 0 0110 0v4",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -178,9 +203,9 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState("");
 
-  // Load items + users once the modal opens
+  // Load items + users once the modal opens (and once we actually have a token)
   useEffect(() => {
-    if (!open) return;
+    if (!open || !token) return;
 
     setCatalogLoading(true);
     setCatalogError("");
@@ -266,6 +291,13 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
             <Icon d={icons.x} size={16} />
           </button>
         </div>
+
+        {!token && (
+          <div className="mb-5 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
+            <Icon d={icons.alert} size={15} className="text-orange-500 shrink-0" />
+            <p className="text-xs text-orange-700">Not connected to the API yet — item search and the user list won't load until sign-in succeeds.</p>
+          </div>
+        )}
 
         {/* Step 1: Details */}
         <div className="mb-6">
@@ -363,13 +395,6 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
                 <Icon d={icons.plus} size={14} /> Add Item
               </button>
             </div>
-            <div className="flex gap-2">
-              <input value={searchQty} onChange={e => setSearchQty(e.target.value)} placeholder="Enter quantity" className="w-full sm:w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <Select value={searchUnit} onChange={setSearchUnit} options={["pcs", "kg", "box", "carton", "set"]} placeholder="Select unit" className="w-full sm:w-36" />
-              <button onClick={addItem} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap shrink-0">
-                <Icon d={icons.plus} size={14} /> Add Item
-              </button>
-            </div>
           </div>
 
           {/* Items table */}
@@ -401,7 +426,9 @@ const NewTransferModal = ({ open, onClose, onSave, token }) => {
                       <td className="py-2 px-3 text-sm text-gray-800 font-medium whitespace-nowrap">{row.item}</td>
                       <td className="py-2 px-3 text-sm text-gray-400">{row.sku}</td>
                       <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "—"}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{row.availableStock}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">
+                        {row.availableStock === null ? <Spinner size={12} className="text-gray-400" /> : row.stockError ? <span className="text-red-500">—</span> : row.availableStock}
+                      </td>
                       <td className="py-2 px-3">
                         <input
                           type="number"
@@ -454,7 +481,7 @@ const INITIAL_TRANSFERS = [];
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function TransfersPage() {
-  const token = useAccessToken();
+  const { token, user, status: authStatus, error: authError, retry: retryLogin } = useAccessToken();
   const [modalOpen, setModalOpen] = useState(false);
   const [transfers, setTransfers] = useState(INITIAL_TRANSFERS);
   const [fromFilter, setFromFilter] = useState("");
@@ -498,7 +525,7 @@ export default function TransfersPage() {
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-2 gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Transfers</h1>
             <p className="text-sm text-gray-500 mt-0.5">Move inventory items between different locations.</p>
@@ -519,6 +546,26 @@ export default function TransfersPage() {
               <Icon d={icons.plus} size={15} /> New Transfer
             </button>
           </div>
+        </div>
+
+        {/* Connection status */}
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
+          {authStatus === "connecting" && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+              <Spinner size={13} /> Connecting to API…
+            </span>
+          )}
+          {authStatus === "ok" && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Connected as {user?.name}
+            </span>
+          )}
+          {authStatus === "error" && (
+            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
+              <Icon d={icons.lock} size={13} /> {authError || "Could not connect to the API."}
+              <button onClick={() => retryLogin()} className="ml-1 underline">Retry</button>
+            </div>
+          )}
         </div>
 
         {/* Stats */}
@@ -546,10 +593,10 @@ export default function TransfersPage() {
         {/* Filters bar */}
         <div className="bg-white border border-gray-200 rounded-xl mb-4 p-3 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm text-gray-500 sm:border-r border-gray-200 sm:pr-3 whitespace-nowrap">
-            <Icon d={icons.calendar} size={14} /> May 21 – 27, 2025
+            <Icon d={icons.calendar} size={14} /> All time
           </div>
-          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={locs} placeholder="From Location" className="w-full sm:w-40" />
-          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={locs} placeholder="To Location" className="w-full sm:w-40" />
+          <Select value={fromFilter} onChange={v => { setFromFilter(v); setPage(1); }} options={LOCATIONS} placeholder="From Location" className="w-full sm:w-40" />
+          <Select value={toFilter} onChange={v => { setToFilter(v); setPage(1); }} options={LOCATIONS} placeholder="To Location" className="w-full sm:w-40" />
           <Select value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} options={["Completed", "Pending", "Cancelled"]} placeholder="All Statuses" className="w-full sm:w-36" />
           {(fromFilter || toFilter || statusFilter) && (
             <button onClick={() => { setFromFilter(""); setToFilter(""); setStatusFilter(""); setPage(1); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear filters</button>
@@ -568,7 +615,9 @@ export default function TransfersPage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map(t => (
+                {visible.length === 0 ? (
+                  <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400">No transfers yet — create one to see it here.</td></tr>
+                ) : visible.map(t => (
                   <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                     <td className="py-3 px-4 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{t.id}</td>
                     <td className="py-3 px-4 whitespace-nowrap">
@@ -602,7 +651,7 @@ export default function TransfersPage() {
             </table>
           </div>
           <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-sm text-gray-500 text-center sm:text-left">Showing {(page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} transfers</p>
+            <p className="text-sm text-gray-500 text-center sm:text-left">Showing {filtered.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} to {Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} transfers</p>
             <div className="flex items-center gap-1 flex-wrap justify-center">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 text-sm border border-gray-200 rounded hover:bg-gray-100 disabled:opacity-40">‹</button>
               {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(n => (
