@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
-/* ─────────────────────────── API layer ─────────────────────────── */
 const API_BASE = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
 
 async function apiRequest(path, { method = "GET", token, body } = {}) {

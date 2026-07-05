@@ -1,31 +1,30 @@
-import apiClient from "../../../shared/api/axiosClient.js"
+import apiClient from "../../../shared/api/axiosClient.js";
 
-export async function listSuppliers(params = {}) {
-  const { data } = await apiClient.get("/suppliers", { params })
-  return data
-}
+export const listUnits = async (params = {}) => {
+  const { data } = await apiClient.get("/units", { params });
+  return data?.data || [];
+};
 
-export async function createSupplier(payload) {
-  const { data } = await apiClient.post("/suppliers", payload)
-  return data.data
-}
+export const createUnit = async (payload) => {
+  const { data } = await apiClient.post("/units", payload);
+  return data?.data;
+};
 
-export async function getSupplier(id) {
-  const { data } = await apiClient.get(`/suppliers/${id}`)
-  return data.data
-}
+export const getUnit = async (id) => {
+  const { data } = await apiClient.get(`/units/${id}`);
+  return data?.data;
+};
 
-export async function updateSupplier(id, payload) {
-  const { data } = await apiClient.put(`/suppliers/${id}`, payload)
-  return data.data
-}
+export const updateUnit = async (id, payload) => {
+  const { data } = await apiClient.put(`/units/${id}`, payload);
+  return data?.data;
+};
 
-export async function deleteSupplier(id) {
-  const { data } = await apiClient.delete(`/suppliers/${id}`)
-  return data
-}
+export const deleteUnit = async (id) => {
+  await apiClient.delete(`/units/${id}`);
+};
 
-export async function toggleSupplierStatus(id, status) {
-  const { data } = await apiClient.post(`/suppliers/${id}/toggle-status`, { status })
-  return data.data
-}
+export const toggleUnitStatus = async (id) => {
+  const { data } = await apiClient.post(`/units/${id}/toggle-status`);
+  return data?.data;
+};

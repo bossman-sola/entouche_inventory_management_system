@@ -17,6 +17,8 @@ import { useItems } from "../hooks/useItems.js";
 import { useCategories } from "../../categories/hooks/useCategories.js";
 import { useSuppliers } from "../../suppliers/hooks/useSuppliers.js";
 import { useUnits } from "../../units/hooks/useUnits.js";
+import { toApiItemType } from "../api/itemsMapper.js";
+import { generateCode } from "../../../lib/generateCode.js";
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
@@ -30,10 +32,11 @@ const Items = () => {
     deleteItem,
   } = useItems();
 
-  // These power the dropdowns in the Add/Edit item forms.
-  const { categories } = useCategories();
-  const { suppliers } = useSuppliers();
-  const { units } = useUnits();
+  // These power the dropdowns in the Add/Edit item forms, and now also
+  // back the "+" quick-add modals inside AddNewItems.
+  const { categories, createCategory } = useCategories();
+  const { suppliers, createSupplier } = useSuppliers();
+  const { units, createUnit } = useUnits();
 
   const [activeMenu, setActiveMenu] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -56,6 +59,11 @@ const Items = () => {
   const categoryNames = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
   const types = ['All Types', 'Stock Item', 'Consumable'];
+
+  // Used by the Import flow to flag duplicates against what's already
+  // in the inventory, not just duplicates within the uploaded file.
+  const existingBarcodes = useMemo(() => items.map(i => i.barcode).filter(Boolean), [items]);
+  const existingSkus = useMemo(() => items.map(i => i.sku).filter(Boolean), [items]);
 
 
   const filteredItems = useMemo(() => {
@@ -121,7 +129,7 @@ const Items = () => {
         category_id: item.categoryId,
         unit_of_measure_id: item.unitId,
         supplier_id: item.supplierId || undefined,
-        item_type: item.raw?.item_type || "product",
+        item_type: item.raw?.item_type || "stock_item",
         brand: item.brand || undefined,
         description: item.description || undefined,
         unit_cost: item.unitCost ?? undefined,
@@ -160,6 +168,65 @@ const Items = () => {
     setActiveMenu(null);
   };
 
+  // --- Quick-add wiring for the Add New Item modal's "+" buttons ---
+  // The API's category/supplier records need a short `code`, which the
+  // quick-add forms don't collect, so we derive one from the name.
+  const handleCreateCategory = async (data) => {
+    return createCategory({
+      name: data.name,
+      code: generateCode(data.name),
+      parent_id: null,
+      status: "active",
+    });
+  };
+
+  const handleCreateSupplier = async (data) => {
+    return createSupplier({
+      name: data.name,
+      code: generateCode(data.name),
+      email: data.email || undefined,
+      phone: data.phone || undefined,
+      address: undefined,
+      status: "active",
+    });
+  };
+
+  // The API's unit model only has name + abbreviation + status; the
+  // "type" field in the quick-add form (Count/Weight/etc.) is UI-only.
+  const handleCreateUnit = async (data) => {
+    return createUnit({
+      name: data.name,
+      abbreviation: data.symbol,
+      status: "active",
+    });
+  };
+
+  // --- Bulk import wiring ---
+  // The API has no bulk-create endpoint, so each valid row becomes its
+  // own POST /items call, resolving category/unit names to their ids.
+  const handleImportComplete = async (validRows) => {
+    for (const row of validRows) {
+      const category = categories.find(
+        (c) => c.name.toLowerCase() === (row.category || '').toLowerCase()
+      );
+      const unit = units.find(
+        (u) => u.name.toLowerCase() === (row.unit || '').toLowerCase()
+      );
+      await createItem({
+        name: row.name,
+        category_id: category?.id,
+        unit_of_measure_id: unit?.id,
+        barcode: row.barcode || undefined,
+        item_type: toApiItemType(row.itemType),
+        brand: row.brand || undefined,
+        unit_cost: row.unitCost ? Number(row.unitCost) : undefined,
+        selling_price: row.sellingPrice ? Number(row.sellingPrice) : undefined,
+        reorder_level: row.reorderLevel ? Number(row.reorderLevel) : undefined,
+        status: "active",
+      });
+    }
+  };
+
   const hasActiveFilters =
     searchQuery || filterCategory !== 'All Categories' ||
     filterStatus !== 'All Statuses' || filterType !== 'All Types';
@@ -183,7 +250,15 @@ const Items = () => {
         </div>
         <div className="flex items-center gap-3">
           <HeaderButton icon={<Download size={16}/>} label="Import Items" onClick={() => setIsImportModalOpen(true)} />
-          <ImportItems isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImportComplete={() => {}} />
+          <ImportItems
+            isOpen={isImportModalOpen}
+            onClose={() => setIsImportModalOpen(false)}
+            onImportComplete={handleImportComplete}
+            categories={categories}
+            units={units}
+            existingBarcodes={existingBarcodes}
+            existingSkus={existingSkus}
+          />
           <HeaderButton icon={< Upload size={16}/>} label="Export Items" onClick={handleExport} />
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -447,6 +522,9 @@ const Items = () => {
         categories={categories}
         suppliers={suppliers}
         units={units}
+        onCreateCategory={handleCreateCategory}
+        onCreateSupplier={handleCreateSupplier}
+        onCreateUnit={handleCreateUnit}
       />
     </div>
   );

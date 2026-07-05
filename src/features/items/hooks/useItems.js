@@ -1,73 +1,75 @@
-import { useCallback, useEffect, useState } from "react"
-import * as itemsApi from "../api/itemsApi.js"
-import { mapApiItemToUi } from "../api/itemsMapper.js"
+import { useState, useEffect, useCallback } from "react";
+import * as itemsApi from "../api/itemsApi.js";
+import { mapApiItemToUiItem } from "../api/itemsMapper.js";
 
-export function useItems() {
-  const [items, setItems] = useState([])
-  const [meta, setMeta] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [page, setPage] = useState(1)
+export const useItems = () => {
+  const [rawItems, setRawItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchItems = useCallback(async (targetPage = 1) => {
-    setIsLoading(true)
-    setError(null)
+  const fetchItems = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      // per_page bumped up since filtering/search currently happens client-side
-      const response = await itemsApi.listItems({ page: targetPage, per_page: 100 })
-      setItems(response.data.map(mapApiItemToUi))
-      setMeta(response.meta)
-      setPage(targetPage)
+      const { items } = await itemsApi.listItems();
+      setRawItems(items);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load items.")
+      setError(err.response?.data?.message || "Couldn't load items.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchItems(1)
-  }, [fetchItems])
+    fetchItems();
+  }, [fetchItems]);
 
-  async function createItem(payload, imageFile) {
-    let newItem = await itemsApi.createItem(payload)
+  // NOTE: the list endpoint doesn't return live stock quantities, so the
+  // table shows 0 / "Out of Stock" until you open an item's details, which
+  // fetches the real balance from GET /items/:id/stock-balance.
+  const items = rawItems.map((item) => mapApiItemToUiItem(item));
+
+  const createItem = async (payload, imageFile) => {
+    const created = await itemsApi.createItem(payload);
+    let withImage = created;
     if (imageFile) {
-      newItem = await itemsApi.uploadItemImage(newItem.id, imageFile)
+      try {
+        withImage = await itemsApi.uploadItemImage(created.id, imageFile);
+      } catch {
+        // Item was created successfully even if the image upload failed;
+        // surface nothing fatal here, the item just won't have a photo yet.
+      }
     }
-    const uiItem = mapApiItemToUi(newItem)
-    setItems((prev) => [uiItem, ...prev])
-    return uiItem
-  }
+    setRawItems((prev) => [...prev, withImage]);
+    return mapApiItemToUiItem(withImage);
+  };
 
-  async function updateItem(id, payload) {
-    const updated = await itemsApi.updateItem(id, payload)
-    const uiItem = mapApiItemToUi(updated)
-    setItems((prev) => prev.map((i) => (i.id === id ? uiItem : i)))
-    return uiItem
-  }
+  const updateItem = async (id, payload) => {
+    const updated = await itemsApi.updateItem(id, payload);
+    setRawItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
+    return mapApiItemToUiItem(updated);
+  };
 
-  async function deleteItem(id) {
-    await itemsApi.deleteItem(id)
-    setItems((prev) => prev.filter((i) => i.id !== id))
-  }
+  const deleteItem = async (id) => {
+    await itemsApi.deleteItem(id);
+    setRawItems((prev) => prev.filter((it) => it.id !== id));
+  };
 
-  async function toggleStatus(id) {
-    const updated = await itemsApi.toggleItemStatus(id)
-    const uiItem = mapApiItemToUi(updated)
-    setItems((prev) => prev.map((i) => (i.id === id ? uiItem : i)))
-    return uiItem
-  }
+  const toggleItemStatus = async (id) => {
+    const updated = await itemsApi.toggleItemStatus(id);
+    setRawItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
+    return mapApiItemToUiItem(updated);
+  };
 
   return {
     items,
-    meta,
+    rawItems,
     isLoading,
     error,
-    page,
-    refetch: () => fetchItems(page),
+    refetch: fetchItems,
     createItem,
     updateItem,
     deleteItem,
-    toggleStatus,
-  }
-}
+    toggleItemStatus,
+  };
+};
