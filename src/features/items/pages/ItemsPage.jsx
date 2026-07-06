@@ -14,7 +14,7 @@ import Book   from "../../../assets/icons/book.svg?react";
 import Fiter  from "../../../assets/icons/filter.svg?react";
 
 import { useItems } from "../hooks/useItems.js";
-import { useCategories } from "src/features/categories/hooks/useCategories.js";
+import { useCategories } from "../../categories/hooks/useCategories.js";
 import { useSuppliers } from "../../suppliers/hooks/useSuppliers.js";
 import { useUnits } from "../../units/hooks/useUnits.js";
 import { toApiItemType } from "../api/itemsMapper.js";
