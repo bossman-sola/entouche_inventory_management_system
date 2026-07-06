@@ -16,7 +16,6 @@ import Reports from "../../features/reports/pages/reports.jsx"
 import SignIn from "../../features/auth/pages/SignIn.jsx"
 import ProtectedRoute from "../../shared/components/ProtectedRoute.jsx"
 
-
 function AppRoutes() {
   return (
     <Routes>
