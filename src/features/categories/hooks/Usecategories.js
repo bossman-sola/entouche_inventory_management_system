@@ -1,68 +1,59 @@
-import { useCallback, useEffect, useState } from "react"
-import * as categoriesApi from "../api/categoriesApi.js"
+import { useState, useEffect, useCallback } from "react";
+import * as categoriesApi from "../api/categoriesApi.js";
 
-export function useCategories() {
-  const [categories, setCategories] = useState([])
-  const [meta, setMeta] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [page, setPage] = useState(1)
+export const useCategories = () => {
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchCategories = useCallback(async (targetPage = page) => {
-    setIsLoading(true)
-    setError(null)
+  const fetchCategories = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const response = await categoriesApi.listCategories({ page: targetPage })
-      setCategories(response.data)
-      setMeta(response.meta)
-      setPage(targetPage)
+      const data = await categoriesApi.listCategories();
+      setCategories(data);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to load categories.")
+      setError(err.response?.data?.message || "Couldn't load categories.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [page])
+  }, []);
 
   useEffect(() => {
-    fetchCategories(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    fetchCategories();
+  }, [fetchCategories]);
 
-  async function createCategory(payload) {
-    const newCategory = await categoriesApi.createCategory(payload)
-    setCategories((prev) => [newCategory, ...prev])
-    return newCategory
-  }
+  const createCategory = async (payload) => {
+    const created = await categoriesApi.createCategory(payload);
+    setCategories((prev) => [...prev, created]);
+    return created;
+  };
 
-  async function updateCategory(id, payload) {
-    const updated = await categoriesApi.updateCategory(id, payload)
-    setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)))
-    return updated
-  }
+  const updateCategory = async (id, payload) => {
+    const updated = await categoriesApi.updateCategory(id, payload);
+    setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    return updated;
+  };
 
-  async function deleteCategory(id) {
-    await categoriesApi.deleteCategory(id)
-    setCategories((prev) => prev.filter((c) => c.id !== id))
-  }
+  const deleteCategory = async (id) => {
+    await categoriesApi.deleteCategory(id);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+  };
 
-  async function toggleStatus(category) {
-    const nextStatus = category.status === "active" ? "inactive" : "active"
-    const updated = await categoriesApi.toggleCategoryStatus(category.id, nextStatus)
-    setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)))
-    return updated
-  }
+  const toggleCategoryStatus = async (id) => {
+    const updated = await categoriesApi.toggleCategoryStatus(id);
+    setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    return updated;
+  };
 
   return {
     categories,
-    meta,
     isLoading,
     error,
-    page,
-    goToPage: fetchCategories,
-    refetch: () => fetchCategories(page),
+    refetch: fetchCategories,
     createCategory,
     updateCategory,
     deleteCategory,
-    toggleStatus,
-  }
-}
+    toggleCategoryStatus,
+  };
+};
