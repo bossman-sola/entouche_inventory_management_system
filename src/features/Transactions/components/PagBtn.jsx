@@ -1,3 +1,5 @@
+import React from "react";
+
 export const PagBtn = ({ children, active, onClick, disabled }) => (
   <div
     onClick={!disabled ? onClick : undefined}
@@ -13,3 +15,5 @@ export const PagBtn = ({ children, active, onClick, disabled }) => (
     }}
   >{children}</div>
 );
+
+export default PagBtn;

@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { locationsApi } from "../api/locationsApi.js";
 
 const API_BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
 
-// Adjust this to however your app actually stores the access token
-// (e.g. pull it from an auth context/provider instead) — this matches
-// the `access_token` key returned by POST /auth/login.
 const getAccessToken = () => localStorage.getItem("access_token");
 
 async function apiFetch(path, options = {}) {
@@ -455,7 +453,22 @@ const DateRangePicker = ({ onChange }) => {
 
 
 // Reusable stat tile with real loading/error handling.
-const StatCard = ({ iconD, iconBg, iconColor, label, value, sub, subColor = "text-gray-400", loading, error }) => (
+// `unavailable` is a distinct third state from `error` — it means the
+// backing endpoint simply doesn't exist yet (expected, e.g. /locations
+// 404ing), not that a live request failed. It renders muted, not red.
+const StatCard = ({
+  iconD,
+  iconBg,
+  iconColor,
+  label,
+  value,
+  sub,
+  subColor = "text-gray-400",
+  loading,
+  error,
+  unavailable,
+  unavailableText,
+}) => (
   <div className="bg-white border border-gray-200 rounded-xl p-4">
     <div className="flex items-center gap-3">
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
@@ -467,10 +480,17 @@ const StatCard = ({ iconD, iconBg, iconColor, label, value, sub, subColor = "tex
           <div className="h-7 w-16 bg-gray-100 rounded animate-pulse" />
         ) : error ? (
           <p className="text-sm text-red-500 font-medium">—</p>
+        ) : unavailable ? (
+          <p className="text-2xl font-bold text-gray-300">—</p>
         ) : (
           <p className="text-3xl font-bold text-gray-900 truncate">{value}</p>
         )}
-        {!loading && !error && sub && <p className={`text-xs font-medium mt-0.5 truncate ${subColor}`}>{sub}</p>}
+        {!loading && !error && !unavailable && sub && (
+          <p className={`text-xs font-medium mt-0.5 truncate ${subColor}`}>{sub}</p>
+        )}
+        {!loading && unavailable && (
+          <p className="text-xs font-medium mt-0.5 truncate text-gray-400">{unavailableText}</p>
+        )}
       </div>
     </div>
   </div>
@@ -497,6 +517,13 @@ export default function WarehouseOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Locations is tracked separately from items/balances: until the backend
+  // ships /api/v1/locations this will 404, and that's an expected "not
+  // available yet" state, not a page-level error banner.
+  const [locationsCount, setLocationsCount] = useState(null);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [locationsUnavailable, setLocationsUnavailable] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -510,14 +537,26 @@ export default function WarehouseOverviewPage() {
     } finally {
       setLoading(false);
     }
+
+    setLocationsLoading(true);
+    try {
+      const locs = await locationsApi.list();
+      const count = Array.isArray(locs) ? locs.length : Array.isArray(locs?.data) ? locs.data.length : null;
+      setLocationsCount(count);
+      setLocationsUnavailable(count === null);
+    } catch (err) {
+      // Expected for now (404) — the endpoint doesn't exist yet.
+      setLocationsCount(null);
+      setLocationsUnavailable(true);
+    } finally {
+      setLocationsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const totalItems = items.length;
-  const activeItems = items.filter(i => i.status === "active").length;
   const totalQuantity = balances.reduce((sum, b) => sum + (b.balance?.total_on_hand || 0), 0);
   const totalValue = balances.reduce((sum, b) => {
     const qty = b.balance?.total_on_hand || 0;
@@ -551,37 +590,26 @@ export default function WarehouseOverviewPage() {
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          iconD={icons.hexagon}
+          iconD={icons.location}
           iconBg="bg-blue-50"
           iconColor="text-blue-500"
-          label="Total Items"
-          value={totalItems.toLocaleString()}
-          sub="All items in catalog"
+          label="Total Locations"
+          value={locationsCount != null ? locationsCount.toLocaleString() : "—"}
+          sub="All operational locations"
           subColor="text-blue-500"
-          loading={loading}
-          error={error}
+          loading={locationsLoading}
+          unavailable={locationsUnavailable}
+          unavailableText="Locations endpoint isn't live yet"
         />
 
         <StatCard
-          iconD={icons.check}
+          iconD={icons.hexagon}
           iconBg="bg-green-50"
           iconColor="text-green-500"
-          label="Active Items"
-          value={activeItems.toLocaleString()}
-          sub={totalItems ? `${Math.round((activeItems / totalItems) * 100)}% of catalog` : "No items yet"}
-          subColor="text-green-600"
-          loading={loading}
-          error={error}
-        />
-
-        <StatCard
-          iconD={icons.storage}
-          iconBg="bg-purple-50"
-          iconColor="text-purple-500"
           label="Total Inventory Quantity"
           value={totalQuantity.toLocaleString()}
           sub="Sum of on-hand stock"
-          subColor="text-purple-500"
+          subColor="text-green-600"
           loading={loading}
           error={error}
         />
@@ -596,6 +624,15 @@ export default function WarehouseOverviewPage() {
           subColor="text-orange-500"
           loading={loading}
           error={error}
+        />
+
+        <StatCard
+          iconD={icons.pie}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-500"
+          label="Utilization Rate"
+          unavailable
+          unavailableText="Capacity data isn't exposed by the API yet"
         />
       </div>
 

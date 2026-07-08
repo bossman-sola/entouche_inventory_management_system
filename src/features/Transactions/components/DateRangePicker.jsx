@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { MONTHS, SHORT_MONTHS, DAYS } from "../constants/transactionsData.js";
-import { ChevLeft, ChevRight } from "./icons.jsx";
+import React, { useState } from "react";
+import { MONTHS, SHORT_MONTHS, DAYS } from "../constants.js";
+import { ChevLeft, ChevRight } from "./icons/SmallIcons.jsx";
 
 function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -141,3 +141,5 @@ export function DateRangePicker({ isOpen, initialStart, initialEnd, onClose, onA
     </div>
   );
 }
+
+export default DateRangePicker;
