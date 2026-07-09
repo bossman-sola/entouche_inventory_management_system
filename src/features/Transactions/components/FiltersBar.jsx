@@ -1,16 +1,18 @@
-import { useRef } from "react";
-import { SearchSm, CalIcon, ChevDown, FilterIcon } from "./icons.jsx";
+import React, { useRef } from "react";
+import { SearchSm, CalIcon, ChevDown, FilterIcon } from "./icons/SmallIcons.jsx";
 import { DateRangePicker } from "./DateRangePicker.jsx";
 
+// The search box + date range + type/status selects + clear button row
+// that sits above the transactions table.
 export const FiltersBar = ({
   search, onSearchChange,
-  filterType, onFilterTypeChange,
-  filterStatus, onFilterStatusChange,
   dateRange, onDateRangeChange,
   isDatePickerOpen, onToggleDatePicker, onCloseDatePicker,
-  onClearFilters,
+  filterType, onFilterTypeChange,
+  filterStatus, onFilterStatusChange,
+  onClear,
 }) => {
-  const dateBtnRef = useRef();
+  const dateBtnRef = useRef(null);
 
   const dateLabel = dateRange
     ? `${dateRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${dateRange.end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
@@ -75,7 +77,7 @@ export const FiltersBar = ({
           <select value={filterStatus} onChange={e => onFilterStatusChange(e.target.value)}
             style={{ appearance: "none", padding: "7px 28px 7px 10px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: "pointer", minWidth: 120, color: "#1e2740", fontFamily: "inherit" }}>
             <option value="">All Statuses</option>
-            {["Completed","Pending","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+            {["Completed","Approved","Pending","Cancelled","Rejected"].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevDown /></span>
         </div>
@@ -83,7 +85,7 @@ export const FiltersBar = ({
 
       {/* Clear */}
       <div
-        onClick={onClearFilters}
+        onClick={onClear}
         style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: "pointer", marginLeft: "auto", whiteSpace: "nowrap" }}
       >
         <FilterIcon /> Clear Filters
@@ -91,3 +93,5 @@ export const FiltersBar = ({
     </div>
   );
 };
+
+export default FiltersBar;

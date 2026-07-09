@@ -1,3 +1,5 @@
+import React from "react";
+
 export const MetricCard = ({ iconBg, icon, label, value, sub, subAccent, onClick }) => (
   <div style={{ background: "#fff", border: "1px solid #e4e7ef", borderRadius: 10, padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
     <div style={{ width: 40, height: 40, background: iconBg, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</div>
@@ -8,3 +10,5 @@ export const MetricCard = ({ iconBg, icon, label, value, sub, subAccent, onClick
     </div>
   </div>
 );
+
+export default MetricCard;

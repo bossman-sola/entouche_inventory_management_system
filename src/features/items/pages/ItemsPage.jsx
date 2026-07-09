@@ -17,11 +17,20 @@ import { useItems } from "../hooks/useItems.js";
 import { useCategories } from "../../categories/hooks/useCategories.js";
 import { useSuppliers } from "../../suppliers/hooks/useSuppliers.js";
 import { useUnits } from "../../units/hooks/useUnits.js";
-import { toApiItemType } from "../api/itemsMapper.js";
+import { UNIT_TYPES } from "../types/itemTypes.js";
 import { generateCode } from "../../../lib/generateCode.js";
 
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
+
+const TYPE_BADGE_STYLES = {
+  Count: 'bg-indigo-50 text-indigo-600',
+  Weight: 'bg-amber-50 text-amber-600',
+  Volume: 'bg-sky-50 text-sky-600',
+  Length: 'bg-emerald-50 text-emerald-600',
+  Area: 'bg-violet-50 text-violet-600',
+};
 
 const Items = () => {
   const {
@@ -33,8 +42,7 @@ const Items = () => {
     deleteItem,
   } = useItems();
 
-  // These power the dropdowns in the Add/Edit item forms, and now also
-  // back the "+" quick-add modals inside AddNewItems.
+ 
   const { categories, createCategory } = useCategories();
   const { suppliers, createSupplier } = useSuppliers();
   const { units, createUnit } = useUnits();
@@ -59,10 +67,9 @@ const Items = () => {
 
   const categoryNames = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
-  const types = ['All Types', 'Stock Item', 'Consumable'];
+  const types = ['All Types', ...UNIT_TYPES];
 
-  // Used by the Import flow to flag duplicates against what's already
-  // in the inventory, not just duplicates within the uploaded file.
+ 
   const existingBarcodes = useMemo(() => items.map(i => i.barcode).filter(Boolean), [items]);
   const existingSkus = useMemo(() => items.map(i => i.sku).filter(Boolean), [items]);
 
@@ -130,7 +137,7 @@ const Items = () => {
         category_id: item.categoryId,
         unit_of_measure_id: item.unitId,
         supplier_id: item.supplierId || undefined,
-        item_type: item.raw?.item_type || "stock_item",
+        item_type: item.raw?.item_type || (item.type ? item.type.toLowerCase() : undefined),
         brand: item.brand || undefined,
         description: item.description || undefined,
         unit_cost: item.unitCost ?? undefined,
@@ -169,9 +176,7 @@ const Items = () => {
     setActiveMenu(null);
   };
 
-  // --- Quick-add wiring for the Add New Item modal's "+" buttons ---
-  // The API's category/supplier records need a short `code`, which the
-  // quick-add forms don't collect, so we derive one from the name.
+  
   const handleCreateCategory = async (data) => {
     return createCategory({
       name: data.name,
@@ -192,8 +197,7 @@ const Items = () => {
     });
   };
 
-  // The API's unit model only has name + abbreviation + status; the
-  // "type" field in the quick-add form (Count/Weight/etc.) is UI-only.
+
   const handleCreateUnit = async (data) => {
     return createUnit({
       name: data.name,
@@ -202,9 +206,7 @@ const Items = () => {
     });
   };
 
-  // --- Bulk import wiring ---
-  // The API has no bulk-create endpoint, so each valid row becomes its
-  // own POST /items call, resolving category/unit names to their ids.
+  
   const handleImportComplete = async (validRows) => {
     for (const row of validRows) {
       const category = categories.find(
@@ -218,7 +220,7 @@ const Items = () => {
         category_id: category?.id,
         unit_of_measure_id: unit?.id,
         barcode: row.barcode || undefined,
-        item_type: toApiItemType(row.itemType),
+        item_type: (row.unitType || '').toLowerCase() || undefined,
         brand: row.brand || undefined,
         unit_cost: row.unitCost ? Number(row.unitCost) : undefined,
         selling_price: row.sellingPrice ? Number(row.sellingPrice) : undefined,
@@ -426,7 +428,7 @@ const Items = () => {
                     <td className="px-6 py-4 text-[#6B7591] font-medium">{item.category}</td>
                     <td className="px-6 py-4 text-[#6B7591] font-medium">{item.uom}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-lg text-[10px] uppercase font-bold tracking-tight ${item.type === 'Consumable' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                      <span className={`px-3 py-1 rounded-lg text-[10px] uppercase font-bold tracking-tight ${TYPE_BADGE_STYLES[item.type] || 'bg-slate-100 text-slate-500'}`}>
                         {item.type}
                       </span>
                     </td>

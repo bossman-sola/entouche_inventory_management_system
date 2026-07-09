@@ -1,4 +1,5 @@
-import { Icon } from "./icons.jsx";
+import React from "react";
+import { Icon } from "./icons/Icon.jsx";
 
 export const TypeCard = ({ t, selected, onClick }) => (
   <div onClick={() => onClick(t.id)} style={{
@@ -18,3 +19,5 @@ export const TypeCard = ({ t, selected, onClick }) => (
     <div style={{ fontSize: 11, color: "#6b7591", marginTop: 2 }}>{t.desc}</div>
   </div>
 );
+
+export default TypeCard;

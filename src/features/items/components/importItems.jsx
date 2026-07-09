@@ -2,25 +2,25 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   X, UploadCloud, Download, AlertCircle,
   CheckCircle2, ChevronDown, ChevronLeft, FileSpreadsheet,
   Trash2, Info, Loader2
 } from 'lucide-react';
+import { UNIT_TYPES, UNIT_REFERENCE_DATA, findUnitReference, getUnitType } from '../types/itemTypes';
 
-// This component parses real files client-side with:
-//   npm install papaparse xlsx
+
 
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const REQUIRED_FIELDS = ['name', 'category', 'unit', 'itemType'];
-const VALID_ITEM_TYPES = ['Stock Item', 'Consumable'];
+const REQUIRED_FIELDS = ['name', 'category', 'unit', 'unitType'];
 
 const FIELD_LABELS = {
   name: 'Item Name',
   category: 'Category',
   unit: 'Unit',
-  itemType: 'Item Type',
+  unitType: 'Unit Type',
 };
 
 // Maps whatever the spreadsheet's header row says to the internal field keys.
@@ -32,8 +32,9 @@ const HEADER_ALIASES = {
   'unit of measure': 'unit',
   'unit': 'unit',
   'uom': 'unit',
-  'item type': 'itemType',
-  'type': 'itemType',
+  'unit type': 'unitType',
+  'item type': 'unitType',
+  'type': 'unitType',
   'barcode': 'barcode',
   'sku': 'sku',
   'brand': 'brand',
@@ -121,14 +122,25 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
       if (!r[field]) hardErrors.push(`${FIELD_LABELS[field]} is required.`);
     });
 
-    if (r.itemType && !VALID_ITEM_TYPES.some(t => t.toLowerCase() === r.itemType.toLowerCase())) {
-      hardErrors.push(`Item type must be "Stock Item" or "Consumable".`);
+    if (r.unitType && !UNIT_TYPES.some(t => t.toLowerCase() === r.unitType.toLowerCase())) {
+      hardErrors.push(`Unit type must be one of: ${UNIT_TYPES.join(', ')}.`);
     }
     if (r.category && categories.length && !categoryNames.has(r.category.toLowerCase())) {
       hardErrors.push(`Category "${r.category}" does not exist.`);
     }
     if (r.unit && units.length && !unitNames.has(r.unit.toLowerCase())) {
       hardErrors.push(`Unit "${r.unit}" does not exist.`);
+    }
+    // Cross-check: does the given Unit actually belong to the given Unit
+    // Type per the reference table (e.g. "Piece" really is a Count unit)?
+    if (r.unit && r.unitType) {
+      // The Unit column may be "Piece (PCS)" or just "Piece" — try the
+      // name portion before any parenthesis first, then the raw value.
+      const unitNamePart = r.unit.replace(/\s*\(.*\)\s*$/, '').trim();
+      const resolvedType = getUnitType(unitNamePart) || getUnitType(r.unit);
+      if (resolvedType && resolvedType.toLowerCase() !== r.unitType.toLowerCase()) {
+        hardErrors.push(`Unit "${r.unit}" is a ${resolvedType} unit, not ${r.unitType}.`);
+      }
     }
 
     const duplicateErrors = [];
@@ -157,20 +169,75 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
   };
 };
 
-const escapeCsvValue = (value) => {
-  const str = String(value ?? '');
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-};
+// Builds the downloadable import template as a real .xlsx workbook (not
+// CSV) so we can have bold header text and actual dropdown menus on the
+// Category, Unit, and Unit Type columns — neither is possible in plain
+// CSV. Category/Unit dropdown options come from whatever the account
+// already has; Unit Type always comes from the fixed reference table.
+const downloadTemplate = async (categories = [], units = []) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Items');
+  // Hidden sheet holding the dropdown source lists — data validation
+  // "list" formulae need cell ranges, not just inline literals, once the
+  // options get long (30 units across 5 types).
+  const listSheet = workbook.addWorksheet('Lists');
+  listSheet.state = 'veryHidden';
 
-const downloadTemplate = () => {
-  const headers = ['Item Name', 'Category', 'Unit', 'Type', 'Barcode', 'SKU', 'Brand', 'Unit Cost', 'Selling Price', 'Reorder Level'];
-  const sample = ['Wireless Mouse', 'Computer Accessories', 'Piece (PCS)', 'Consumable', '8901234567890', '', 'Logitech', '10.00', '15.00', '10'];
-  const csv = [headers, sample].map(row => row.map(escapeCsvValue).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const headers = ['Item Name', 'Category', 'Unit', 'Unit Type', 'Barcode', 'SKU', 'Brand', 'Unit Cost', 'Selling Price', 'Reorder Level'];
+  sheet.addRow(headers);
+  sheet.getRow(1).font = { bold: true };
+  sheet.columns = [
+    { width: 22 }, { width: 22 }, { width: 20 }, { width: 14 },
+    { width: 18 }, { width: 14 }, { width: 16 }, { width: 12 }, { width: 14 }, { width: 14 },
+  ];
+
+  // One example row per Unit Type, matching the reference table.
+  const sampleRows = [
+    ['Wireless Mouse', 'Computer Accessories', 'Piece (PCS)', 'Count', '8901234567890', '', 'Logitech', 10.00, 15.00, 10],
+    ['Printer Paper', 'Office Supplies', 'Ream (RM)', 'Count', '', '', 'Double A', 3.50, 5.00, 20],
+    ['Diesel', 'Fuel', 'Liter (L)', 'Volume', '', '', '', 0.90, 1.20, 100],
+    ['Electrical Cable', 'Electrical Supplies', 'Meter (m)', 'Length', '', '', '', 1.20, 1.80, 50],
+    ['Steel Rod', 'Construction Materials', 'Kilogram (kg)', 'Weight', '', '', '', 2.00, 3.00, 200],
+  ];
+  sampleRows.forEach((row) => sheet.addRow(row));
+
+  const categoryNames = categories.map((c) => c.name).filter(Boolean);
+  // If the account has no units yet, fall back to the full reference
+  // table so the dropdown isn't empty on a brand-new install.
+  const unitLabels = units.length
+    ? units.map((u) => `${u.name} (${(u.abbreviation || '').toUpperCase()})`)
+    : UNIT_REFERENCE_DATA.map((u) => `${u.name} (${u.symbol})`);
+
+  const writeListColumn = (colIndex, values) => {
+    values.forEach((value, i) => {
+      listSheet.getCell(i + 1, colIndex).value = value;
+    });
+  };
+  writeListColumn(1, categoryNames);
+  writeListColumn(2, unitLabels);
+  writeListColumn(3, UNIT_TYPES);
+
+  const LAST_ROW = 500; // enough rows for a large bulk import
+  const applyListValidation = (columnLetter, listColumnLetter, count) => {
+    if (!count) return;
+    for (let row = 2; row <= LAST_ROW; row++) {
+      sheet.getCell(`${columnLetter}${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`Lists!$${listColumnLetter}$1:$${listColumnLetter}$${count}`],
+      };
+    }
+  };
+  applyListValidation('B', 'A', categoryNames.length); // Category
+  applyListValidation('C', 'B', unitLabels.length);     // Unit
+  applyListValidation('D', 'C', UNIT_TYPES.length);      // Unit Type
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'item-import-template.csv';
+  link.download = 'item-import-template.xlsx';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -197,9 +264,19 @@ const ImportItems = ({
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState(null);
   const [importedCount, setImportedCount] = useState(0);
+  const [templateError, setTemplateError] = useState(null);
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
+
+  const handleDownloadTemplate = async () => {
+    setTemplateError(null);
+    try {
+      await downloadTemplate(categories, units);
+    } catch {
+      setTemplateError("Couldn't generate the template file. Please try again.");
+    }
+  };
 
   const validateAndSetFile = (file) => {
     const ext = file.name.split('.').pop().toLowerCase();
@@ -284,7 +361,7 @@ const ImportItems = ({
           name: r.name,
           category: r.category,
           unit: r.unit,
-          itemType: r.itemType,
+          unitType: r.unitType,
           barcode: r.barcode || null,
           sku: r.sku || null,
           brand: r.brand || null,
@@ -434,7 +511,7 @@ const ImportItems = ({
                             <th className="px-6 py-4">Item Name <span className="text-rose-400">*</span></th>
                             <th className="px-6 py-4">Category <span className="text-rose-400">*</span></th>
                             <th className="px-6 py-4">Unit <span className="text-rose-400">*</span></th>
-                            <th className="px-6 py-4">Type <span className="text-rose-400">*</span></th>
+                            <th className="px-6 py-4">Unit Type <span className="text-rose-400">*</span></th>
                             <th className="px-6 py-4">Barcode</th>
                             <th className="px-6 py-4">SKU</th>
                             <th className="px-6 py-4">Status</th>
@@ -455,7 +532,7 @@ const ImportItems = ({
                               <td className="px-6 py-5 text-[#1E2740]">{row.name || '—'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium">{row.category || '—'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium">{row.unit || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.itemType || '—'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unitType || '—'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.barcode || '—'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.sku || 'Auto-generated'}</td>
                               <td className="px-6 py-5">
@@ -506,11 +583,16 @@ const ImportItems = ({
                     Download the template file and follow the format to ensure a successful import.
                   </p>
                   <button
-                    onClick={downloadTemplate}
+                    onClick={handleDownloadTemplate}
                     className="w-full flex items-center justify-center gap-2 bg-white border border-indigo-200 text-indigo-600 text-[11px] font-extrabold py-3 rounded-xl shadow-sm hover:bg-indigo-50 transition-all"
                   >
                     <Download size={14} /> Download Template
                   </button>
+                  {templateError && (
+                    <p className="mt-3 text-[11px] text-rose-500 font-bold flex items-center gap-1.5">
+                      <AlertCircle size={12} /> {templateError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-amber-50/40 border border-amber-100 rounded-[24px] p-7">
@@ -524,6 +606,7 @@ const ImportItems = ({
                     <NoteItem text="Required fields must not be empty." />
                     <NoteItem text="Duplicate SKUs or barcodes will be skipped." />
                     <NoteItem text="Category and Unit must match existing values exactly." />
+                    <NoteItem text="Unit Type must match the unit chosen (e.g. Piece is Count)." />
                   </ul>
                 </div>
 

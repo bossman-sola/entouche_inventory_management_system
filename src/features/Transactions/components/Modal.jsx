@@ -1,3 +1,5 @@
+import React from "react";
+
 export const Modal = ({ open, onClose, children }) => {
   if (!open) return null;
   return (
@@ -9,3 +11,5 @@ export const Modal = ({ open, onClose, children }) => {
     </div>
   );
 };
+
+export default Modal;

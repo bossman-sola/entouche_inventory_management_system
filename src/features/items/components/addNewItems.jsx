@@ -7,11 +7,11 @@ import Location from "../../../assets/icons/location.svg?react";
 import Sku from "../../../assets/icons/sku.svg?react";
 import Good from "../../../assets/icons/good.svg?react";
 import { mapFormToApiPayload } from "../api/itemsMapper.js";
+import { UNIT_TYPE_OPTIONS, getUnitType, getUnitNamesByType, findUnitReference } from "../types/itemTypes.js";
 
 const emptyForm = {
   name: '',
   categoryId: '',
-  itemType: '',
   unitId: '',
   supplierId: '',
   barcode: '',
@@ -26,15 +26,7 @@ const emptyForm = {
 
 const emptyCategoryForm = { name: '', description: '' };
 const emptySupplierForm = { name: '', contactPerson: '', email: '', phone: '' };
-const emptyUnitForm = { name: '', symbol: '', type: '' };
-
-const unitTypeOptions = [
-  { value: 'Count', label: 'Count' },
-  { value: 'Weight', label: 'Weight' },
-  { value: 'Volume', label: 'Volume' },
-  { value: 'Length', label: 'Length' },
-  { value: 'Area', label: 'Area' },
-];
+const emptyUnitForm = { type: '', name: '', symbol: '' };
 
 const AddItemModal = ({
   isOpen,
@@ -70,6 +62,11 @@ const AddItemModal = ({
   const allSuppliers = [...suppliers, ...localSuppliers];
   const allUnits = [...units, ...localUnits];
 
+  // Type isn't chosen manually anymore — it's derived from whichever Unit
+  // of Measure is selected (e.g. Piece -> Count, Kilogram -> Weight).
+  const selectedUnit = allUnits.find((u) => String(u.id) === String(formData.unitId));
+  const derivedUnitType = selectedUnit ? getUnitType(selectedUnit.name, selectedUnit.abbreviation) : null;
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -92,7 +89,7 @@ const AddItemModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.categoryId || !formData.unitId || !formData.itemType) {
+    if (!formData.name || !formData.categoryId || !formData.unitId) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -100,7 +97,7 @@ const AddItemModal = ({
     setIsSaving(true);
     setError(null);
     try {
-      const payload = mapFormToApiPayload(formData);
+      const payload = mapFormToApiPayload(formData, derivedUnitType);
       await onSave(payload, imageFile);
       resetForm();
     } catch (err) {
@@ -206,17 +203,7 @@ const AddItemModal = ({
                       options={allCategories.map(c => ({ value: c.id, label: c.name }))}
                       onAddNew={() => setQuickAdd('category')}
                     />
-                    <SelectField
-                      label="Item Type"
-                      name="itemType"
-                      required
-                      value={formData.itemType}
-                      onChange={handleInputChange}
-                      options={[
-                        { value: 'Stock Item', label: 'Stock Item' },
-                        { value: 'Consumable', label: 'Consumable' },
-                      ]}
-                    />
+                    <InputField label="Barcode (optional)" name="barcode" placeholder="Enter barcode" value={formData.barcode} onChange={handleInputChange} />
                   </div>
 
                   <div className="grid grid-cols-3 gap-5">
@@ -230,6 +217,16 @@ const AddItemModal = ({
                       onAddNew={() => setQuickAdd('unit')}
                       hint="Click + to add a new unit of measure"
                     />
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
+                      <div className="w-full h-[46px] bg-slate-50 border border-slate-100 rounded-xl px-4 flex items-center justify-between">
+                        <span className={`text-sm font-bold ${derivedUnitType ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {derivedUnitType || 'Select a unit first'}
+                        </span>
+                        <Lock size={14} className="text-slate-300" />
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium mt-2">Automatically set from the selected unit of measure.</p>
+                    </div>
                     <SelectWithAdd
                       label="Supplier (optional)"
                       name="supplierId"
@@ -238,7 +235,6 @@ const AddItemModal = ({
                       options={allSuppliers.map(s => ({ value: s.id, label: s.name }))}
                       onAddNew={() => setQuickAdd('supplier')}
                     />
-                    <InputField label="Barcode (optional)" name="barcode" placeholder="Enter barcode" value={formData.barcode} onChange={handleInputChange} />
                   </div>
 
                   <div className="flex flex-col">
@@ -632,7 +628,21 @@ const NewUnitModal = ({ isOpen, onClose, onCreate }) => {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
-  const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  // Unit Name options depend on which Unit Type is picked first; Symbol is
+  // fully determined by Unit Name, so it's a read-only dropdown, not
+  // free text — this keeps every unit consistent with the reference table.
+  const nameOptions = form.type
+    ? getUnitNamesByType(form.type).map((u) => ({ value: u.name, label: `${u.name} (${u.symbol})` }))
+    : [];
+
+  const handleTypeChange = (e) => {
+    setForm({ type: e.target.value, name: '', symbol: '' });
+  };
+
+  const handleNameChange = (e) => {
+    const ref = findUnitReference(e.target.value);
+    setForm(prev => ({ ...prev, name: e.target.value, symbol: ref?.symbol || '' }));
+  };
 
   const handleClose = () => {
     setForm(emptyUnitForm);
@@ -641,8 +651,8 @@ const NewUnitModal = ({ isOpen, onClose, onCreate }) => {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.symbol.trim() || !form.type) {
-      setErr("Unit name, symbol and type are required.");
+    if (!form.type || !form.name.trim() || !form.symbol.trim()) {
+      setErr("Unit type, name and symbol are required.");
       return;
     }
     setSaving(true);
@@ -668,16 +678,39 @@ const NewUnitModal = ({ isOpen, onClose, onCreate }) => {
         saveLabel="Save Unit"
         onSave={handleSave}
       >
-        <InputField label="Unit Name" name="name" required placeholder="e.g. Box" value={form.name} onChange={handleChange} />
-        <InputField label="Unit Symbol" name="symbol" required placeholder="e.g. BOX" value={form.symbol} onChange={handleChange} />
         <SelectField
           label="Unit Type"
           name="type"
           required
           value={form.type}
-          onChange={handleChange}
-          options={unitTypeOptions}
+          onChange={handleTypeChange}
+          options={UNIT_TYPE_OPTIONS}
         />
+        <SelectField
+          label="Unit Name"
+          name="name"
+          required
+          value={form.name}
+          onChange={handleNameChange}
+          options={nameOptions}
+          disabled={!form.type}
+        />
+        <div className="flex flex-col">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+            Symbol <span className="text-rose-500">*</span>
+          </label>
+          <div className="relative">
+            <select
+              disabled
+              value={form.symbol}
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-sm font-bold text-slate-400 outline-none appearance-none cursor-not-allowed"
+            >
+              <option value={form.symbol}>{form.symbol || 'Select a unit name first'}</option>
+            </select>
+            <Lock size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300" />
+          </div>
+          <p className="text-[11px] text-slate-400 font-medium mt-2">Automatically set based on the unit name.</p>
+        </div>
       </QuickAddShell>
     </AnimatePresence>
   );
