@@ -20,6 +20,7 @@ import { useUnits } from "../../units/hooks/useUnits.js";
 import { UNIT_TYPES } from "../types/itemTypes.js";
 import { generateCode } from "../../../lib/generateCode.js";
 
+
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 
