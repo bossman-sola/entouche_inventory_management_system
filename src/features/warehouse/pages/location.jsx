@@ -6,7 +6,7 @@ import {
   PackageSearch, PlugZap,
 } from 'lucide-react';
 import { locationsApi } from '../api/locationsApi';
-import './Location.css';
+import './location.css';
 
 
 const TYPE_META = {
