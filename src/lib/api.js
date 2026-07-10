@@ -1,17 +1,3 @@
-/**
- * Entouche API client
- * ---------------------------------------------------------------------------
- * Thin wrapper around fetch() for the endpoints documented in
- * `api-tested-endpoints.md`. Every function returns the *unwrapped*
- * `data` payload from the API's `{ success, message, data, errors }`
- * envelope, and throws an Error (with `.status` and `.errors` attached)
- * when `success` is false or the HTTP call fails.
- *
- * Auth: the API uses a Bearer JWT. We keep it in localStorage under
- * ACCESS_TOKEN_KEY. Wire this up to your real login screen — call
- * `setAccessToken(token)` after a successful `login()`.
- */
-
 const BASE_URL = 'https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1';
 const ACCESS_TOKEN_KEY = 'entouche_access_token';
 
@@ -28,7 +14,7 @@ export function setAccessToken(token) {
     if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
     else localStorage.removeItem(ACCESS_TOKEN_KEY);
   } catch {
-    /* ignore (SSR / private mode) */
+  
   }
 }
 
@@ -41,7 +27,7 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, params, isForm = false } = {}) {
+async function request(path, { method = 'GET', body, params, isForm = false, raw = false } = {}) {
   let url = `${BASE_URL}${path}`;
 
   if (params) {
@@ -73,7 +59,7 @@ async function request(path, { method = 'GET', body, params, isForm = false } = 
   try {
     json = await res.json();
   } catch {
-    // no JSON body (e.g. 204)
+  
   }
 
   if (!res.ok || (json && json.success === false)) {
@@ -81,10 +67,10 @@ async function request(path, { method = 'GET', body, params, isForm = false } = 
     throw new ApiError(message, res.status, json?.errors);
   }
 
+  if (raw) return json;
   return json ? json.data : null;
 }
 
-/* ───────────────────────── Authentication ───────────────────────── */
 
 export const login = (email, password) =>
   request('/auth/login', { method: 'POST', body: { email, password } });
@@ -95,7 +81,6 @@ export const refreshToken = () => request('/auth/refresh', { method: 'POST' });
 
 export const getCurrentUser = () => request('/auth/me');
 
-/* ───────────────────────── Categories ───────────────────────── */
 
 export const listCategories = () => request('/categories');
 export const createCategory = (payload) => request('/categories', { method: 'POST', body: payload });
@@ -103,7 +88,6 @@ export const getCategory = (id) => request(`/categories/${id}`);
 export const updateCategory = (id, payload) => request(`/categories/${id}`, { method: 'PUT', body: payload });
 export const deleteCategory = (id) => request(`/categories/${id}`, { method: 'DELETE' });
 
-/* ───────────────────────── Items ───────────────────────── */
 
 export const listItems = (params) => request('/items', { params });
 export const getItem = (id) => request(`/items/${id}`);
@@ -112,31 +96,35 @@ export const updateItem = (id, payload) => request(`/items/${id}`, { method: 'PU
 export const deleteItem = (id) => request(`/items/${id}`, { method: 'DELETE' });
 export const getItemStockBalance = (id) => request(`/items/${id}/stock-balance`);
 
-/* ───────────────────────── Suppliers ───────────────────────── */
-
 export const listSuppliers = () => request('/suppliers');
 export const createSupplier = (payload) => request('/suppliers', { method: 'POST', body: payload });
 export const getSupplier = (id) => request(`/suppliers/${id}`);
 export const updateSupplier = (id, payload) => request(`/suppliers/${id}`, { method: 'PUT', body: payload });
 
-/* ───────────────────────── Units of Measure ───────────────────────── */
 
 export const listUnits = () => request('/units');
 export const createUnit = (payload) => request('/units', { method: 'POST', body: payload });
 
-/* ───────────────────────── Users ───────────────────────── */
 
 export const listUsers = () => request('/users');
 export const getUser = (id) => request(`/users/${id}`);
 
-/* ───────────────────────── Mapping helpers ───────────────────────── */
+export async function fetchAllPages(path, params = {}) {
+  let page = 1;
+  let lastPage = 1;
+  const all = [];
+  do {
+    const json = await request(path, { params: { ...params, page }, raw: true });
+    all.push(...(json?.data || []));
+    lastPage = json?.meta?.last_page || 1;
+    page += 1;
+  } while (page <= lastPage);
+  return all;
+}
 
-/**
- * The Items API returns category/unit/supplier as nested objects with
- * different field names than the receipt UI historically used (which came
- * from static mock data). This normalizes an API item into the shape the
- * Receipts components expect: { id, name, sku, cat, unit, cost, ... }
- */
+export const requestRaw = (path, opts) => request(path, { ...opts, raw: true });
+
+
 export function mapApiItem(item) {
   if (!item) return null;
   return {
@@ -194,6 +182,8 @@ export default {
   createUnit,
   listUsers,
   getUser,
+  fetchAllPages,
+  requestRaw,
   mapApiItem,
   mapApiSupplier,
   mapApiUser,

@@ -1,31 +1,21 @@
 import apiClient from "../../../shared/api/axiosClient.js";
+import { getUnitType } from "../types/itemTypes.js";
 
 
 const API_BASE_URL = (apiClient.defaults.baseURL || "").replace(/\/api\/v1\/?$/, "");
 
 
-export const ITEM_TYPE_MAP = {
-  "Stock Item": "stock_item",
-  Consumable: "consumable",
-};
 
-export const ITEM_TYPE_REVERSE_MAP = {
-  stock_item: "Stock Item",
-  consumable: "Consumable",
-  product: "Stock Item", 
-};
-
-export const toApiItemType = (label) => ITEM_TYPE_MAP[label] || "stock_item";
-export const toUiItemType = (value) => ITEM_TYPE_REVERSE_MAP[value] || value;
+export const toApiUnitType = (unitType) => (unitType || "").toLowerCase() || undefined;
 
 
-export const mapFormToApiPayload = (formData) => ({
+export const mapFormToApiPayload = (formData, unitType) => ({
   name: formData.name,
   category_id: formData.categoryId ? Number(formData.categoryId) : undefined,
   unit_of_measure_id: formData.unitId ? Number(formData.unitId) : undefined,
   supplier_id: formData.supplierId ? Number(formData.supplierId) : undefined,
   barcode: formData.barcode || undefined,
-  item_type: toApiItemType(formData.itemType),
+  item_type: toApiUnitType(unitType),
   brand: formData.brand || undefined,
   description: formData.description || undefined,
   unit_cost: formData.unitCost !== "" && formData.unitCost != null ? Number(formData.unitCost) : undefined,
@@ -55,7 +45,8 @@ export const mapApiItemToUiItem = (apiItem, { stockBalance } = {}) => {
     uom: apiItem.unit ? `${apiItem.unit.name} (${(apiItem.unit.abbreviation || "").toUpperCase()})` : "",
     unitId: apiItem.unit_of_measure_id ?? apiItem.unit?.id ?? "",
     supplierId: apiItem.supplier_id ?? apiItem.supplier?.id ?? "",
-    type: toUiItemType(apiItem.item_type),
+    
+    type: getUnitType(apiItem.unit?.name, apiItem.unit?.abbreviation) || "Uncategorized",
     status: apiItem.status === "active" ? "Active" : "Inactive",
     brand: apiItem.brand || "",
     description: apiItem.description || "",

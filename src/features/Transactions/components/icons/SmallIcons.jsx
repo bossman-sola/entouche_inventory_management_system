@@ -1,8 +1,7 @@
-export const Icon = ({ d, size = 16, stroke = "currentColor", fill = "none", strokeWidth = 1.5 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-);
+import React from "react";
+
+// One-off inline SVG icons used across the Transactions page's chrome
+// (search box, filters bar, table header, pagination).
 
 export const SearchSm = () => (
   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth={2}>

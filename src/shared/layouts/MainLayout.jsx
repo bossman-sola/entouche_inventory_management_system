@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from "../../features/auth/hooks/useAuth";
 import Logo from "../../assets/icons/Logo.svg?react";
 import DashboardIcon from "../../assets/icons/Dashboard.svg?react";
 import HomeIcon from "../../assets/icons/Home.svg?react";
@@ -14,12 +15,40 @@ import SettingsIcon from "../../assets/icons/Settings.svg?react";
 
 import {
   ChevronDown, Search, Bell, HelpCircle, ChevronLeft, ChevronRight,
+  User, Settings as SettingsGear, LogOut,
 } from 'lucide-react';
 
 const MainLayout = () => {
-  const [isCollapsed,       setIsCollapsed]       = useState(false);
-  const [inventoryOpen,     setInventoryOpen]     = useState(true);
-  const [warehouseOpen,     setWarehouseOpen]     = useState(true);
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
+
+  const [isCollapsed,   setIsCollapsed]   = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(true);
+  const [warehouseOpen, setWarehouseOpen] = useState(true);
+  const [profileOpen,   setProfileOpen]   = useState(false);
+  const profileRef = useRef(null);
+
+  
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSignOut = async () => {
+    setProfileOpen(false);
+    await logout();
+    navigate('/signin', { replace: true });
+  };
+
+  
+  const initials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '';
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-['Inter'] text-[#1E2740] overflow-hidden selection:bg-indigo-100">
@@ -169,13 +198,74 @@ const MainLayout = () => {
             </div>
             <HelpCircle size={18} className="text-gray-500 cursor-pointer" />
 
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200 cursor-pointer group">
-              <div className="w-8 h-8 bg-[#4F46E5] rounded-full flex items-center justify-center text-white font-bold text-[11px]">AM</div>
-              <div className="flex flex-col text-left">
-                <span className="text-[13px] font-bold text-[#1E2740] group-hover:text-indigo-600 transition-colors">Ayomide Ajayi</span>
-                <span className="text-[10px] text-[#6B7591] font-semibold uppercase tracking-tight">System Administrator</span>
+            {/* Profile dropdown */}
+            <div className="relative" ref={profileRef}>
+              <div
+                onClick={() => setProfileOpen(o => !o)}
+                className="flex items-center gap-3 pl-4 border-l border-gray-200 cursor-pointer group"
+              >
+                <div className="w-8 h-8 bg-[#4F46E5] rounded-full flex items-center justify-center text-white font-bold text-[11px]">
+                  {initials}
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="text-[13px] font-bold text-[#1E2740] group-hover:text-indigo-600 transition-colors">
+                    {user?.name}
+                  </span>
+                  <span className="text-[10px] text-[#6B7591] font-semibold uppercase tracking-tight">
+                    {user?.role}
+                  </span>
+                </div>
+                <motion.div animate={{ rotate: profileOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown size={12} className="text-gray-400" />
+                </motion.div>
               </div>
-              <ChevronDown size={12} className="text-gray-400" />
+
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute right-0 top-[calc(100%+12px)] w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-30 origin-top-right"
+                  >
+                    {/* Header repeated for context */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+                      <div className="w-9 h-9 bg-[#4F46E5] rounded-full flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
+                        {initials}
+                      </div>
+                      <div className="flex flex-col text-left min-w-0">
+                        <span className="text-[13px] font-bold text-[#1E2740] truncate">{user?.name}</span>
+                        <span className="text-[10px] text-[#6B7591] font-semibold uppercase tracking-tight">{user?.role}</span>
+                      </div>
+                    </div>
+
+                    <div className="py-1">
+                      <DropdownItem
+                        icon={<User size={16} />}
+                        label="My Profile"
+                        onClick={() => { setProfileOpen(false); navigate('/profile'); }}
+                      />
+                      <DropdownItem
+                        icon={<SettingsGear size={16} />}
+                        label="Account Settings"
+                        onClick={() => { setProfileOpen(false); navigate('/settings'); }}
+                      />
+                    </div>
+
+                    <div className="border-t border-gray-100 my-1" />
+
+                    <div className="py-1">
+                      <DropdownItem
+                        icon={<LogOut size={16} />}
+                        label="Sign Out"
+                        onClick={handleSignOut}
+                        danger
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>
@@ -209,6 +299,20 @@ const SidebarLink = ({ to, icon, label, isCollapsed, end = false }) => (
       </span>
     )}
   </NavLink>
+);
+
+const DropdownItem = ({ icon, label, onClick, danger = false }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13.5px] font-medium transition-colors text-left ${
+      danger
+        ? "text-red-500 hover:bg-red-50"
+        : "text-[#1E2740] hover:bg-gray-50"
+    }`}
+  >
+    <span className={danger ? "text-red-500" : "text-gray-400"}>{icon}</span>
+    {label}
+  </button>
 );
 
 export default MainLayout;
