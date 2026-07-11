@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import Logo from "../../assets/icons/Logo.svg?react";
 import DashboardIcon from "../../assets/icons/Dashboard.svg?react";
@@ -14,45 +14,53 @@ import AuditIcon from "../../assets/icons/Audit.svg?react";
 import SettingsIcon from "../../assets/icons/Settings.svg?react";
 
 import {
-  ChevronDown, Search, Bell, HelpCircle, ChevronLeft, ChevronRight,
-  User, Settings as SettingsGear, LogOut,
-} from 'lucide-react';
+  ChevronDown,
+  Search,
+  Bell,
+  HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Settings as SettingsGear,
+  LogOut,
+} from "lucide-react";
 
 const MainLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
-
-  const [isCollapsed,   setIsCollapsed]   = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
-  const [profileOpen,   setProfileOpen]   = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
-  
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSignOut = async () => {
     setProfileOpen(false);
     await logout();
-    navigate('/signin', { replace: true });
+    navigate("/signin", { replace: true });
   };
 
-  
   const initials = user?.name
-    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : '';
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "";
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-['Inter'] text-[#1E2740] overflow-hidden selection:bg-indigo-100">
-
       <motion.aside
         animate={{ width: isCollapsed ? 70 : 190 }}
         transition={{ duration: 0.3, ease: "circOut" }}
@@ -65,20 +73,38 @@ const MainLayout = () => {
           </div>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="font-bold text-base leading-tight tracking-tight">Entouche</span>
-              <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">Enterprise Inventory</span>
+              <span className="font-bold text-base leading-tight tracking-tight">
+                Entouche
+              </span>
+              <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">
+                Enterprise Inventory
+              </span>
             </div>
           )}
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-6 space-y-7 overflow-x-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-
           {/* Menu */}
           <div>
-            {!isCollapsed && <p className="text-[10px] font-bold text-[#6B7591] mb-3 px-3 tracking-[0.15em] uppercase">Menu</p>}
+            {!isCollapsed && (
+              <p className="text-[10px] font-bold text-[#6B7591] mb-3 px-3 tracking-[0.15em] uppercase">
+                Menu
+              </p>
+            )}
             <div className="space-y-1">
-              <SidebarLink to="/"      icon={<DashboardIcon className="w-[18px] h-[18px]"/>} label="Dashboard" isCollapsed={isCollapsed} end={true} />
-              <SidebarLink to="/items" icon={<ItemsIcon     className="w-[18px] h-[18px]"/>} label="Items"     isCollapsed={isCollapsed} />
+              <SidebarLink
+                to="/"
+                icon={<DashboardIcon className="w-[18px] h-[18px]" />}
+                label="Dashboard"
+                isCollapsed={isCollapsed}
+                end={true}
+              />
+              <SidebarLink
+                to="/items"
+                icon={<ItemsIcon className="w-[18px] h-[18px]" />}
+                label="Items"
+                isCollapsed={isCollapsed}
+              />
             </div>
           </div>
 
@@ -86,14 +112,19 @@ const MainLayout = () => {
           <div>
             {!isCollapsed && (
               <button
-                onClick={() => setInventoryOpen(o => !o)}
+                onClick={() => setInventoryOpen((o) => !o)}
                 className="flex justify-between items-center px-3 mb-3 w-full text-left"
               >
                 <div className="flex items-center gap-2">
                   <HomeIcon className="w-3.5 h-3.5 text-[#6B7591]" />
-                  <p className="text-[10px] font-bold text-[#6B7591] tracking-[0.15em] uppercase">Inventory</p>
+                  <p className="text-[10px] font-bold text-[#6B7591] tracking-[0.15em] uppercase">
+                    Inventory
+                  </p>
                 </div>
-                <motion.div animate={{ rotate: inventoryOpen ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <motion.div
+                  animate={{ rotate: inventoryOpen ? 0 : -90 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <ChevronDown size={12} className="text-[#6B7591]" />
                 </motion.div>
               </button>
@@ -109,11 +140,31 @@ const MainLayout = () => {
                   className="overflow-hidden"
                 >
                   <div className="space-y-1">
-                    <SidebarLink to="/transactions" label="Transactions" isCollapsed={isCollapsed} />
-                    <SidebarLink to="/receipts"     label="Receipts"     isCollapsed={isCollapsed} />
-                    <SidebarLink to="/transfers"    label="Transfers"    isCollapsed={isCollapsed} />
-                    <SidebarLink to="/adjustments"  label="Adjustments"  isCollapsed={isCollapsed} />
-                    <SidebarLink to="/stock-counts" label="Stock Counts" isCollapsed={isCollapsed} />
+                    <SidebarLink
+                      to="/transactions"
+                      label="Transactions"
+                      isCollapsed={isCollapsed}
+                    />
+                    <SidebarLink
+                      to="/receipts"
+                      label="Receipts"
+                      isCollapsed={isCollapsed}
+                    />
+                    <SidebarLink
+                      to="/transfers"
+                      label="Transfers"
+                      isCollapsed={isCollapsed}
+                    />
+                    <SidebarLink
+                      to="/adjustments"
+                      label="Adjustments"
+                      isCollapsed={isCollapsed}
+                    />
+                    <SidebarLink
+                      to="/stock-counts"
+                      label="Stock Counts"
+                      isCollapsed={isCollapsed}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -124,14 +175,19 @@ const MainLayout = () => {
           <div>
             {!isCollapsed && (
               <button
-                onClick={() => setWarehouseOpen(o => !o)}
+                onClick={() => setWarehouseOpen((o) => !o)}
                 className="flex justify-between items-center px-3 mb-3 w-full text-left"
               >
                 <div className="flex items-center gap-2">
                   <WarehouseIcon className="w-3.5 h-3.5 text-[#6B7591]" />
-                  <p className="text-[10px] font-bold text-[#6B7591] tracking-[0.15em] uppercase">Warehouse</p>
+                  <p className="text-[10px] font-bold text-[#6B7591] tracking-[0.15em] uppercase">
+                    Warehouse
+                  </p>
                 </div>
-                <motion.div animate={{ rotate: warehouseOpen ? 0 : -90 }} transition={{ duration: 0.2 }}>
+                <motion.div
+                  animate={{ rotate: warehouseOpen ? 0 : -90 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <ChevronDown size={12} className="text-[#6B7591]" />
                 </motion.div>
               </button>
@@ -147,8 +203,16 @@ const MainLayout = () => {
                   className="overflow-hidden"
                 >
                   <div className="space-y-1">
-                    <SidebarLink to="/overview"  label="Overview"  isCollapsed={isCollapsed} />
-                    <SidebarLink to="/locations" label="Locations" isCollapsed={isCollapsed} />
+                    <SidebarLink
+                      to="/overview"
+                      label="Overview"
+                      isCollapsed={isCollapsed}
+                    />
+                    <SidebarLink
+                      to="/locations"
+                      label="Locations"
+                      isCollapsed={isCollapsed}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -157,11 +221,36 @@ const MainLayout = () => {
 
           {/* Bottom links */}
           <div className="pt-4 border-t border-slate-700/30 space-y-1">
-            <SidebarLink to="/reports"  icon={<ReportIcon   className="w-[18px] h-[18px]"/>} label="Reports"     isCollapsed={isCollapsed} />
-            <SidebarLink to="/user"     icon={<UsersIcon    className="w-[18px] h-[18px]"/>} label="Users & Roles" isCollapsed={isCollapsed} />
-            <SidebarLink to="/data"     icon={<DataIcon     className="w-[18px] h-[18px]"/>} label="Data Import"  isCollapsed={isCollapsed} />
-            <SidebarLink to="/audit"    icon={<AuditIcon    className="w-[18px] h-[18px]"/>} label="Audit Logs"   isCollapsed={isCollapsed} />
-            <SidebarLink to="/settings" icon={<SettingsIcon className="w-[18px] h-[18px]"/>} label="Settings"     isCollapsed={isCollapsed} />
+            <SidebarLink
+              to="/reports"
+              icon={<ReportIcon className="w-[18px] h-[18px]" />}
+              label="Reports"
+              isCollapsed={isCollapsed}
+            />
+            <SidebarLink
+              to="/user"
+              icon={<UsersIcon className="w-[18px] h-[18px]" />}
+              label="Users & Roles"
+              isCollapsed={isCollapsed}
+            />
+            <SidebarLink
+              to="/data"
+              icon={<DataIcon className="w-[18px] h-[18px]" />}
+              label="Data Import"
+              isCollapsed={isCollapsed}
+            />
+            <SidebarLink
+              to="/audit"
+              icon={<AuditIcon className="w-[18px] h-[18px]" />}
+              label="Audit Logs"
+              isCollapsed={isCollapsed}
+            />
+            <SidebarLink
+              to="/settings"
+              icon={<SettingsIcon className="w-[18px] h-[18px]" />}
+              label="Settings"
+              isCollapsed={isCollapsed}
+            />
           </div>
         </nav>
 
@@ -172,7 +261,11 @@ const MainLayout = () => {
             className="flex items-center gap-3 px-3 py-2 text-[#6B7591] hover:text-white text-sm w-full transition-all overflow-hidden whitespace-nowrap"
           >
             <div className="min-w-[18px]">
-              {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              {isCollapsed ? (
+                <ChevronRight size={18} />
+              ) : (
+                <ChevronLeft size={18} />
+              )}
             </div>
             {!isCollapsed && <span className="font-medium">Collapse</span>}
           </button>
@@ -183,7 +276,10 @@ const MainLayout = () => {
       <div className="flex-1 flex flex-col min-w-0 h-screen">
         <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={16}
+            />
             <input
               type="text"
               placeholder="Search items, transactions, users..."
@@ -194,14 +290,16 @@ const MainLayout = () => {
           <div className="flex items-center gap-5">
             <div className="relative cursor-pointer hover:bg-gray-50 p-2 rounded-full transition-colors">
               <Bell size={18} className="text-gray-500" />
-              <span className="absolute top-1.5 right-1.5 bg-red-500 border-2 border-white text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">3</span>
+              <span className="absolute top-1.5 right-1.5 bg-red-500 border-2 border-white text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+                3
+              </span>
             </div>
             <HelpCircle size={18} className="text-gray-500 cursor-pointer" />
 
             {/* Profile dropdown */}
             <div className="relative" ref={profileRef}>
               <div
-                onClick={() => setProfileOpen(o => !o)}
+                onClick={() => setProfileOpen((o) => !o)}
                 className="flex items-center gap-3 pl-4 border-l border-gray-200 cursor-pointer group"
               >
                 <div className="w-8 h-8 bg-[#4F46E5] rounded-full flex items-center justify-center text-white font-bold text-[11px]">
@@ -212,10 +310,15 @@ const MainLayout = () => {
                     {user?.name}
                   </span>
                   <span className="text-[10px] text-[#6B7591] font-semibold uppercase tracking-tight">
-                    {user?.role}
+                    {user?.roles?.[0]?.name
+                      ?.replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
                 </div>
-                <motion.div animate={{ rotate: profileOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <motion.div
+                  animate={{ rotate: profileOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <ChevronDown size={12} className="text-gray-400" />
                 </motion.div>
               </div>
@@ -229,27 +332,22 @@ const MainLayout = () => {
                     transition={{ duration: 0.15, ease: "easeOut" }}
                     className="absolute right-0 top-[calc(100%+12px)] w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-30 origin-top-right"
                   >
-                    {/* Header repeated for context */}
-                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-                      <div className="w-9 h-9 bg-[#4F46E5] rounded-full flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0">
-                        {initials}
-                      </div>
-                      <div className="flex flex-col text-left min-w-0">
-                        <span className="text-[13px] font-bold text-[#1E2740] truncate">{user?.name}</span>
-                        <span className="text-[10px] text-[#6B7591] font-semibold uppercase tracking-tight">{user?.role}</span>
-                      </div>
-                    </div>
-
                     <div className="py-1">
                       <DropdownItem
                         icon={<User size={16} />}
                         label="My Profile"
-                        onClick={() => { setProfileOpen(false); navigate('/profile'); }}
+                        onClick={() => {
+                          setProfileOpen(false);
+                          navigate("/settings");
+                        }}
                       />
                       <DropdownItem
                         icon={<SettingsGear size={16} />}
                         label="Account Settings"
-                        onClick={() => { setProfileOpen(false); navigate('/settings'); }}
+                        onClick={() => {
+                          setProfileOpen(false);
+                          navigate("/settings");
+                        }}
                       />
                     </div>
 
@@ -294,7 +392,9 @@ const SidebarLink = ({ to, icon, label, isCollapsed, end = false }) => (
   >
     {icon && <div className="min-w-[18px]">{icon}</div>}
     {!isCollapsed && (
-      <span className={`text-[13.5px] font-medium whitespace-nowrap overflow-hidden tracking-tight ${!icon ? 'pl-7' : ''}`}>
+      <span
+        className={`text-[13.5px] font-medium whitespace-nowrap overflow-hidden tracking-tight ${!icon ? "pl-7" : ""}`}
+      >
         {label}
       </span>
     )}

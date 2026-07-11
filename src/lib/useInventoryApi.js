@@ -14,13 +14,9 @@ import { normalizeName } from "./parsers";
 const DEFAULT_EMAIL = "admin@inventory.local";
 const DEFAULT_PASSWORD = "Admin@1234";
 
-// Encapsulates authentication and the reference data (categories, units,
-// existing users/totals) that the rest of the page depends on. The JWT
-// itself lives in localStorage (see lib/api.js) — this hook just tracks
-// whether we're currently authenticated and as whom.
 export function useInventoryApi() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [authStatus, setAuthStatus] = useState("connecting"); // connecting | ok | error
+  const [authStatus, setAuthStatus] = useState("connecting");
   const [authError, setAuthError] = useState("");
 
   const [categories, setCategories] = useState([]);
@@ -44,8 +40,6 @@ export function useInventoryApi() {
     }
   }, []);
 
-  // On mount: if a token is already stored, validate it via /auth/me instead
-  // of blindly re-logging in; otherwise fall back to the default admin login.
   useEffect(() => {
     (async () => {
       const existingToken = getAccessToken();
@@ -56,12 +50,12 @@ export function useInventoryApi() {
           setAuthStatus("ok");
           return;
         } catch {
-          setAccessToken(null); // stale/invalid token, fall through to login
+          setAccessToken(null);
         }
       }
       login(DEFAULT_EMAIL, DEFAULT_PASSWORD);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
   const loadReferenceData = useCallback(async () => {

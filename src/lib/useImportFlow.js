@@ -10,7 +10,7 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importDone, setImportDone] = useState(false);
-  const [history, setHistory] = useState([]); // session-only: real results from real API calls
+  const [history, setHistory] = useState([]); 
   const [parsedData, setParsedData] = useState(null);
   const [errors, setErrors] = useState([]);
   const [parseError, setParseError] = useState("");
@@ -55,15 +55,12 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
     }, 400);
   };
 
-  // Rows that have no validation error against them, keyed by row number (i+2).
   const cleanRowIndexes = () => {
     const badRows = new Set(errors.filter(e => typeof e.row === "number").map(e => e.row));
     return parsedData.rows.map((_, i) => i).filter(i => !badRows.has(i + 2));
   };
 
   const handleImport = async () => {
-    // Only import types with a real create endpoint can actually be
-    // imported — see CREATABLE_TYPES in lib/validation.js.
     if (!file || !validated || !CREATABLE_TYPES.includes(importType)) return;
     setImporting(true);
     setImportDone(false);

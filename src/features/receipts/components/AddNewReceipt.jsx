@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import AddItemPicker from './AddItem';
 import AddNewItem from './AddNewItem';
-import { listSuppliers, listUsers } from '../../../lib/api.js';
+import { listSuppliers, listUsers, listWarehouses, listWarehouseLocations } from '../../../lib/api.js';
 
 function fmt(n) {
   return '₦' + Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function todayLabel() {
+
+function todayIso() {
   const d = new Date();
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 const chevron = (
@@ -19,7 +21,7 @@ const chevron = (
   </svg>
 );
 
-const emptyForm = { supplier: '', receivedBy: '', warehouse: '', date: '', poNumber: '', notes: '' };
+const emptyForm = { supplier: '', receivedBy: '', warehouseId: '', locationId: '', date: '', poNumber: '', notes: '' };
 
 export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '—' }) {
   const [receiptItems, setReceiptItems] = useState([]);
@@ -28,37 +30,41 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
   const [noteLen, setNoteLen]           = useState(0);
   const [errors, setErrors]             = useState({});
 
-  // Form fields
+  
   const [supplierId, setSupplierId] = useState('');
   const [receivedById, setReceivedById] = useState('');
-  const [warehouse, setWarehouse] = useState('');
-  const [date, setDate]           = useState(todayLabel());
+  const [warehouseId, setWarehouseId] = useState('');
+  const [locationId, setLocationId] = useState('');
+  const [date, setDate]           = useState(todayIso());
   const [poNumber, setPoNumber]   = useState('');
   const [notes, setNotes]         = useState('');
 
-  // Live lookups
   const [suppliers, setSuppliers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loadingLookups, setLoadingLookups] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
   const isEditing = !!editData;
 
-  // Load suppliers + users from the API whenever the modal opens
+  
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     setLoadingLookups(true);
     setLookupError('');
-    Promise.all([listSuppliers(), listUsers()])
-      .then(([sups, usrs]) => {
+    Promise.all([listSuppliers(), listUsers(), listWarehouses()])
+      .then(([sups, usrs, whs]) => {
         if (cancelled) return;
         setSuppliers(sups || []);
         setUsers(usrs || []);
+        setWarehouses(whs || []);
       })
       .catch((err) => {
         if (cancelled) return;
-        setLookupError(err.message || 'Failed to load suppliers and users.');
+        setLookupError(err.message || 'Failed to load suppliers, users, and warehouses.');
       })
       .finally(() => {
         if (!cancelled) setLoadingLookups(false);
@@ -66,23 +72,36 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     return () => { cancelled = true; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !warehouseId) { setLocations([]); return; }
+    let cancelled = false;
+    setLoadingLocations(true);
+    listWarehouseLocations(warehouseId)
+      .then((locs) => { if (!cancelled) setLocations(locs || []); })
+      .catch(() => { if (!cancelled) setLocations([]); })
+      .finally(() => { if (!cancelled) setLoadingLocations(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, warehouseId]);
+
   // Seed (or reset) the form whenever the modal opens
   useEffect(() => {
     if (!isOpen) return;
     if (editData) {
       setSupplierId(editData.supplierId || '');
       setReceivedById(editData.receivedById || '');
-      setWarehouse(editData.warehouse || '');
-      setDate(editData.date || todayLabel());
-      setPoNumber(editData.ref || editData.poNumber || '');
+      setWarehouseId(editData.warehouseId || '');
+      setLocationId(editData.receivingLocationId || '');
+      setDate(editData.date || todayIso());
+      setPoNumber(editData.poNumber || (editData.ref !== '—' ? editData.ref : '') || '');
       setNotes(editData.notes || '');
       setNoteLen((editData.notes || '').length);
       setReceiptItems((editData.items || []).map(it => ({ ...it })));
     } else {
       setSupplierId(emptyForm.supplier);
       setReceivedById(emptyForm.receivedBy);
-      setWarehouse(emptyForm.warehouse);
-      setDate(todayLabel());
+      setWarehouseId(emptyForm.warehouseId);
+      setLocationId(emptyForm.locationId);
+      setDate(todayIso());
       setPoNumber(emptyForm.poNumber);
       setNotes(emptyForm.notes);
       setNoteLen(0);
@@ -127,12 +146,15 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     const e = {};
     if (!supplierId)   e.supplier = true;
     if (!receivedById) e.receivedBy = true;
-    if (!warehouse.trim()) e.warehouse = true;
+    if (!warehouseId)  e.warehouse = true;
+    if (!locationId)   e.location = true;
     if (receiptItems.length === 0) e.items = true;
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     const supplierObj = suppliers.find(s => String(s.id) === String(supplierId));
     const userObj = users.find(u => String(u.id) === String(receivedById));
+    const warehouseObj = warehouses.find(w => String(w.id) === String(warehouseId));
+    const locationObj = locations.find(l => String(l.id) === String(locationId));
 
     if (onSave) {
       onSave({
@@ -142,7 +164,10 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         supplierId,
         receivedBy: userObj?.name || '',
         receivedById,
-        warehouse: warehouse.trim(),
+        warehouse: warehouseObj?.name || '',
+        warehouseId,
+        receivingLocation: locationObj?.name || '',
+        receivingLocationId: locationId,
         date, poNumber, notes,
         items: receiptItems,
       });
@@ -155,7 +180,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     setShowPicker(false);
     setShowNewItem(false);
     setErrors({});
-    setSupplierId(''); setReceivedById(''); setWarehouse('');
+    setSupplierId(''); setReceivedById(''); setWarehouseId(''); setLocationId('');
     setPoNumber(''); setNotes(''); setNoteLen(0);
     onClose();
   };
@@ -195,6 +220,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         }
         .anr-section-title { font-size: 14px; font-weight: 700; color: #1e2740; margin-bottom: 16px; }
         .anr-row-3   { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 14px; margin-bottom: 14px; }
+        .anr-row-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
         .anr-field   { display: flex; flex-direction: column; }
         .anr-label   { font-size: 11.5px; color: #6b7591; font-weight: 500; display: block; margin-bottom: 5px; }
         .anr-req     { color: #f25c54; }
@@ -375,19 +401,12 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Receipt Date <span className="anr-req">*</span></label>
-                  <div className="anr-date-wrap">
-                    <input
-                      className="anr-input"
-                      style={{ paddingRight: 34 }}
-                      value={date}
-                      onChange={e => setDate(e.target.value)}
-                    />
-                    <svg className="anr-date-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2"/>
-                      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-                      <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                  </div>
+                  <input
+                    type="date"
+                    className="anr-input"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                  />
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Reference / PO Number</label>
@@ -401,7 +420,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
               </div>
 
               {/* Row 2 */}
-              <div className="anr-row-3">
+              <div className="anr-row-2">
                 <div className="anr-field">
                   <label className="anr-label">Supplier <span className="anr-req">*</span></label>
                   <div className="anr-sel-wrap">
@@ -437,15 +456,53 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                   </div>
                   {errors.receivedBy && <span className="anr-err-msg">Required</span>}
                 </div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="anr-row-2">
                 <div className="anr-field">
-                  <label className="anr-label">Warehouse / Location <span className="anr-req">*</span></label>
-                  <input
-                    className={`anr-input${errors.warehouse ? ' anr-err' : ''}`}
-                    placeholder="e.g. Main Warehouse"
-                    value={warehouse}
-                    onChange={e => { setWarehouse(e.target.value); setErrors(p => ({ ...p, warehouse: false })); }}
-                  />
+                  <label className="anr-label">Warehouse <span className="anr-req">*</span></label>
+                  <div className="anr-sel-wrap">
+                    <select
+                      className={`anr-select${errors.warehouse ? ' anr-err' : ''}${warehouseId ? ' anr-has-val' : ''}`}
+                      value={warehouseId}
+                      onChange={e => {
+                        setWarehouseId(e.target.value);
+                        setLocationId('');
+                        setErrors(p => ({ ...p, warehouse: false }));
+                      }}
+                      disabled={loadingLookups}
+                    >
+                      <option value="">{loadingLookups ? 'Loading warehouses…' : 'Select warehouse'}</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    <span className="anr-sel-arrow">{chevron}</span>
+                  </div>
                   {errors.warehouse && <span className="anr-err-msg">Required</span>}
+                  {!loadingLookups && warehouses.length === 0 && !errors.warehouse && (
+                    <span className="anr-err-msg" style={{ color: '#9aa1b4' }}>No warehouses found. Add one in Warehouses first.</span>
+                  )}
+                </div>
+                <div className="anr-field">
+                  <label className="anr-label">Receiving Location <span className="anr-req">*</span></label>
+                  <div className="anr-sel-wrap">
+                    <select
+                      className={`anr-select${errors.location ? ' anr-err' : ''}${locationId ? ' anr-has-val' : ''}`}
+                      value={locationId}
+                      onChange={e => { setLocationId(e.target.value); setErrors(p => ({ ...p, location: false })); }}
+                      disabled={!warehouseId || loadingLocations}
+                    >
+                      <option value="">
+                        {!warehouseId ? 'Select a warehouse first' : loadingLocations ? 'Loading locations…' : 'Select location'}
+                      </option>
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                    <span className="anr-sel-arrow">{chevron}</span>
+                  </div>
+                  {errors.location && <span className="anr-err-msg">Required</span>}
+                  {warehouseId && !loadingLocations && locations.length === 0 && !errors.location && (
+                    <span className="anr-err-msg" style={{ color: '#9aa1b4' }}>No locations found for this warehouse.</span>
+                  )}
                 </div>
               </div>
 
