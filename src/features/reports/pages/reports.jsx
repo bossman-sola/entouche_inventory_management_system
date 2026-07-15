@@ -1,37 +1,29 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
-import { api } from "../../../shared/api/entoucheApi"; 
+import { api } from "../../../shared/api/entoucheApi";
 
-/* ─── Report catalog metadata ───
-   The API has no "reports" endpoint, so this defines *what kinds* of
-   reports exist (name/description/format/icon/grouping) — the same way a
-   nav menu defines its own items. Every field that IS real data (last
-   generated date, generated-by, row counts, and the exported file
-   contents) is computed from live API responses below, never hardcoded. */
 const REPORT_DEFS = [
   { id: 1, icon: "doc", name: "Inventory Balance Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Current inventory balance across all locations", format: "PDF, Excel", dataKey: "items", systemGenerated: false, available: true },
-  { id: 2, icon: "cycle", name: "Inventory Movement Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory movements", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 2, icon: "cycle", name: "Inventory Movement Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory movements", format: "PDF, Excel", dataKey: "movement", systemGenerated: false, available: true },
   { id: 3, icon: "alert", name: "Low Stock Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Items below minimum stock level", format: "PDF, Excel", dataKey: "low_stock", systemGenerated: true, available: true },
-  { id: 4, icon: "dollar", name: "Stock Valuation Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory valuation by cost and category", format: "PDF, Excel", dataKey: "valuation", systemGenerated: false, available: true },
+  { id: 4, icon: "dollar", name: "Stock Valuation Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory valuation by cost and category", format: "PDF, Excel", dataKey: "stock_summary", systemGenerated: false, available: true },
   { id: 5, icon: "list", name: "Transaction Detail Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Detailed list of all transactions", format: "Excel, CSV", dataKey: "transactions", systemGenerated: false, available: true },
-  { id: 6, icon: "trend", name: "Stock Trend Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock trend analysis over time", format: "PDF, Excel", dataKey: "transactions", systemGenerated: true, available: true },
+  { id: 6, icon: "trend", name: "Stock Trend Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock trend analysis over time", format: "PDF, Excel", dataKey: "movement", systemGenerated: true, available: true },
   { id: 7, icon: "user", name: "User Activity Report", cat: "User & Activity Reports", catColor: "#f3f0ff", catText: "#8b5cf6", desc: "User activities and system actions", format: "PDF, Excel", dataKey: "users", systemGenerated: false, available: true },
-  { id: 8, icon: "doc", name: "Audit Log Report", cat: "User & Activity Reports", catColor: "#f3f0ff", catText: "#8b5cf6", desc: "Complete audit trail and logs", format: "PDF, Excel", dataKey: null, systemGenerated: true, available: false },
-  { id: 9, icon: "cycle", name: "Receipt Summary Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all goods received", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 8, icon: "doc", name: "Audit Log Report", cat: "User & Activity Reports", catColor: "#f3f0ff", catText: "#8b5cf6", desc: "Complete audit trail and logs", format: "PDF, Excel", dataKey: "audit_logs", systemGenerated: true, available: true },
+  { id: 9, icon: "cycle", name: "Receipt Summary Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all goods received", format: "PDF, Excel", dataKey: "receipts", systemGenerated: false, available: true },
   { id: 10, icon: "alert", name: "Reorder Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Items that need to be reordered", format: "PDF, Excel", dataKey: "low_stock", systemGenerated: true, available: true },
-  { id: 11, icon: "dollar", name: "Transfer Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory transfers", format: "PDF, Excel", dataKey: "transactions", systemGenerated: false, available: true },
+  { id: 11, icon: "dollar", name: "Transfer Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "Summary of all inventory transfers", format: "PDF, Excel", dataKey: "transfers", systemGenerated: false, available: true },
   { id: 12, icon: "user", name: "Supplier Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory received by supplier", format: "PDF, Excel", dataKey: "suppliers", systemGenerated: false, available: true },
-  { id: 13, icon: "list", name: "Adjustment Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "All stock adjustments and reasons", format: "Excel, CSV", dataKey: "transactions", systemGenerated: true, available: true },
+  { id: 13, icon: "list", name: "Adjustment Report", cat: "Transaction Reports", catColor: "#e6faf3", catText: "#16a369", desc: "All stock adjustments and reasons", format: "Excel, CSV", dataKey: "adjustments", systemGenerated: true, available: true },
   { id: 14, icon: "trend", name: "Category Report", cat: "Inventory Reports", catColor: "#eef2ff", catText: "#4f6ef7", desc: "Inventory broken down by category", format: "PDF, Excel", dataKey: "categories", systemGenerated: false, available: true },
-  { id: 15, icon: "doc", name: "Warehouse Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock levels per warehouse and location", format: "PDF, Excel", dataKey: null, systemGenerated: false, available: false },
+  { id: 15, icon: "doc", name: "Warehouse Report", cat: "Stock Reports", catColor: "#fff7ed", catText: "#c27a0a", desc: "Stock levels per warehouse and location", format: "PDF, Excel", dataKey: "warehouses", systemGenerated: false, available: true },
 ];
 
 const CATS = ["All Report Types", "Inventory Reports", "Transaction Reports", "Stock Reports", "User & Activity Reports"];
-const WAREHOUSES = ["All Locations"]; // no warehouses/locations endpoint exists yet
 const FORMATS = ["All Formats", "PDF", "Excel", "CSV"];
 const PAGE_SIZE = 8;
 
-/* ─── Icons ─── */
 const ICON_MAP = {
   doc:    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
   cycle:  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>,
@@ -49,7 +41,6 @@ const CAT_ICON_MAP = {
   "User & Activity Reports":{ icon:<svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={1.8}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, color:"#8b5cf6", bg:"#f3f0ff" },
 };
 
-/* ─── DateRange Picker (shared, unchanged UI) ─── */
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function CalPicker({ value, onChange, onClose }) {
   const [view, setView] = useState(value.start || new Date());
@@ -116,8 +107,14 @@ const latestTimestamp = (arr, field = "updated_at") => {
   }, 0) || null;
 };
 
-function slugify(name) {
-  return String(name || "").toLowerCase().replace(/\s+/g, "_");
+function asArray(res) {
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res.data)) return res.data;
+  if (Array.isArray(res.items)) return res.items;
+  if (Array.isArray(res.transactions)) return res.transactions;
+  if (Array.isArray(res.results)) return res.results;
+  return [];
 }
 
 export default function Reports() {
@@ -131,7 +128,6 @@ export default function Reports() {
   const [toast,      setToast]      = useState(null);
   const calRef = useRef();
 
-  // Live API state — replaces all static seed data.
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -141,6 +137,14 @@ export default function Reports() {
   const [users, setUsers] = useState([]);
   const [stockBalances, setStockBalances] = useState({}); // itemId -> balance
   const [transactions, setTransactions] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [transfers, setTransfers] = useState([]);
+  const [adjustments, setAdjustments] = useState([]);
+  const [receipts, setReceipts] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [movementReport, setMovementReport] = useState([]);
+  const [stockSummaryReport, setStockSummaryReport] = useState([]);
+  const [lowStockReport, setLowStockReport] = useState([]);
 
   useEffect(()=>{ const h=(e)=>{ if(calRef.current&&!calRef.current.contains(e.target)) setShowCal(false); }; document.addEventListener("mousedown",h); return()=>document.removeEventListener("mousedown",h); },[]);
 
@@ -150,12 +154,24 @@ export default function Reports() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [meRes, itemsRes, categoriesRes, suppliersRes, usersRes] = await Promise.allSettled([
+      const [
+        meRes, itemsRes, categoriesRes, suppliersRes, usersRes,
+        warehousesRes, transfersRes, adjustmentsRes, receiptsRes, auditLogsRes,
+        movementRes, stockSummaryRes, lowStockRes,
+      ] = await Promise.allSettled([
         api.me(),
         api.listItems(),
         api.listCategories(),
         api.listSuppliers(),
         api.listUsers(),
+        api.listWarehouses(),
+        api.listTransfers(),
+        api.listAdjustments(),
+        api.listReceipts(),
+        api.listAuditLogs(),
+        api.getMovementReport(),
+        api.getStockSummaryReport(),
+        api.getLowStockReport(),
       ]);
 
       const itemsData = itemsRes.status === "fulfilled" ? (itemsRes.value || []) : [];
@@ -164,12 +180,19 @@ export default function Reports() {
       setCategories(categoriesRes.status === "fulfilled" ? (categoriesRes.value || []) : []);
       setSuppliers(suppliersRes.status === "fulfilled" ? (suppliersRes.value || []) : []);
       setUsers(usersRes.status === "fulfilled" ? (usersRes.value || []) : []);
+      setWarehouses(warehousesRes.status === "fulfilled" ? (warehousesRes.value || []) : []);
+      setTransfers(transfersRes.status === "fulfilled" ? (transfersRes.value || []) : []);
+      setAdjustments(adjustmentsRes.status === "fulfilled" ? (adjustmentsRes.value || []) : []);
+      setReceipts(receiptsRes.status === "fulfilled" ? (receiptsRes.value || []) : []);
+      setAuditLogs(auditLogsRes.status === "fulfilled" ? (auditLogsRes.value || []) : []);
+      setMovementReport(movementRes.status === "fulfilled" ? asArray(movementRes.value) : []);
+      setStockSummaryReport(stockSummaryRes.status === "fulfilled" ? asArray(stockSummaryRes.value) : []);
+      setLowStockReport(lowStockRes.status === "fulfilled" ? asArray(lowStockRes.value) : []);
 
       if (itemsRes.status === "rejected") {
         setLoadError(itemsRes.reason?.message || "Failed to load data");
       }
 
-      // Fetch per-item stock balances and transactions (best-effort; skip failures per item)
       if (itemsData.length) {
         const balanceEntries = await Promise.allSettled(itemsData.map(it => api.getItemStockBalance(it.id)));
         const balances = {};
@@ -198,7 +221,18 @@ export default function Reports() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const dataState = { items, categories, suppliers, users, transactions, stockBalances };
+  const computedLowStock = useMemo(() => items.filter(it => {
+    const b = stockBalances[it.id];
+    const available = b ? Number(b.total_available ?? 0) : 0;
+    return available < Number(it.reorder_level ?? 0);
+  }), [items, stockBalances]);
+
+  const effectiveLowStock = lowStockReport.length ? lowStockReport : computedLowStock;
+
+  const warehouseOptions = useMemo(
+    () => ["All Locations", ...warehouses.map(w => w.name).filter(Boolean)],
+    [warehouses]
+  );
 
   const sourceFor = (dataKey) => {
     switch (dataKey) {
@@ -207,12 +241,14 @@ export default function Reports() {
       case "suppliers": return suppliers;
       case "users": return users;
       case "transactions": return transactions;
-      case "valuation": return items;
-      case "low_stock": return items.filter(it => {
-        const b = stockBalances[it.id];
-        const available = b ? Number(b.total_available ?? 0) : 0;
-        return available < Number(it.reorder_level ?? 0);
-      });
+      case "low_stock": return effectiveLowStock;
+      case "warehouses": return warehouses;
+      case "transfers": return transfers;
+      case "adjustments": return adjustments;
+      case "receipts": return receipts;
+      case "audit_logs": return auditLogs;
+      case "movement": return movementReport;
+      case "stock_summary": return stockSummaryReport;
       default: return null;
     }
   };
@@ -225,7 +261,7 @@ export default function Reports() {
     const recordCount = source ? source.length : 0;
     return { ...def, lastGen, genBy, recordCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [items, categories, suppliers, users, transactions, stockBalances, currentUser]);
+  }), [items, categories, suppliers, users, transactions, stockBalances, currentUser, warehouses, transfers, adjustments, receipts, auditLogs, movementReport, stockSummaryReport, lowStockReport]);
 
   const filtered = useMemo(()=>{
     return reports.filter(r=>{
@@ -254,7 +290,10 @@ export default function Reports() {
           "Unit Cost": it.unit_cost, "Selling Price": it.selling_price,
           "Reorder Level": it.reorder_level, Status: it.status,
         }));
-      case "valuation":
+      case "stock_summary":
+        if (stockSummaryReport.length) return stockSummaryReport.map(row => ({ ...row }));
+        // Fallback: derive valuation from items + stock balances if the
+        // dedicated endpoint isn't returning rows yet.
         return items.map(it => {
           const b = stockBalances[it.id];
           const onHand = b ? Number(b.total_on_hand ?? 0) : 0;
@@ -265,11 +304,15 @@ export default function Reports() {
           };
         });
       case "low_stock":
-        return sourceFor("low_stock").map(it => {
+        return effectiveLowStock.map(row => {
+      
+          const it = row.item ?? row;
           const b = stockBalances[it.id];
           return {
-            SKU: it.sku, Name: it.name, "Available": b?.total_available ?? 0,
-            "Reorder Level": it.reorder_level, Supplier: it.supplier?.name ?? "",
+            SKU: it.sku ?? row.sku, Name: it.name ?? row.name,
+            "Available": row.available ?? row.quantity_available ?? b?.total_available ?? 0,
+            "Reorder Level": it.reorder_level ?? row.reorder_level,
+            Supplier: it.supplier?.name ?? row.supplier_name ?? "",
           };
         });
       case "categories":
@@ -283,6 +326,34 @@ export default function Reports() {
         }));
       case "transactions":
         return transactions.map(t => ({ Item: t.itemName, SKU: t.itemSku, ...t, itemName: undefined, itemSku: undefined }));
+      case "movement":
+        return movementReport.map(row => ({ ...row }));
+      case "warehouses":
+        return warehouses.map(w => ({
+          Name: w.name, Code: w.code, Address: w.address ?? "", City: w.city ?? "",
+          State: w.state ?? "", Country: w.country ?? "", Status: w.status, "Last Updated": w.updated_at,
+        }));
+      case "transfers":
+        return transfers.map(t => ({
+          "Transfer #": t.transfer_number, From: t.from_warehouse?.name ?? t.from_location?.name ?? "",
+          To: t.to_warehouse?.name ?? t.to_location?.name ?? "", Status: t.status,
+          Date: t.transfer_date, Notes: t.notes ?? "", "Last Updated": t.updated_at,
+        }));
+      case "adjustments":
+        return adjustments.map(a => ({
+          "Adjustment #": a.adjustment_number ?? a.reference ?? a.id, Reason: a.reason ?? "",
+          Status: a.status, Date: a.adjustment_date ?? a.created_at, "Last Updated": a.updated_at,
+        }));
+      case "receipts":
+        return receipts.map(r => ({
+          "Receipt #": r.receipt_number, Supplier: r.supplier?.name ?? "", Warehouse: r.warehouse?.name ?? "",
+          Status: r.status, Date: r.receipt_date ?? r.created_at, "Last Updated": r.updated_at,
+        }));
+      case "audit_logs":
+        return auditLogs.map(l => ({
+          Log: l.log_name ?? "", Description: l.description ?? "", User: l.causer?.name ?? "",
+          Subject: l.subject_type ?? "", Date: l.created_at,
+        }));
       default:
         return [];
     }
@@ -423,10 +494,10 @@ export default function Reports() {
           <div>
             <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:5 }}>Warehouse / Location</label>
             <div style={{ position:"relative" }}>
-              <select value={warehouse} onChange={e=>setWarehouse(e.target.value)} disabled={WAREHOUSES.length<=1}
-                title={WAREHOUSES.length<=1 ? "No warehouse/location endpoint available yet" : undefined}
-                style={{ width:"100%",padding:"8px 28px 8px 10px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none",appearance:"none",background:WAREHOUSES.length<=1?"#f8f9fb":"#fff",cursor:WAREHOUSES.length<=1?"default":"pointer" }}>
-                {WAREHOUSES.map(w=><option key={w}>{w}</option>)}
+              <select value={warehouse} onChange={e=>setWarehouse(e.target.value)} disabled={warehouseOptions.length<=1}
+                title={warehouseOptions.length<=1 ? "No warehouses returned by the API yet" : undefined}
+                style={{ width:"100%",padding:"8px 28px 8px 10px",border:"1px solid #e4e7ef",borderRadius:8,fontSize:12.5,fontFamily:"inherit",color:"#1e2740",outline:"none",appearance:"none",background:warehouseOptions.length<=1?"#f8f9fb":"#fff",cursor:warehouseOptions.length<=1?"default":"pointer" }}>
+                {warehouseOptions.map(w=><option key={w}>{w}</option>)}
               </select>
               <svg style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
             </div>

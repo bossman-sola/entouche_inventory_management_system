@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
 const statusStyle = {
-  Completed: { bg: '#e6faf3', color: '#16a369' },
-  Pending: { bg: '#fff7ed', color: '#c27a0a' },
+  Received: { bg: '#e6faf3', color: '#16a369' },
+  Draft: { bg: '#fff7ed', color: '#c27a0a' },
   Cancelled: { bg: '#fff1f0', color: '#c0392b' },
 };
 
@@ -30,7 +30,7 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
 
   if (!isOpen || !receipt) return null;
 
-  const s = statusStyle[receipt.status] || statusStyle.Completed;
+  const s = statusStyle[receipt.status] || statusStyle.Draft;
   const items = receipt.items || [];
   const totItems = items.length;
   const totQty = items.reduce((a, r) => a + Number(r.qty || 0), 0);
@@ -340,7 +340,9 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
             </button>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="rcd-btn-close" onClick={onClose}>Close</button>
-              <button className="rcd-btn-edit" onClick={() => onEdit && onEdit(receipt)}>Edit Receipt</button>
+              {receipt.canEdit !== false && (
+                <button className="rcd-btn-edit" onClick={() => onEdit && onEdit(receipt)}>Edit Receipt</button>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "../../../shared/api/entoucheApi";
 
-/* ─── Toggle ─── */
 function Toggle({ value, onChange }) {
   return (
     <div onClick={()=>onChange(!value)} style={{ width:44, height:24, borderRadius:12, background:value?"#4f6ef7":"#d1d5e0", cursor:"pointer", position:"relative", transition:"background .2s", flexShrink:0 }}>
@@ -9,7 +9,6 @@ function Toggle({ value, onChange }) {
   );
 }
 
-/* ─── Section heading ─── */
 const SectionHead = ({title, sub}) => (
   <div style={{ marginBottom:22 }}>
     <div style={{ fontSize:16, fontWeight:700, color:"#1e2740", marginBottom:4 }}>{title}</div>
@@ -17,12 +16,12 @@ const SectionHead = ({title, sub}) => (
   </div>
 );
 
-/* ─── Form Row ─── */
+
 const FieldRow = ({children, cols="1fr 1fr 1fr"}) => (
   <div className="st-fieldrow" style={{ display:"grid", gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
 );
 
-/* ─── Field ─── */
+
 const Field = ({label, children}) => (
   <div style={{ minWidth:0 }}>
     <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:6 }}>{label}</label>
@@ -30,7 +29,6 @@ const Field = ({label, children}) => (
   </div>
 );
 
-/* ─── Input ─── */
 const Inp = ({value, onChange, readOnly, placeholder}) => (
   <input value={value} onChange={e=>onChange&&onChange(e.target.value)} readOnly={readOnly} placeholder={placeholder}
     style={{ width:"100%", padding:"9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", color:"#1e2740", outline:"none", background:readOnly?"#f8f9fb":"#fff", boxSizing:"border-box", transition:"border .15s" }}
@@ -39,10 +37,10 @@ const Inp = ({value, onChange, readOnly, placeholder}) => (
 );
 
 /* ─── Select ─── */
-const Sel = ({value, onChange, options}) => (
+const Sel = ({value, onChange, options, disabled}) => (
   <div style={{ position:"relative" }}>
-    <select value={value} onChange={e=>onChange(e.target.value)}
-      style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", color:"#1e2740", outline:"none", appearance:"none", background:"#fff", cursor:"pointer", boxSizing:"border-box" }}>
+    <select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled}
+      style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1px solid #e4e7ef", borderRadius:8, fontSize:13, fontFamily:"inherit", color:"#1e2740", outline:"none", appearance:"none", background:disabled?"#f8f9fb":"#fff", cursor:disabled?"default":"pointer", boxSizing:"border-box" }}>
       {options.map(o=><option key={o}>{o}</option>)}
     </select>
     <svg style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -50,11 +48,11 @@ const Sel = ({value, onChange, options}) => (
 );
 
 /* ─── Save Button ─── */
-const SaveBtn = ({onClick}) => (
+const SaveBtn = ({onClick, saving}) => (
   <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
-    <button onClick={onClick} style={{ padding:"10px 28px", background:"#4f6ef7", border:"none", borderRadius:8, fontSize:13.5, fontWeight:600, color:"#fff", cursor:"pointer", fontFamily:"inherit", transition:"background .15s" }}
-      onMouseEnter={e=>e.currentTarget.style.background="#3a5be0"} onMouseLeave={e=>e.currentTarget.style.background="#4f6ef7"}>
-      Save Changes
+    <button onClick={onClick} disabled={saving} style={{ padding:"10px 28px", background: saving?"#9aabf5":"#4f6ef7", border:"none", borderRadius:8, fontSize:13.5, fontWeight:600, color:"#fff", cursor:saving?"default":"pointer", fontFamily:"inherit", transition:"background .15s" }}
+      onMouseEnter={e=>{ if(!saving) e.currentTarget.style.background="#3a5be0"; }} onMouseLeave={e=>{ if(!saving) e.currentTarget.style.background="#4f6ef7"; }}>
+      {saving ? "Saving…" : "Save Changes"}
     </button>
   </div>
 );
@@ -78,10 +76,95 @@ const NAV_ITEMS = [
   { key:"audit",        label:"Audit",           sub:"Audit log and retention settings",  icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
 ];
 
+/* ─── Settings-key map ───
+   GET /settings returns { [group]: { "group.key": { value, type } } }.
+   The doc only shows two confirmed keys (general.company_name,
+   general.currency, numbering.receipt_prefix) — the rest below follow the
+   same "group.snake_case_field" convention but haven't been individually
+   confirmed against a live response. If the backend uses different key
+   names, hydration below will just silently keep the current UI default
+   (see `hydrate`) and Save will write new keys rather than break — but
+   it's worth diffing this map against a real GET /settings payload once
+   the backend has data seeded. */
+const SETTINGS_MAP = {
+  general: {
+    companyName:  "general.company_name",
+    companyEmail: "general.company_email",
+    companyPhone: "general.company_phone",
+    country:      "general.country",
+    timezone:     "general.timezone",
+    dateFormat:   "general.date_format",
+    timeFormat:   "general.time_format",
+    currency:     "general.currency",
+    language:     "general.language",
+  },
+  preferences: {
+    lowStockAlerts:     "inventory.low_stock_alerts",
+    emailNotifications: "notifications.email_notifications",
+    allowNegativeStock: "inventory.allow_negative_stock",
+    requireReasonAdj:   "inventory.require_reason_adjustment",
+    autoGenerateSku:    "inventory.auto_generate_sku",
+    sessionTimeout:     "security.session_timeout",
+  },
+  numbering: {
+    itemPrefix:       "numbering.item_prefix",
+    inventoryPrefix:  "numbering.inventory_prefix",
+    transferPrefix:   "numbering.transfer_prefix",
+    receiptPrefix:    "numbering.receipt_prefix",
+    adjustmentPrefix: "numbering.adjustment_prefix",
+    numberingReset:   "numbering.reset_period",
+  },
+  warehouse: {
+    defaultWarehouse:   "warehouse.default_warehouse",
+    warehousePrefix:    "warehouse.prefix",
+    enableBinLocations: "warehouse.enable_bin_locations",
+    requireLocation:    "warehouse.require_location_on_receipt",
+  },
+  security: {
+    minPasswordLength: "security.min_password_length",
+    requireUppercase:  "security.require_uppercase",
+    requireNumbers:    "security.require_numbers",
+    twoFactorAuth:     "security.two_factor_auth",
+    maxLoginAttempts:  "security.max_login_attempts",
+    lockoutDuration:   "security.lockout_duration",
+  },
+  notifications: {
+    notifyEmail:    "notifications.notify_email",
+    lowStockEmail:  "notifications.low_stock_email",
+    receiptAlerts:  "notifications.receipt_alerts",
+    transferAlerts: "notifications.transfer_alerts",
+    dailyDigest:    "notifications.daily_digest",
+  },
+  audit: {
+    retentionPeriod: "audit.retention_period",
+    logLogins:       "audit.log_logins",
+    logDataChanges:  "audit.log_data_changes",
+    logExports:      "audit.log_exports",
+    autoDeleteLogs:  "audit.auto_delete_logs",
+  },
+};
+
+// Coerce a { value, type } settings entry into a JS value matching what
+// the local <input>/<select>/<Toggle> state expects.
+function coerceSetting(entry) {
+  if (!entry) return undefined;
+  const { value, type } = entry;
+  if (type === "boolean") return value === true || value === "true" || value === 1 || value === "1";
+  if (type === "integer" || type === "number") return String(value);
+  return value ?? "";
+}
+
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("general");
   const [toast, setToast] = useState(null);
   const [navOpen, setNavOpen] = useState(false);
+
+  // Live API state
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [savingSection, setSavingSection] = useState(null);
+  const [warehouses, setWarehouses] = useState([]);
+  const [auditLogCount, setAuditLogCount] = useState(null);
 
   /* ── General ── */
   const [companyName,  setCompanyName]  = useState("Ross & Co. Global Resources");
@@ -139,14 +222,160 @@ export default function Settings() {
   const [autoDeleteLogs,  setAutoDeleteLogs]  = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),2600); };
-  const handleSave = () => showToast("Settings saved successfully ✓");
 
+  // Every piece of state above, keyed the same way SETTINGS_MAP keys its
+  // fields, so hydrate/save can loop generically instead of a 40-line
+  // switch statement.
+  const stateByField = {
+    companyName:  [companyName, setCompanyName],
+    companyEmail: [companyEmail, setCompanyEmail],
+    companyPhone: [companyPhone, setCompanyPhone],
+    country:      [country, setCountry],
+    timezone:     [timezone, setTimezone],
+    dateFormat:   [dateFormat, setDateFormat],
+    timeFormat:   [timeFormat, setTimeFormat],
+    currency:     [currency, setCurrency],
+    language:     [language, setLanguage],
+
+    lowStockAlerts:     [lowStockAlerts, setLowStockAlerts],
+    emailNotifications: [emailNotifications, setEmailNotifications],
+    allowNegativeStock: [allowNegativeStock, setAllowNegativeStock],
+    requireReasonAdj:   [requireReasonAdj, setRequireReasonAdj],
+    autoGenerateSku:    [autoGenerateSku, setAutoGenerateSku],
+    sessionTimeout:     [sessionTimeout, setSessionTimeout],
+
+    itemPrefix:       [itemPrefix, setItemPrefix],
+    inventoryPrefix:  [inventoryPrefix, setInventoryPrefix],
+    transferPrefix:   [transferPrefix, setTransferPrefix],
+    receiptPrefix:    [receiptPrefix, setReceiptPrefix],
+    adjustmentPrefix: [adjustmentPrefix, setAdjustmentPrefix],
+    numberingReset:   [numberingReset, setNumberingReset],
+
+    defaultWarehouse:   [defaultWarehouse, setDefaultWarehouse],
+    warehousePrefix:    [warehousePrefix, setWarehousePrefix],
+    enableBinLocations: [enableBinLocations, setEnableBinLocations],
+    requireLocation:    [requireLocation, setRequireLocation],
+
+    minPasswordLength: [minPasswordLength, setMinPasswordLength],
+    requireUppercase:  [requireUppercase, setRequireUppercase],
+    requireNumbers:    [requireNumbers, setRequireNumbers],
+    twoFactorAuth:     [twoFactorAuth, setTwoFactorAuth],
+    maxLoginAttempts:  [maxLoginAttempts, setMaxLoginAttempts],
+    lockoutDuration:   [lockoutDuration, setLockoutDuration],
+
+    notifyEmail:    [notifyEmail, setNotifyEmail],
+    lowStockEmail:  [lowStockEmail, setLowStockEmail],
+    receiptAlerts:  [receiptAlerts, setReceiptAlerts],
+    transferAlerts: [transferAlerts, setTransferAlerts],
+    dailyDigest:    [dailyDigest, setDailyDigest],
+
+    retentionPeriod: [retentionPeriod, setRetentionPeriod],
+    logLogins:       [logLogins, setLogLogins],
+    logDataChanges:  [logDataChanges, setLogDataChanges],
+    logExports:      [logExports, setLogExports],
+    autoDeleteLogs:  [autoDeleteLogs, setAutoDeleteLogs],
+  };
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [settingsRes, warehousesRes, auditRes] = await Promise.allSettled([
+        api.listSettings(),
+        api.listWarehouses(),
+        api.listAuditLogs(),
+      ]);
+
+      if (settingsRes.status === "fulfilled" && settingsRes.value) {
+        // Flatten { group: { "group.key": {value,type} } } -> { "group.key": coercedValue }
+        const flat = {};
+        Object.values(settingsRes.value).forEach(group => {
+          Object.entries(group || {}).forEach(([key, entry]) => {
+            flat[key] = coerceSetting(entry);
+          });
+        });
+        Object.values(SETTINGS_MAP).forEach(fieldMap => {
+          Object.entries(fieldMap).forEach(([field, settingKey]) => {
+            if (flat[settingKey] !== undefined) {
+              const [, setter] = stateByField[field];
+              setter(flat[settingKey]);
+            }
+          });
+        });
+      } else if (settingsRes.status === "rejected") {
+        setLoadError(settingsRes.reason?.message || "Failed to load settings");
+      }
+
+      setWarehouses(warehousesRes.status === "fulfilled" ? (warehousesRes.value || []) : []);
+
+      if (auditRes.status === "fulfilled") {
+        const val = auditRes.value;
+        const count = Array.isArray(val) ? val.length : (val?.total ?? val?.data?.length ?? null);
+        setAuditLogCount(count);
+      }
+    } catch (e) {
+      setLoadError(e.message || "Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const warehouseOptions = useMemo(() => {
+    const names = warehouses.map(w => w.name).filter(Boolean);
+    // Keep the current selection visible even if it's not in the fetched
+    // list yet (e.g. still loading, or the saved setting predates the
+    // warehouse being renamed/deleted).
+    return names.includes(defaultWarehouse) ? names : [defaultWarehouse, ...names];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouses]);
+
+  const handleSaveSection = async (sectionKey) => {
+    const fieldMap = SETTINGS_MAP[sectionKey];
+    if (!fieldMap) { showToast("Nothing to save for this section"); return; }
+    const payload = {};
+    Object.entries(fieldMap).forEach(([field, settingKey]) => {
+      payload[settingKey] = stateByField[field][0];
+    });
+    setSavingSection(sectionKey);
+    try {
+      await api.bulkUpdateSettings(payload);
+      showToast("Settings saved successfully ✓");
+    } catch (e) {
+      showToast(`Couldn't save settings: ${e.message}`);
+    } finally {
+      setSavingSection(null);
+    }
+  };
+
+  // Backup Now / Restore from Backup / Clear Cache have no corresponding
+  // endpoints in the API (no backup, restore, or cache-clear routes exist)
+  // — surface that honestly instead of faking a success toast.
+  // "View System Logs" is the one action with a real match: audit logs.
   const actionItems = [
-    { label:"Backup Now",         sub:"Create a backup of your data now", color:"#4f6ef7", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
-    { label:"Restore from Backup",sub:"Restore data from a previous backup", color:"#f59e0b", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
-    { label:"Clear Cache",        sub:"Improve system performance", color:"#8b5cf6", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> },
-    { label:"View System Logs",   sub:"View system activity logs", color:"#22c27e", icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+    { label:"Backup Now",         sub:"Create a backup of your data now", color:"#4f6ef7", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
+    { label:"Restore from Backup",sub:"Restore data from a previous backup", color:"#f59e0b", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
+    { label:"Clear Cache",        sub:"Improve system performance", color:"#8b5cf6", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> },
+    { label:"View System Logs",   sub:"View system activity logs", color:"#22c27e", available:true, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
   ];
+
+  const handleAction = async (item) => {
+    if (!item.available) {
+      showToast(`${item.label} isn't available yet — no matching endpoint`);
+      return;
+    }
+    // View System Logs -> pull a fresh count from /audit-logs
+    try {
+      const res = await api.listAuditLogs();
+      const count = Array.isArray(res) ? res.length : (res?.total ?? res?.data?.length ?? 0);
+      setAuditLogCount(count);
+      showToast(`${count} audit log entr${count===1?"y":"ies"} recorded`);
+    } catch (e) {
+      showToast(`Couldn't load audit logs: ${e.message}`);
+    }
+  };
 
   const renderSection = () => {
     switch(activeSection) {
@@ -171,7 +400,7 @@ export default function Settings() {
               <Field label="Currency"><Sel value={currency} onChange={setCurrency} options={["NGN (₦) - Nigerian Naira","USD ($) - US Dollar","GBP (£) - British Pound","EUR (€) - Euro"]}/></Field>
               <Field label="Language"><Sel value={language} onChange={setLanguage} options={["English (US)","English (UK)","French","Portuguese"]}/></Field>
             </FieldRow>
-            <SaveBtn onClick={handleSave}/>
+            <SaveBtn onClick={()=>handleSaveSection("general")} saving={savingSection==="general"}/>
           </div>
 
           {/* System Preferences */}
@@ -205,7 +434,7 @@ export default function Settings() {
                 <div style={{ fontSize:12, color:"#9aa1b4", marginTop:5 }}>Automatically log out inactive users.</div>
               </div>
             </div>
-            <SaveBtn onClick={handleSave}/>
+            <SaveBtn onClick={()=>handleSaveSection("preferences")} saving={savingSection==="preferences"}/>
           </div>
 
           {/* Document & Numbering */}
@@ -227,7 +456,7 @@ export default function Settings() {
                 <span style={{ fontSize:12, color:"#9aa1b4" }}>Numbers will continue sequentially.</span>
               </div>
             </div>
-            <SaveBtn onClick={handleSave}/>
+            <SaveBtn onClick={()=>handleSaveSection("numbering")} saving={savingSection==="numbering"}/>
           </div>
         </>
       );
@@ -236,9 +465,14 @@ export default function Settings() {
         <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Warehouse Settings" sub="Manage warehouse and location preferences."/>
           <FieldRow cols="1fr 1fr">
-            <Field label="Default Warehouse"><Sel value={defaultWarehouse} onChange={setDefaultWarehouse} options={["Storage Area","Receiving Area","Distribution Center"]}/></Field>
+            <Field label="Default Warehouse">
+              <Sel value={defaultWarehouse} onChange={setDefaultWarehouse} options={warehouseOptions} disabled={warehouses.length===0}/>
+            </Field>
             <Field label="Warehouse Prefix"><Inp value={warehousePrefix} onChange={setWarehousePrefix}/></Field>
           </FieldRow>
+          {warehouses.length===0 && !loading && (
+            <div style={{ fontSize:12, color:"#9aa1b4", marginTop:-8, marginBottom:16 }}>No warehouses returned by the API yet — showing the saved value only.</div>
+          )}
           <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:20 }}>
             {[
               [enableBinLocations, setEnableBinLocations, "Enable Bin Locations",     "Allow items to be assigned to specific bin locations."],
@@ -250,7 +484,7 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <SaveBtn onClick={handleSave}/>
+          <SaveBtn onClick={()=>handleSaveSection("warehouse")} saving={savingSection==="warehouse"}/>
         </div>
       );
 
@@ -274,7 +508,7 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <SaveBtn onClick={handleSave}/>
+          <SaveBtn onClick={()=>handleSaveSection("security")} saving={savingSection==="security"}/>
         </div>
       );
 
@@ -296,13 +530,16 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <SaveBtn onClick={handleSave}/>
+          <SaveBtn onClick={()=>handleSaveSection("notifications")} saving={savingSection==="notifications"}/>
         </div>
       );
 
       case "audit": return (
         <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:28 }} className="st-card">
           <SectionHead title="Audit Settings" sub="Configure audit log and data retention settings."/>
+          {auditLogCount !== null && (
+            <div style={{ fontSize:12.5, color:"#6b7591", marginBottom:16 }}>{auditLogCount} audit log entr{auditLogCount===1?"y":"ies"} currently recorded.</div>
+          )}
           <div style={{ marginBottom:16 }}>
             <Field label="Log Retention Period">
               <Sel value={retentionPeriod} onChange={setRetentionPeriod} options={["3 months","6 months","12 months","24 months","Indefinitely"]}/>
@@ -321,7 +558,7 @@ export default function Settings() {
               </div>
             ))}
           </div>
-          <SaveBtn onClick={handleSave}/>
+          <SaveBtn onClick={()=>handleSaveSection("audit")} saving={savingSection==="audit"}/>
         </div>
       );
 
@@ -375,6 +612,13 @@ export default function Settings() {
           <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Manage system configuration and preferences.</p>
         </div>
 
+        {loadError && (
+          <div style={{ background:"#fff5f5", border:"1px solid #fecaca", color:"#b91c1c", borderRadius:10, padding:"10px 16px", marginBottom:16, fontSize:12.5, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+            <span>Couldn't load live settings: {loadError}</span>
+            <button onClick={loadAll} style={{ border:"1px solid #fecaca", background:"#fff", color:"#b91c1c", borderRadius:6, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>Retry</button>
+          </div>
+        )}
+
         {/* Mobile nav toggle */}
         <button className="st-navmobile-toggle" onClick={()=>setNavOpen(o=>!o)}
           style={{ alignItems:"center", justifyContent:"space-between", width:"100%", padding:"12px 16px", marginBottom:12, background:"#fff", border:"1px solid #e4e7ef", borderRadius:10, fontFamily:"inherit", cursor:"pointer" }}>
@@ -406,7 +650,9 @@ export default function Settings() {
           </div>
 
           {/* ── Center Content ── */}
-          <div style={{ minWidth:0 }}>{renderSection()}</div>
+          <div style={{ minWidth:0 }}>{loading ? (
+            <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:48, textAlign:"center", color:"#9aa1b4" }}>Loading settings…</div>
+          ) : renderSection()}</div>
 
           {/* ── Right Panel ── */}
           <div className="st-right" style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -415,13 +661,13 @@ export default function Settings() {
             <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", borderBottom:"1px solid #e4e7ef", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <span style={{ fontWeight:700, fontSize:13.5, color:"#1e2740" }}>Company Information</span>
-                <button onClick={()=>showToast("Edit mode coming soon")} style={{ display:"flex",alignItems:"center",gap:5,padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",fontSize:12,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
+                <button onClick={()=>{ setActiveSection("general"); setNavOpen(false); }} style={{ display:"flex",alignItems:"center",gap:5,padding:"5px 12px",border:"1px solid #e4e7ef",borderRadius:7,background:"#fff",fontSize:12,cursor:"pointer",color:"#4f6ef7",fontFamily:"inherit",fontWeight:500 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   Edit
                 </button>
               </div>
               <div style={{ padding:"18px 18px 6px" }}>
-                {/* Logo placeholder */}
+                {/* Logo placeholder — no logo-upload endpoint exists yet */}
                 <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
                 </div>
@@ -430,34 +676,36 @@ export default function Settings() {
                   <div style={{ fontSize:12, color:"#9aa1b4", marginTop:3 }}>Enterprise Inventory Management</div>
                 </div>
                 {[
-                  ["Email",   companyEmail],
-                  ["Phone",   companyPhone],
-                  ["Address", "12 Industrial Avenue, Lagos, Nigeria"],
-                  ["Website", "www.rossglobal.com"],
+                  ["Email", companyEmail],
+                  ["Phone", companyPhone],
                 ].map(([label,val])=>(
                   <div key={label} style={{ display:"flex", gap:8, padding:"8px 0", borderTop:"1px solid #f4f6fb" }}>
                     <span style={{ fontSize:12, color:"#9aa1b4", width:55, flexShrink:0 }}>{label}</span>
                     <span style={{ fontSize:12, color:"#1e2740", wordBreak:"break-all" }}>{val}</span>
                   </div>
                 ))}
+                {/* Address / Website aren't part of the settings schema
+                    the API exposes (general.* only has name/email/phone/
+                    country/timezone/date/time/currency/language in the
+                    documented example) — omitted rather than faked. */}
               </div>
             </div>
 
-            {/* System Details */}
+            {/* System Details — no /system, /version, or /backup endpoints
+                exist in the API, so this stays static rather than pretend
+                it's live. */}
             <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
               <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
               {[
-                ["Version",         "v1.0.0"],
-                ["Environment",     "Production"],
-                ["Database",        "PostgreSQL 15"],
-                ["Last Backup",     "May 27, 2025 02:15 AM"],
-                ["Next Scheduled Backup","May 28, 2025 02:00 AM"],
+                ["Audit Log Entries", auditLogCount !== null ? String(auditLogCount) : "—"],
+                ["Warehouses",        String(warehouses.length)],
               ].map(([label,val])=>(
                 <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
                   <span style={{ fontSize:12, color:"#9aa1b4" }}>{label}</span>
                   <span style={{ fontSize:12, color:"#1e2740", fontWeight:500, textAlign:"right", maxWidth:140 }}>{val}</span>
                 </div>
               ))}
+              <div style={{ fontSize:11, color:"#c9cedd", marginTop:8 }}>Version, environment and backup info aren't exposed by the API yet.</div>
             </div>
 
             {/* Actions */}
@@ -465,12 +713,12 @@ export default function Settings() {
               <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>Actions</div>
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {actionItems.map((a,i)=>(
-                  <button key={i} onClick={()=>showToast(`${a.label}...`)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:"1px solid #f4f6fb", borderRadius:9, background:"#fff", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s", width:"100%" }}
+                  <button key={i} onClick={()=>handleAction(a)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:"1px solid #f4f6fb", borderRadius:9, background:"#fff", cursor:"pointer", textAlign:"left", fontFamily:"inherit", transition:"background .15s", width:"100%", opacity:a.available?1:0.55 }}
                     onMouseEnter={e=>e.currentTarget.style.background="#f8f9fb"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
                     <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
                     <div>
                       <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
-                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.sub}</div>
+                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.available ? a.sub : "Not available — no matching endpoint"}</div>
                     </div>
                   </button>
                 ))}
