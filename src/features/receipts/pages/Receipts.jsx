@@ -26,7 +26,7 @@ function fmtNaira(n) {
 }
 
 function fmtDateDisplay(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -210,7 +210,7 @@ export default function Receipts() {
 
   /* ── filtering ── */
   // Supplier filter list comes from the live Suppliers API, not just suppliers
-  // that happen to already be on a receipt — so it's accurate even with 0 receipts.
+  // that happen to already be on a receipt - so it's accurate even with 0 receipts.
   const suppliers = ["All Suppliers", ...supplierOptions.map(s => s.name)];
 
   const filtered = receipts.filter(r => {

@@ -44,7 +44,7 @@ function duplicateCodeError(err) {
   if (!/duplicate entry/i.test(raw) || !/code/i.test(raw)) return null;
   const match = raw.match(/Duplicate entry '([^']+)'/i);
   const value = match ? match[1] : null;
-  return `${value ? `"${value}"` : 'That code'} is already in use by another warehouse — try a different code.`;
+  return `${value ? `"${value}"` : 'That code'} is already in use by another warehouse - try a different code.`;
 }
 
 export default function WarehouseOverviewPage() {

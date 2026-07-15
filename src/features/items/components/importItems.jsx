@@ -134,7 +134,7 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
     // Cross-check: does the given Unit actually belong to the given Unit
     // Type per the reference table (e.g. "Piece" really is a Count unit)?
     if (r.unit && r.unitType) {
-      // The Unit column may be "Piece (PCS)" or just "Piece" — try the
+      // The Unit column may be "Piece (PCS)" or just "Piece" - try the
       // name portion before any parenthesis first, then the raw value.
       const unitNamePart = r.unit.replace(/\s*\(.*\)\s*$/, '').trim();
       const resolvedType = getUnitType(unitNamePart) || getUnitType(r.unit);
@@ -171,13 +171,13 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
 
 // Builds the downloadable import template as a real .xlsx workbook (not
 // CSV) so we can have bold header text and actual dropdown menus on the
-// Category, Unit, and Unit Type columns — neither is possible in plain
+// Category, Unit, and Unit Type columns - neither is possible in plain
 // CSV. Category/Unit dropdown options come from whatever the account
 // already has; Unit Type always comes from the fixed reference table.
 const downloadTemplate = async (categories = [], units = []) => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Items');
-  // Hidden sheet holding the dropdown source lists — data validation
+  // Hidden sheet holding the dropdown source lists - data validation
   // "list" formulae need cell ranges, not just inline literals, once the
   // options get long (30 units across 5 types).
   const listSheet = workbook.addWorksheet('Lists');
@@ -247,7 +247,7 @@ const downloadTemplate = async (categories = [], units = []) => {
 const ImportItems = ({
   isOpen,
   onClose,
-  onImportComplete, // async (validRows) => void — do the actual bulk-create API call here
+  onImportComplete, // async (validRows) => void - do the actual bulk-create API call here
   categories = [],
   units = [],
   existingBarcodes = [],
@@ -529,11 +529,11 @@ const ImportItems = ({
                           {filteredRows.map((row) => (
                             <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
                               <td className="px-6 py-5 text-slate-400 font-bold">{row.id}</td>
-                              <td className="px-6 py-5 text-[#1E2740]">{row.name || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.category || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unit || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unitType || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.barcode || '—'}</td>
+                              <td className="px-6 py-5 text-[#1E2740]">{row.name || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.category || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unit || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unitType || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.barcode || '-'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.sku || 'Auto-generated'}</td>
                               <td className="px-6 py-5">
                                 <span className={`px-2 py-0.5 rounded-md border text-[10px] ${STATUS_STYLES[row.status]}`}>
@@ -541,7 +541,7 @@ const ImportItems = ({
                                 </span>
                               </td>
                               <td className="px-6 py-5 text-slate-400 font-medium max-w-[220px]">
-                                {row.errors.length ? row.errors.join(' ') : '—'}
+                                {row.errors.length ? row.errors.join(' ') : '-'}
                               </td>
                             </tr>
                           ))}

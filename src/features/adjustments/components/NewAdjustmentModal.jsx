@@ -93,7 +93,7 @@ const ItemPicker = ({ row, allItems, itemsLoading, itemsError, onPick }) => {
       {open && !itemsLoading && (
         <div className="absolute z-10 mt-1 w-64 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
           {itemsError && <p className="px-3 py-2 text-xs text-red-500">Couldn't load items: {itemsError}</p>}
-          {!itemsError && allItems.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No items exist yet — create one on the Items page first.</p>}
+          {!itemsError && allItems.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No items exist yet - create one on the Items page first.</p>}
           {!itemsError && allItems.length > 0 && matches.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No items match "{query}"</p>}
           {matches.map(it => (
             <button
@@ -326,9 +326,9 @@ export default function NewAdjustmentModal({
                         <td className="py-2 px-3">
                           <ItemPicker row={row} allItems={allItems} itemsLoading={itemsLoading} itemsError={itemsError} onPick={(it) => handlePickItem(row.id, it)} />
                         </td>
-                        <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "—"}</td>
+                        <td className="py-2 px-3 text-sm text-gray-400">{row.sku || "-"}</td>
                         <td className="py-2 px-3 text-sm text-gray-700">{row.stockLoading ? <Loader2 size={13} className="animate-spin text-gray-400" /> : row.currentStock}</td>
-                        <td className="py-2 px-3 text-sm text-gray-500">{row.unit || "—"}</td>
+                        <td className="py-2 px-3 text-sm text-gray-500">{row.unit || "-"}</td>
                         <td className="py-2 px-3">
                           <input type="number" value={row.adjQty} onChange={e => updateItem(row.id, "adjQty", +e.target.value)} className="w-20 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center" />
                         </td>
@@ -362,7 +362,7 @@ export default function NewAdjustmentModal({
               </div>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Unit cost is only used to preview the value impact here — it isn't sent to the API.</p>
+          <p className="text-xs text-gray-400 mt-2">Unit cost is only used to preview the value impact here - it isn't sent to the API.</p>
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-gray-100">

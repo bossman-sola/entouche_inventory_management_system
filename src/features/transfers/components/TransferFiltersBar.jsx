@@ -7,7 +7,7 @@ export default function TransferFiltersBar({
   toFilter, setToFilter,
   statusFilter, setStatusFilter,
 }) {
-  const locationOptions = locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} — ${l.name}` }));
+  const locationOptions = locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} - ${l.name}` }));
   const statusOptions = TRANSFER_STATUSES.map(s => ({ value: s, label: STATUS_META[s].label }));
   const hasFilters = fromFilter || toFilter || statusFilter;
 

@@ -52,7 +52,7 @@ async function request(path, { method = 'GET', body, params, isForm = false, raw
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch (networkErr) {
-    throw new ApiError('Network error — could not reach the API. Please check your connection.', 0, null);
+    throw new ApiError('Network error - could not reach the API. Please check your connection.', 0, null);
   }
 
   let json = null;
@@ -159,7 +159,7 @@ export function mapApiItem(item) {
     barcode: item.barcode || '',
     cat: item.category?.name || 'Uncategorized',
     categoryId: item.category_id ?? item.category?.id ?? null,
-    unit: item.unit?.abbreviation ? `${item.unit.name} (${item.unit.abbreviation})` : (item.unit?.name || '—'),
+    unit: item.unit?.abbreviation ? `${item.unit.name} (${item.unit.abbreviation})` : (item.unit?.name || '-'),
     unitId: item.unit_of_measure_id ?? item.unit?.id ?? null,
     supplierId: item.supplier_id ?? item.supplier?.id ?? null,
     reorderLevel: item.reorder_level ?? null,
@@ -228,7 +228,7 @@ export function mapApiReceiptItem(it) {
     name: item.name || it.item_name || 'Unknown item',
     sku: item.sku || '',
     cat: item.category?.name || 'Uncategorized',
-    unit: item.unit?.abbreviation ? `${item.unit.name} (${item.unit.abbreviation})` : (item.unit?.name || '—'),
+    unit: item.unit?.abbreviation ? `${item.unit.name} (${item.unit.abbreviation})` : (item.unit?.name || '-'),
     qty: Number(it.quantity || 0),
     cost: Number(it.unit_cost || 0),
     warehouseLocationId: it.warehouse_location_id ?? null,
@@ -256,7 +256,7 @@ export function mapApiReceipt(r) {
 
   return {
     id: r.id,
-    no: r.receipt_number || (r.id ? `RCPT-${String(r.id).padStart(6, '0')}` : '—'),
+    no: r.receipt_number || (r.id ? `RCPT-${String(r.id).padStart(6, '0')}` : '-'),
     status: RECEIPT_STATUS_LABEL[r.status] || r.status || 'Draft',
     apiStatus: r.status,
     date: r.receipt_date || '',
@@ -269,12 +269,12 @@ export function mapApiReceipt(r) {
     receivingLocation: r.receiving_location?.name || '',
     receivingLocationId: r.receiving_location_id ?? r.receiving_location?.id ?? null,
     storageLocation: r.receiving_location?.name || '',
-    ref: poNumber || '—',
+    ref: poNumber || '-',
     poNumber,
     notes,
     qty,
     val: '₦' + Math.round(val).toLocaleString('en-NG'),
-    deliveryNoteNo: r.receipt_number || '—',
+    deliveryNoteNo: r.receipt_number || '-',
     deliveryDate: r.receipt_date || '',
     discount: 0,
     otherCharges: 0,

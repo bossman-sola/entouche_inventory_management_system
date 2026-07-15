@@ -22,20 +22,20 @@ export const STATUS_BADGE_CLASS = {
 
 export const getAdjType = (a) => a.adjustment_type ?? a.type ?? null;
 export const getStatus = (a) => a.status ?? "draft";
-export const getReason = (a) => a.reason ?? "—";
+export const getReason = (a) => a.reason ?? "-";
 export const getDate = (a) => a.adjustment_date ?? a.created_at ?? null;
 export const getReference = (a) => a.reference_number ?? a.reference ?? `#${a.id}`;
-export const getWarehouseName = (a) => a.warehouse?.name ?? a.warehouse_name ?? "—";
-export const getLocationName = (a) => a.warehouse_location?.name ?? a.location?.name ?? a.warehouse_location_name ?? "—";
-export const getAdjustedByName = (a) => a.created_by?.name ?? a.user?.name ?? a.creator?.name ?? a.adjusted_by?.name ?? "—";
+export const getWarehouseName = (a) => a.warehouse?.name ?? a.warehouse_name ?? "-";
+export const getLocationName = (a) => a.warehouse_location?.name ?? a.location?.name ?? a.warehouse_location_name ?? "-";
+export const getAdjustedByName = (a) => a.created_by?.name ?? a.user?.name ?? a.creator?.name ?? a.adjusted_by?.name ?? "-";
 
 export const getItemRows = (a) => (Array.isArray(a.items) ? a.items : []);
 export const getItemName = (row) => row.item?.name ?? row.name ?? row.item_name ?? "Item";
-export const getItemSku = (row) => row.item?.sku ?? row.sku ?? "—";
+export const getItemSku = (row) => row.item?.sku ?? row.sku ?? "-";
 export const getItemQty = (row) => row.adjustment_quantity ?? row.quantity ?? 0;
 
 export function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

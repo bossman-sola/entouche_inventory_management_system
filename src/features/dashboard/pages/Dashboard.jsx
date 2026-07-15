@@ -384,7 +384,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm h-[380px]">
           <h3 className="text-[14px] font-extrabold flex items-center gap-2 text-[#1E2740]"><Trend /> Inventory Value Trend</h3>
-          <p className="text-[11px] text-gray-400 mt-1 mb-4">Value of stock received, transferred, or adjusted per day — not a running total on hand.</p>
+          <p className="text-[11px] text-gray-400 mt-1 mb-4">Value of stock received, transferred, or adjusted per day - not a running total on hand.</p>
           <ResponsiveContainer width="100%" height="72%">
             <LineChart data={stats.trend}>
               <CartesianGrid strokeDasharray="0" vertical={false} stroke="#F1F5F9" />

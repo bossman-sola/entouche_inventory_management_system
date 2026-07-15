@@ -25,11 +25,11 @@ export function validateData(headers, rows, importType, refData) {
 
   const missingColumns = required.filter(rc => !normalizedHeaders.includes(normalizeHeader(rc)));
   if (missingColumns.length === required.length && required.length > 0) {
-    errs.push({ row: "—", column: "(all columns)", error: "File does not match Import Type", errorColor: "text-red-600", value: headers.length ? headers.join(", ") : "(no headers found)" });
+    errs.push({ row: "-", column: "(all columns)", error: "File does not match Import Type", errorColor: "text-red-600", value: headers.length ? headers.join(", ") : "(no headers found)" });
     return errs;
   }
   missingColumns.forEach(col => {
-    errs.push({ row: "—", column: col, error: "Missing required column", errorColor: "text-red-500", value: "(column not found)" });
+    errs.push({ row: "-", column: col, error: "Missing required column", errorColor: "text-red-500", value: "(column not found)" });
   });
 
   const colIndex = {};
@@ -71,7 +71,7 @@ export function validateData(headers, rows, importType, refData) {
         }
         seenEmails.add(value);
       }
-      // Role is intentionally not cross-checked here — see REQUIRED_COLUMNS
+      // Role is intentionally not cross-checked here - see REQUIRED_COLUMNS
       // comment above.
     });
   });

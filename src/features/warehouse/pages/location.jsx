@@ -291,7 +291,7 @@ export default function LocationsPage() {
       {!loading && !error && warehouses.length === 0 && (
         <div className="api-note">
           <Info size={15} />
-          No warehouses yet — create a warehouse first, then locations can be added to it.
+          No warehouses yet - create a warehouse first, then locations can be added to it.
         </div>
       )}
 

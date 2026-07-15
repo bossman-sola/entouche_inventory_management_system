@@ -15,7 +15,7 @@ async function unwrap(promise) {
 }
 
 export const warehousesApi = {
-  // GET /api/v1/warehouses — paginated, returns { data, meta, links }
+  // GET /api/v1/warehouses - paginated, returns { data, meta, links }
   list(params = {}) {
     const cleaned = Object.fromEntries(
       Object.entries(params).filter(([, v]) => v !== '' && v != null)

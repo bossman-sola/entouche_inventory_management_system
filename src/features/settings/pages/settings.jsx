@@ -79,11 +79,11 @@ const NAV_ITEMS = [
 /* ─── Settings-key map ───
    GET /settings returns { [group]: { "group.key": { value, type } } }.
    The doc only shows two confirmed keys (general.company_name,
-   general.currency, numbering.receipt_prefix) — the rest below follow the
+   general.currency, numbering.receipt_prefix) - the rest below follow the
    same "group.snake_case_field" convention but haven't been individually
    confirmed against a live response. If the backend uses different key
    names, hydration below will just silently keep the current UI default
-   (see `hydrate`) and Save will write new keys rather than break — but
+   (see `hydrate`) and Save will write new keys rather than break - but
    it's worth diffing this map against a real GET /settings payload once
    the backend has data seeded. */
 const SETTINGS_MAP = {
@@ -352,7 +352,7 @@ export default function Settings() {
 
   // Backup Now / Restore from Backup / Clear Cache have no corresponding
   // endpoints in the API (no backup, restore, or cache-clear routes exist)
-  // — surface that honestly instead of faking a success toast.
+  // - surface that honestly instead of faking a success toast.
   // "View System Logs" is the one action with a real match: audit logs.
   const actionItems = [
     { label:"Backup Now",         sub:"Create a backup of your data now", color:"#4f6ef7", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
@@ -363,7 +363,7 @@ export default function Settings() {
 
   const handleAction = async (item) => {
     if (!item.available) {
-      showToast(`${item.label} isn't available yet — no matching endpoint`);
+      showToast(`${item.label} isn't available yet - no matching endpoint`);
       return;
     }
     // View System Logs -> pull a fresh count from /audit-logs
@@ -471,7 +471,7 @@ export default function Settings() {
             <Field label="Warehouse Prefix"><Inp value={warehousePrefix} onChange={setWarehousePrefix}/></Field>
           </FieldRow>
           {warehouses.length===0 && !loading && (
-            <div style={{ fontSize:12, color:"#9aa1b4", marginTop:-8, marginBottom:16 }}>No warehouses returned by the API yet — showing the saved value only.</div>
+            <div style={{ fontSize:12, color:"#9aa1b4", marginTop:-8, marginBottom:16 }}>No warehouses returned by the API yet - showing the saved value only.</div>
           )}
           <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:20 }}>
             {[
@@ -667,7 +667,7 @@ export default function Settings() {
                 </button>
               </div>
               <div style={{ padding:"18px 18px 6px" }}>
-                {/* Logo placeholder — no logo-upload endpoint exists yet */}
+                {/* Logo placeholder - no logo-upload endpoint exists yet */}
                 <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
                 </div>
@@ -687,17 +687,17 @@ export default function Settings() {
                 {/* Address / Website aren't part of the settings schema
                     the API exposes (general.* only has name/email/phone/
                     country/timezone/date/time/currency/language in the
-                    documented example) — omitted rather than faked. */}
+                    documented example) - omitted rather than faked. */}
               </div>
             </div>
 
-            {/* System Details — no /system, /version, or /backup endpoints
+            {/* System Details - no /system, /version, or /backup endpoints
                 exist in the API, so this stays static rather than pretend
                 it's live. */}
             <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
               <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
               {[
-                ["Audit Log Entries", auditLogCount !== null ? String(auditLogCount) : "—"],
+                ["Audit Log Entries", auditLogCount !== null ? String(auditLogCount) : "-"],
                 ["Warehouses",        String(warehouses.length)],
               ].map(([label,val])=>(
                 <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
@@ -718,7 +718,7 @@ export default function Settings() {
                     <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
                     <div>
                       <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
-                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.available ? a.sub : "Not available — no matching endpoint"}</div>
+                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.available ? a.sub : "Not available - no matching endpoint"}</div>
                     </div>
                   </button>
                 ))}

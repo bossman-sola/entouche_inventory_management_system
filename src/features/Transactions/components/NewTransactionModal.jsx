@@ -45,7 +45,7 @@ export const NewTransactionModal = ({ open, onClose, onSave, catalogItems, units
 
   // One warehouse+location picker per slot the API needs. Adjustment and
   // Stock Count both only need a single warehouse/location, so they share
-  // the "general" picker — only one of those two types is ever shown at once.
+  // the "general" picker - only one of those two types is ever shown at once.
   const receiving = useWarehouseLocationPicker(fetchLocationsForWarehouse);
   const from       = useWarehouseLocationPicker(fetchLocationsForWarehouse);
   const to         = useWarehouseLocationPicker(fetchLocationsForWarehouse);
@@ -196,7 +196,7 @@ export const NewTransactionModal = ({ open, onClose, onSave, catalogItems, units
               <div style={{ marginTop: 10, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#1d4ed8" }}>
                 Stock counts save as a draft here. The API needs it "started" (which loads current
                 system quantities per item), counted, then completed and approved before it moves
-                stock — that multi-step flow isn't wired up on this page yet, so finish this one from
+                stock - that multi-step flow isn't wired up on this page yet, so finish this one from
                 the Stock Counts page once it exists.
               </div>
             </>

@@ -14,7 +14,7 @@ async function unwrap(promise) {
 }
 
 export const locationsApi = {
-  // PUT /api/v1/locations/{id}  — body: { name, code, type, ... }
+  // PUT /api/v1/locations/{id}  - body: { name, code, type, ... }
   update(id, payload) {
     return unwrap(apiClient.put(`/locations/${id}`, payload));
   },
@@ -24,7 +24,7 @@ export const locationsApi = {
     return unwrap(apiClient.delete(`/locations/${id}`));
   },
 
-  // POST /api/v1/locations/{id}/toggle-status — body: { status: 'active' | 'inactive' }
+  // POST /api/v1/locations/{id}/toggle-status - body: { status: 'active' | 'inactive' }
   toggleStatus(id, status) {
     return unwrap(apiClient.post(`/locations/${id}/toggle-status`, { status }));
   },

@@ -92,7 +92,7 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
         }
         ok++;
       } catch (err) {
-        apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "—" });
+        apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
       }
     }
 

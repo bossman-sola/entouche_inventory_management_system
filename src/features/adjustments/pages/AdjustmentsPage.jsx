@@ -46,7 +46,7 @@ function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete
     actions.push({ label: "Cancel", onClick: onCancel, danger: true });
   }
 
-  if (actions.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+  if (actions.length === 0) return <span className="text-gray-300 text-xs">-</span>;
 
   return (
     <div className="relative">
@@ -164,7 +164,7 @@ export default function AdjustmentsPage() {
         </div>
       )}
 
-      {/* Stats — computed from the currently-loaded page */}
+      {/* Stats - computed from the currently-loaded page */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Adjustments Loaded" value={adjustments.length} sub={`Page ${page}`} subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" loading={loading} />
         <StatCard label="Increases" value={increases.length} sub={`+${totalIncQty.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" loading={loading} />
@@ -244,7 +244,7 @@ export default function AdjustmentsPage() {
                     </td>
                     <td className="py-3 px-3">
                       <span className={`px-2.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${TYPE_BADGE_CLASS[type] || "bg-gray-100 text-gray-600"}`}>
-                        {TYPE_LABELS[type] || type || "—"}
+                        {TYPE_LABELS[type] || type || "-"}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-sm font-bold text-gray-700 whitespace-nowrap">{qty.toLocaleString()}</td>
