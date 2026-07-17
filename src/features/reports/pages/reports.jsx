@@ -399,7 +399,7 @@ export default function Reports() {
   };
 
   return (
-    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740", padding:"clamp(12px,3vw,24px)" }}>
+    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740" }}>
       {toast && <Toast msg={toast}/>}
       <style>{`
         .rpt-row:hover { background:#f8f9fb; }

@@ -63,7 +63,7 @@ export default function TransfersPage() {
   };
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen flex flex-col lg:flex-row gap-5">
+    <div className=" bg-gray-50 min-h-screen flex flex-col lg:flex-row gap-5">
       <div className="flex-1 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-2 gap-3">
           <div>

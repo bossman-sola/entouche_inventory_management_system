@@ -199,7 +199,7 @@ export default function AdjustmentsPage() {
   const hasFilters = typeFilter || statusFilter || search || (dateStart && dateEnd);
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>

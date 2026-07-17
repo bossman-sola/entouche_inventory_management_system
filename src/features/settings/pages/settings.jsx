@@ -560,7 +560,7 @@ export default function Settings() {
       {toast && <Toast msg={toast}/>}
 
       <style>{`
-        .st-page { padding: 16px; }
+        
         .st-layout { display:grid; grid-template-columns:250px 1fr 280px; gap:16px; align-items:start; }
         .st-nav { position:sticky; top:20px; }
         .st-right { position:sticky; top:20px; }
@@ -581,7 +581,7 @@ export default function Settings() {
         }
 
         @media (max-width: 640px) {
-          .st-page { padding: 12px; }
+          
           .st-card { padding: 18px !important; }
           .st-fieldrow { grid-template-columns: 1fr !important; gap: 12px !important; }
           .st-togglegrid { grid-template-columns: 1fr !important; }

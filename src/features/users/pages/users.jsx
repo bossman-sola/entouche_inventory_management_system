@@ -267,7 +267,7 @@ export default function UsersRolesPage() {
   };
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
+    <div className=" bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
       {toast && (
         <div className="fixed bottom-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium z-[9999] shadow-lg whitespace-nowrap">{toast}</div>
       )}

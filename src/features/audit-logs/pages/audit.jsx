@@ -374,7 +374,7 @@ export default function AuditLogs() {
         .al-link:hover { text-decoration:underline; }
         input::placeholder { color:#b0b8cc; }
 
-        .al-page { padding: 16px; }
+        
         .al-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
         .al-layout { display:grid; grid-template-columns:1fr 300px; gap:14px; align-items:start; }
         .al-toolbar { padding:14px 16px; border-bottom:1px solid #e4e7ef; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
