@@ -80,27 +80,27 @@ export default function Receipts() {
   const [receipts, setReceipts] = useState([]);
   const [loadingReceipts, setLoadingReceipts] = useState(true);
 
-  const [supplierOptions, setSupplierOptions] = useState([]); // from live Suppliers API
+  const [supplierOptions, setSupplierOptions] = useState([]); 
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState(null);
   const [detailsReceipt, setDetailsReceipt] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState(null); 
 
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [dateRange, setDateRange] = useState(null); // { start: Date, end: Date }
+  const [dateRange, setDateRange] = useState(null); 
   const dateBtnRef = useRef(null);
 
   const [receiptsError, setReceiptsError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [actioningId, setActioningId] = useState(null); // receipt currently being saved/received/cancelled/deleted
+  const [actioningId, setActioningId] = useState(null); 
 
-  /* ── fetch the receipts list from the live API ── */
   const refreshReceipts = () => {
     setLoadingReceipts(true);
     setReceiptsError("");
@@ -110,13 +110,13 @@ export default function Receipts() {
       .finally(() => setLoadingReceipts(false));
   };
 
-  // Load receipts from the live API on mount
+  
   useEffect(() => {
     refreshReceipts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
-  // Load suppliers from the live API for the filter dropdown (independent of receipts)
+  
   useEffect(() => {
     let cancelled = false;
     setLoadingSuppliers(true);
@@ -127,14 +127,20 @@ export default function Receipts() {
     return () => { cancelled = true; };
   }, []);
 
-  // close any open row menu when clicking elsewhere
+  
   useEffect(() => {
-    const close = () => setOpenMenuId(null);
+    const close = () => { setOpenMenuId(null); setMenuPos(null); };
     window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, []);
 
-  /* ── build the API payload shared by create + update ── */
+  
   const toApiReceiptPayload = (form) => ({
     supplier_id: Number(form.supplierId),
     warehouse_id: Number(form.warehouseId),
@@ -148,7 +154,7 @@ export default function Receipts() {
     })),
   });
 
-  /* ── save (create or update) a receipt from AddNewReceipt ── */
+ 
   const handleSaveReceipt = async (form) => {
     setActionError("");
     try {
@@ -164,7 +170,7 @@ export default function Receipts() {
     }
   };
 
-  /* ── receive / cancel / delete a receipt from the row menu ── */
+  
   const handleReceive = async (receipt) => {
     setActioningId(receipt.id);
     setActionError("");
@@ -208,9 +214,7 @@ export default function Receipts() {
   const openNewReceiptModal = () => { setEditingReceipt(null); setIsAddModalOpen(true); };
   const openEditReceiptModal = (receipt) => { setDetailsReceipt(null); setEditingReceipt(receipt); setIsAddModalOpen(true); };
 
-  /* ── filtering ── */
-  // Supplier filter list comes from the live Suppliers API, not just suppliers
-  // that happen to already be on a receipt — so it's accurate even with 0 receipts.
+  
   const suppliers = ["All Suppliers", ...supplierOptions.map(s => s.name)];
 
   const filtered = receipts.filter(r => {
@@ -262,9 +266,6 @@ export default function Receipts() {
   };
 
   return (
-    // position:relative makes this the containing block for AddNewReceipt / ReceiptDetails,
-    // so those panels render inline within this dashboard page instead of covering the
-    // whole browser viewport (sidebar/topbar chrome outside this component stays visible).
     <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740", position: "relative", minHeight: "100%" }}>
 
       <AddNewReceipt
@@ -454,7 +455,17 @@ export default function Receipts() {
                     </td>
                     <td style={{ padding: "12px 8px", textAlign: "center", position: "relative" }}>
                       <div
-                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === r.id ? null : r.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (openMenuId === r.id) {
+                            setOpenMenuId(null);
+                            setMenuPos(null);
+                            return;
+                          }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPos({ top: rect.bottom + 4, left: rect.right - 170 });
+                          setOpenMenuId(r.id);
+                        }}
                         style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: busy ? "not-allowed" : "pointer", borderRadius: 6, margin: "0 auto", transition: "background .15s" }}
                         onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -462,11 +473,11 @@ export default function Receipts() {
                         <DotsIcon />
                       </div>
 
-                      {openMenuId === r.id && (
+                      {openMenuId === r.id && menuPos && (
                         <div
                           onClick={e => e.stopPropagation()}
                           style={{
-                            position: "absolute", right: 8, top: 32, zIndex: 50,
+                            position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 1000,
                             background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8,
                             boxShadow: "0 8px 24px rgba(20,25,50,0.14)", minWidth: 170, padding: 4,
                             textAlign: "left",

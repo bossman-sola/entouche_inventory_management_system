@@ -45,8 +45,8 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
     <>
       <style>{`
         .rcd-overlay {
-          position: absolute; inset: 0; z-index: 9998;
-         
+          position: fixed; inset: 0; z-index: 9998;
+          background: rgba(15,20,40,0.5);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 24px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;
