@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAccessToken } from "../api/client.js";
+import { useAccessToken } from "../api/Client.js";
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
 import { useTransfers } from "../hooks/useTransfers.js";
 import { Icon, icons } from "../components/icons.jsx";
