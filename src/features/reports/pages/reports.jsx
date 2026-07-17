@@ -123,10 +123,11 @@ export default function Reports() {
   const [format,     setFormat]     = useState("All Formats");
   const [search,     setSearch]     = useState("");
   const [dateRange,  setDateRange]  = useState({ start: new Date(Date.now()-6*864e5), end: new Date() });
-  const [showCal,    setShowCal]    = useState(false);
+  const [showCal,    setShowCal]    = useState(null);
   const [page,       setPage]       = useState(1);
   const [toast,      setToast]      = useState(null);
-  const calRef = useRef();
+  const headerCalRef = useRef();
+  const filterCalRef = useRef();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -146,7 +147,14 @@ export default function Reports() {
   const [stockSummaryReport, setStockSummaryReport] = useState([]);
   const [lowStockReport, setLowStockReport] = useState([]);
 
-  useEffect(()=>{ const h=(e)=>{ if(calRef.current&&!calRef.current.contains(e.target)) setShowCal(false); }; document.addEventListener("mousedown",h); return()=>document.removeEventListener("mousedown",h); },[]);
+  useEffect(()=>{
+    const h=(e)=>{
+      const ref = showCal==="header" ? headerCalRef : showCal==="filter" ? filterCalRef : null;
+      if(ref && ref.current && !ref.current.contains(e.target)) setShowCal(null);
+    };
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[showCal]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),2600); };
 
@@ -431,14 +439,13 @@ export default function Reports() {
           <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Reports</h1>
           <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Generate and download inventory reports and analytics</p>
         </div>
-        {/* Date Range header button */}
-        <div style={{ position:"relative" }}>
-          <button onClick={()=>setShowCal(o=>!o)} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 14px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap" }}>
+        <div style={{ position:"relative" }} ref={headerCalRef}>
+          <button onClick={()=>setShowCal(o=>o==="header"?null:"header")} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 14px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             {fmtDR()}
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          {showCal && <CalPicker value={dateRange} onChange={v=>{setDateRange(v);}} onClose={()=>setShowCal(false)}/>}
+          {showCal==="header" && <CalPicker value={dateRange} onChange={v=>{setDateRange(v);}} onClose={()=>setShowCal(null)}/>}
         </div>
       </div>
 
@@ -483,12 +490,12 @@ export default function Reports() {
           </div>
           <div>
             <label style={{ fontSize:12, color:"#6b7591", display:"block", marginBottom:5 }}>Date Range</label>
-            <div style={{ position:"relative" }}>
-              <button onClick={()=>setShowCal(o=>!o)} style={{ width:"100%",display:"flex",alignItems:"center",gap:7,padding:"8px 10px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit" }}>
+            <div style={{ position:"relative" }} ref={filterCalRef}>
+              <button onClick={()=>setShowCal(o=>o==="filter"?null:"filter")} style={{ width:"100%",display:"flex",alignItems:"center",gap:7,padding:"8px 10px",border:"1px solid #e4e7ef",borderRadius:8,background:"#fff",fontSize:12.5,cursor:"pointer",color:"#1e2740",fontFamily:"inherit" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 <span style={{ flex:1, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fmtDR()}</span>
               </button>
-              {showCal && <CalPicker value={dateRange} onChange={v=>{setDateRange(v);}} onClose={()=>setShowCal(false)}/>}
+              {showCal==="filter" && <CalPicker value={dateRange} onChange={v=>{setDateRange(v);}} onClose={()=>setShowCal(null)}/>}
             </div>
           </div>
           <div>

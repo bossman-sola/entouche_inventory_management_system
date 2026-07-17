@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { AlertCircle, MoreVertical } from "lucide-react";
 import { useAdjustments, useAdjustmentFormData } from "../hooks/useAdjustments.js";
 import NewAdjustmentModal from "../components/NewAdjustmentModal.jsx";
@@ -9,6 +9,7 @@ import {
   getAdjType, getStatus, getReason, getDate, getReference,
   getLocationName, getWarehouseName, getAdjustedByName,
   formatDate, totalQtyForAdjustment,
+  getFirstItemName, getItemCount, signedQtyForAdjustment, valueImpactForAdjustment,
 } from "../components/adjustmentHelpers.js";
 
 
@@ -31,6 +32,51 @@ const StatCard = ({ label, value, sub, subColor, icon, bg, loading }) => (
   </div>
 );
 
+function DateRangeFilter({ start, end, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [localStart, setLocalStart] = useState(start || "");
+  const [localEnd, setLocalEnd] = useState(end || "");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const label = start && end
+    ? `${new Date(start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+    : "Date Range";
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 whitespace-nowrap"
+      >
+        <Icon d={icons.calendar} size={14} /> {label}
+        <Icon d={icons.chevronDown} size={12} className="text-gray-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 mt-2 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-4 w-64 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Start</label>
+            <input type="date" value={localStart} onChange={(e) => setLocalStart(e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">End</label>
+            <input type="date" value={localEnd} onChange={(e) => setLocalEnd(e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setLocalStart(""); setLocalEnd(""); onChange(null, null); setOpen(false); }} className="flex-1 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50">Clear</button>
+            <button type="button" onClick={() => { onChange(localStart, localEnd); setOpen(false); }} className="flex-1 text-xs font-semibold text-white bg-blue-600 rounded-lg py-1.5 hover:bg-blue-700">Apply</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete }) {
   const [open, setOpen] = useState(false);
@@ -46,8 +92,6 @@ function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete
     actions.push({ label: "Cancel", onClick: onCancel, danger: true });
   }
 
-  if (actions.length === 0) return <span className="text-gray-300 text-xs">—</span>;
-
   return (
     <div className="relative">
       <button
@@ -60,7 +104,9 @@ function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-8 z-20 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
-            {actions.map((a) => (
+            {actions.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
+            ) : actions.map((a) => (
               <button
                 key={a.label}
                 onClick={() => { setOpen(false); a.onClick(); }}
@@ -81,6 +127,8 @@ export default function AdjustmentsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [dateStart, setDateStart] = useState(null);
+  const [dateEnd, setDateEnd] = useState(null);
   const [toast, setToast] = useState(null);
 
   const {
@@ -102,7 +150,7 @@ export default function AdjustmentsPage() {
 
   const handleReject = (id) => {
     const reason = window.prompt("Reason for rejecting this adjustment:");
-    if (reason === null) return; 
+    if (reason === null) return;
     handleAction(rejectAdjustment, id, reason || "No reason given");
   };
 
@@ -121,10 +169,18 @@ export default function AdjustmentsPage() {
     handleAction(approveAdjustment, id);
   };
 
+  const setDateRange = (start, end) => { setDateStart(start); setDateEnd(end); };
+
   const filtered = useMemo(() => {
     return adjustments.filter((a) => {
       if (typeFilter && getAdjType(a) !== typeFilter) return false;
       if (statusFilter && getStatus(a) !== statusFilter) return false;
+      if (dateStart && dateEnd) {
+        const d = new Date(getDate(a) || 0);
+        const s = new Date(dateStart); s.setHours(0, 0, 0, 0);
+        const e = new Date(dateEnd); e.setHours(23, 59, 59, 999);
+        if (d < s || d > e) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         const haystack = `${getReference(a)} ${getReason(a)} ${getLocationName(a)}`.toLowerCase();
@@ -132,12 +188,15 @@ export default function AdjustmentsPage() {
       }
       return true;
     });
-  }, [adjustments, typeFilter, statusFilter, search]);
+  }, [adjustments, typeFilter, statusFilter, dateStart, dateEnd, search]);
 
   const increases = adjustments.filter((a) => getAdjType(a) === "increase");
   const decreases = adjustments.filter((a) => getAdjType(a) === "decrease");
   const totalIncQty = increases.reduce((s, a) => s + totalQtyForAdjustment(a), 0);
   const totalDecQty = decreases.reduce((s, a) => s + totalQtyForAdjustment(a), 0);
+  const totalValueImpact = adjustments.reduce((s, a) => s + Math.abs(valueImpactForAdjustment(a)), 0);
+
+  const hasFilters = typeFilter || statusFilter || search || (dateStart && dateEnd);
 
   return (
     <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
@@ -147,9 +206,14 @@ export default function AdjustmentsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Adjustments</h1>
           <p className="text-sm text-gray-500 mt-0.5">Record and manage inventory quantity adjustments.</p>
         </div>
-        <button onClick={() => setModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
-          <Icon d={icons.plus} size={15} /> New Adjustment
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+            <Icon d={icons.download} size={15} /> Export
+          </button>
+          <button onClick={() => setModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap">
+            <Icon d={icons.plus} size={15} /> New Adjustment
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -166,10 +230,10 @@ export default function AdjustmentsPage() {
 
       {/* Stats — computed from the currently-loaded page */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Adjustments Loaded" value={adjustments.length} sub={`Page ${page}`} subColor="text-gray-400" icon={icons.refresh} bg="bg-blue-50 text-blue-500" loading={loading} />
-        <StatCard label="Increases" value={increases.length} sub={`+${totalIncQty.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" loading={loading} />
-        <StatCard label="Decreases" value={decreases.length} sub={`-${totalDecQty.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" loading={loading} />
-        <StatCard label="Pending Approval" value={adjustments.filter((a) => getStatus(a) === "pending").length} sub="Awaiting review" subColor="text-yellow-600" icon={icons.check} bg="bg-yellow-50 text-yellow-600" loading={loading} />
+        <StatCard label="Total Adjustments" value={adjustments.length} sub="All time" subColor="text-gray-400" icon={icons.adjustment} bg="bg-blue-50 text-blue-500" loading={loading} />
+        <StatCard label="Total Increases" value={increases.length} sub={`+${totalIncQty.toLocaleString()} units`} subColor="text-green-600" icon={icons.arrowUp} bg="bg-green-50 text-green-500" loading={loading} />
+        <StatCard label="Total Decreases" value={decreases.length} sub={`-${totalDecQty.toLocaleString()} units`} subColor="text-red-500" icon={icons.arrowDown} bg="bg-red-50 text-red-500" loading={loading} />
+        <StatCard label="Total Value Impact" value={`₦${totalValueImpact.toLocaleString()}`} sub="All time" subColor="text-gray-400" icon={icons.dollar} bg="bg-purple-50 text-purple-500" loading={loading} />
       </div>
 
       {/* Filters */}
@@ -183,6 +247,7 @@ export default function AdjustmentsPage() {
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <DateRangeFilter start={dateStart} end={dateEnd} onChange={setDateRange} />
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">All Types</option>
           <option value="increase">Increase</option>
@@ -193,30 +258,37 @@ export default function AdjustmentsPage() {
           <option value="">All Statuses</option>
           {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        {(typeFilter || statusFilter || search) && (
-          <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); }} className="text-sm text-red-500 hover:underline sm:ml-auto">Clear</button>
-        )}
+        <div className="flex items-center gap-3 sm:ml-auto">
+          {hasFilters && (
+            <button onClick={() => { setTypeFilter(""); setStatusFilter(""); setSearch(""); setDateRange(null, null); }} className="text-sm text-red-500 hover:underline whitespace-nowrap">
+              Clear filters
+            </button>
+          )}
+          <button type="button" className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+            <Icon d={icons.filter} size={14} /> More Filters
+          </button>
+        </div>
       </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
+          <table className="w-full min-w-[1180px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Reference", "Date", "Location", "Type", "Qty", "Reason", "Adjusted By", "Status", ""].map((h) => (
+                {["Adjustment No.", "Date & Time", "Item", "Adjustment Type", "Location", "Quantity Change", "Value Impact (₦)", "Reason", "Adjusted By", "Status", ""].map((h) => (
                   <th key={h} className="py-3 px-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={9} className="py-10 text-center text-sm text-gray-400">Loading adjustments…</td></tr>
+                <tr><td colSpan={11} className="py-10 text-center text-sm text-gray-400">Loading adjustments…</td></tr>
               )}
 
               {!loading && !error && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-14 text-center">
+                  <td colSpan={11} className="py-14 text-center">
                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
                       <Icon d={icons.inbox} size={18} className="text-gray-400" />
                     </div>
@@ -233,21 +305,39 @@ export default function AdjustmentsPage() {
               {!loading && filtered.map((a) => {
                 const type = getAdjType(a);
                 const status = getStatus(a);
-                const qty = totalQtyForAdjustment(a);
+                const qtyChange = signedQtyForAdjustment(a);
+                const valueImpact = valueImpactForAdjustment(a);
+                const count = getItemCount(a);
                 return (
                   <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-3 text-sm font-medium text-gray-800 whitespace-nowrap">{getReference(a)}</td>
+                    <td className="py-3 px-3 text-sm font-medium text-blue-600 whitespace-nowrap">{getReference(a)}</td>
                     <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(getDate(a))}</td>
-                    <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">
-                      {getLocationName(a)}
-                      <span className="block text-xs text-gray-400">{getWarehouseName(a)}</span>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                          <Icon d={icons.box} size={14} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-800 font-medium whitespace-nowrap">{getFirstItemName(a)}</p>
+                          {count > 1 && <p className="text-xs text-gray-400">+{count - 1} more item{count - 1 > 1 ? "s" : ""}</p>}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       <span className={`px-2.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${TYPE_BADGE_CLASS[type] || "bg-gray-100 text-gray-600"}`}>
                         {TYPE_LABELS[type] || type || "—"}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-sm font-bold text-gray-700 whitespace-nowrap">{qty.toLocaleString()}</td>
+                    <td className="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">
+                      {getLocationName(a)}
+                      <span className="block text-xs text-gray-400">{getWarehouseName(a)}</span>
+                    </td>
+                    <td className={`py-3 px-3 text-sm font-bold whitespace-nowrap ${qtyChange > 0 ? "text-green-600" : qtyChange < 0 ? "text-red-500" : "text-gray-700"}`}>
+                      {qtyChange > 0 ? "+" : ""}{qtyChange.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-sm font-medium text-gray-700 whitespace-nowrap">
+                      {valueImpact > 0 ? "+" : valueImpact < 0 ? "-" : ""}₦{Math.abs(valueImpact).toLocaleString()}
+                    </td>
                     <td className="py-3 px-3 text-sm text-gray-600 max-w-[160px]">
                       <span className="truncate block" title={getReason(a)}>{getReason(a)}</span>
                     </td>

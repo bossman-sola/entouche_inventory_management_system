@@ -7,11 +7,12 @@ export const TYPE_LABELS = {
   damaged_goods_area: "Damaged Goods Area",
 };
 
+
 const LOCATION_TYPE_ICON = {
-  storage_area: { icon: icons.storage, bg: "bg-blue-50", color: "text-blue-500" },
+  storage_area: { icon: icons.storage, bg: "bg-green-50", color: "text-green-500" },
   dispatch_area: { icon: icons.dispatch, bg: "bg-orange-50", color: "text-orange-500" },
-  receiving_area: { icon: icons.receive, bg: "bg-green-50", color: "text-green-500" },
-  damaged_goods_area: { icon: icons.damaged, bg: "bg-yellow-50", color: "text-yellow-500" },
+  receiving_area: { icon: icons.receive, bg: "bg-blue-50", color: "text-blue-500" },
+  damaged_goods_area: { icon: icons.damaged, bg: "bg-red-50", color: "text-red-500" },
 };
 
 export const LocationIcon = ({ type }) => {

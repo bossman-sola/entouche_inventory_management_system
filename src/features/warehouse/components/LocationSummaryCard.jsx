@@ -1,9 +1,50 @@
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon, icons } from './ui/Icon.jsx';
 import { LocationIcon, TYPE_LABELS } from './ui/LocationIcon.jsx';
 import { StatusBadge } from './ui/StatusBadge.jsx';
+import { currency } from '../../../lib/format.js';
 
-export function LocationSummaryCard({ loading, locations, qtyByLocationId }) {
+function RowActions({ location, onToggleStatus, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400"
+        aria-label="Row actions"
+      >
+        <Icon d={icons.dotsV} size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+          <button
+            onClick={() => { setOpen(false); onToggleStatus(location); }}
+            className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            {location.status === 'active' ? 'Deactivate' : 'Activate'}
+          </button>
+          <button
+            onClick={() => { setOpen(false); onDelete(location); }}
+            className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LocationSummaryCard({ loading, locations, qtyByLocationId, valueByLocationId, onToggleStatus, onDelete }) {
   const navigate = useNavigate();
 
   return (
@@ -37,32 +78,47 @@ export function LocationSummaryCard({ loading, locations, qtyByLocationId }) {
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
                 <th className="font-medium px-5 py-2">Location</th>
-                <th className="font-medium px-5 py-2">Warehouse</th>
+                <th className="font-medium px-5 py-2">Description</th>
                 <th className="font-medium px-5 py-2 text-right">Quantity</th>
+                <th className="font-medium px-5 py-2 text-right">Inventory Value</th>
+                <th className="font-medium px-5 py-2 text-right">Utilization</th>
                 <th className="font-medium px-5 py-2 text-right">Status</th>
+                <th className="font-medium px-5 py-2 text-right"></th>
               </tr>
             </thead>
             <tbody>
-              {locations.slice(0, 6).map((loc) => (
-                <tr key={loc.id} className="border-b border-gray-50 last:border-0">
-                  <td className="px-5 py-2.5">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <LocationIcon type={loc.type} />
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-800 truncate">{loc.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{TYPE_LABELS[loc.type] || loc.type}</p>
+              {locations.slice(0, 6).map((loc) => {
+                // description and utilization aren't exposed by the API yet —
+                // show "—" rather than fabricating values.
+                const value = valueByLocationId?.get(loc.id);
+                return (
+                  <tr key={loc.id} className="border-b border-gray-50 last:border-0">
+                    <td className="px-5 py-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <LocationIcon type={loc.type} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-800 truncate">{loc.name}</p>
+                          <p className="text-xs text-gray-400 truncate">{TYPE_LABELS[loc.type] || loc.type}</p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-2.5 text-gray-500 truncate">{loc.warehouse}</td>
-                  <td className="px-5 py-2.5 text-right font-medium text-gray-800">
-                    {(qtyByLocationId.get(loc.id) || 0).toLocaleString()}
-                  </td>
-                  <td className="px-5 py-2.5 text-right">
-                    <StatusBadge status={loc.status} />
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-2.5 text-gray-500 truncate">{loc.description || '—'}</td>
+                    <td className="px-5 py-2.5 text-right font-medium text-gray-800">
+                      {(qtyByLocationId.get(loc.id) || 0).toLocaleString()}
+                    </td>
+                    <td className="px-5 py-2.5 text-right font-medium text-gray-800">
+                      {value != null ? currency(value) : '—'}
+                    </td>
+                    <td className="px-5 py-2.5 text-right text-gray-400">—</td>
+                    <td className="px-5 py-2.5 text-right">
+                      <StatusBadge status={loc.status} />
+                    </td>
+                    <td className="px-5 py-2.5 text-right">
+                      <RowActions location={loc} onToggleStatus={onToggleStatus} onDelete={onDelete} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
