@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/client.js";
+import { apiRequest, fetchAllPages } from "../api/Client.js";
 import { Icon, icons } from "./icons.jsx";
 import { Select, DateTimePicker, Modal, Spinner } from "./ui.jsx";
 

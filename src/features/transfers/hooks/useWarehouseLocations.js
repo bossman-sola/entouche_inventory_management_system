@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/client.js";
+import { apiRequest, fetchAllPages } from "../api/Client.js";
 export function useWarehouseLocations(token) {
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
