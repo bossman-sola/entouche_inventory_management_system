@@ -11,12 +11,6 @@ export function ConnectionStatus({ authStatus, authError, currentUser, refLoadin
           Connecting to API…
         </span>
       )}
-      {authStatus === "ok" && (
-        <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Connected as {currentUser?.name}
-          {refLoading && <span className="text-green-500">· syncing…</span>}
-        </span>
-      )}
       {authStatus === "error" && (
         <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
           <Icon d={icons.alert} size={13} /> {authError || "Could not connect to the API."}

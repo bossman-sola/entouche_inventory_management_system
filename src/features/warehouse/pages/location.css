@@ -19,7 +19,7 @@
   font-family: Inter, system-ui, sans-serif;
   color: var(--text-dark);
   font-size: 13px;
-  padding: 26px 28px 40px;
+
 }
 
 .loc-page * { box-sizing: border-box; }

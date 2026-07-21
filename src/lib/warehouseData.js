@@ -76,3 +76,19 @@ export function buildLocationQtyMap(balances) {
   }
   return map;
 }
+
+
+export function buildLocationValueMap(balances) {
+  const map = new Map();
+  for (const { item, balance } of balances) {
+    const rows = Array.isArray(balance?.by_location) ? balance.by_location : [];
+    const cost = parseFloat(item.unit_cost) || 0;
+    for (const row of rows) {
+      const locId = row.location_id ?? row.warehouse_location_id ?? row.location?.id ?? null;
+      if (locId == null) continue;
+      const qty = Number(row.quantity ?? row.on_hand ?? row.qty ?? row.total_on_hand ?? 0);
+      map.set(locId, (map.get(locId) || 0) + qty * cost);
+    }
+  }
+  return map;
+}

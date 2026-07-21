@@ -76,16 +76,6 @@ const NAV_ITEMS = [
   { key:"audit",        label:"Audit",           sub:"Audit log and retention settings",  icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
 ];
 
-/* ─── Settings-key map ───
-   GET /settings returns { [group]: { "group.key": { value, type } } }.
-   The doc only shows two confirmed keys (general.company_name,
-   general.currency, numbering.receipt_prefix) - the rest below follow the
-   same "group.snake_case_field" convention but haven't been individually
-   confirmed against a live response. If the backend uses different key
-   names, hydration below will just silently keep the current UI default
-   (see `hydrate`) and Save will write new keys rather than break - but
-   it's worth diffing this map against a real GET /settings payload once
-   the backend has data seeded. */
 const SETTINGS_MAP = {
   general: {
     companyName:  "general.company_name",
@@ -144,8 +134,7 @@ const SETTINGS_MAP = {
   },
 };
 
-// Coerce a { value, type } settings entry into a JS value matching what
-// the local <input>/<select>/<Toggle> state expects.
+
 function coerceSetting(entry) {
   if (!entry) return undefined;
   const { value, type } = entry;
@@ -325,11 +314,9 @@ export default function Settings() {
 
   const warehouseOptions = useMemo(() => {
     const names = warehouses.map(w => w.name).filter(Boolean);
-    // Keep the current selection visible even if it's not in the fetched
-    // list yet (e.g. still loading, or the saved setting predates the
-    // warehouse being renamed/deleted).
+   
     return names.includes(defaultWarehouse) ? names : [defaultWarehouse, ...names];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [warehouses]);
 
   const handleSaveSection = async (sectionKey) => {
@@ -350,10 +337,6 @@ export default function Settings() {
     }
   };
 
-  // Backup Now / Restore from Backup / Clear Cache have no corresponding
-  // endpoints in the API (no backup, restore, or cache-clear routes exist)
-  // - surface that honestly instead of faking a success toast.
-  // "View System Logs" is the one action with a real match: audit logs.
   const actionItems = [
     { label:"Backup Now",         sub:"Create a backup of your data now", color:"#4f6ef7", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> },
     { label:"Restore from Backup",sub:"Restore data from a previous backup", color:"#f59e0b", available:false, icon:<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> },
@@ -366,7 +349,7 @@ export default function Settings() {
       showToast(`${item.label} isn't available yet - no matching endpoint`);
       return;
     }
-    // View System Logs -> pull a fresh count from /audit-logs
+    
     try {
       const res = await api.listAuditLogs();
       const count = Array.isArray(res) ? res.length : (res?.total ?? res?.data?.length ?? 0);
@@ -577,7 +560,7 @@ export default function Settings() {
       {toast && <Toast msg={toast}/>}
 
       <style>{`
-        .st-page { padding: 16px; }
+        
         .st-layout { display:grid; grid-template-columns:250px 1fr 280px; gap:16px; align-items:start; }
         .st-nav { position:sticky; top:20px; }
         .st-right { position:sticky; top:20px; }
@@ -589,7 +572,7 @@ export default function Settings() {
           .st-right { grid-column: 1 / -1; position:static; display:grid !important; grid-template-columns:1fr 1fr; }
         }
 
-        @media (max-width: 860px) {
+        @media (max-width: 1200px) {
           .st-layout { grid-template-columns: 1fr; }
           .st-nav { position:static; display:none; }
           .st-nav.open { display:block; }
@@ -598,7 +581,7 @@ export default function Settings() {
         }
 
         @media (max-width: 640px) {
-          .st-page { padding: 12px; }
+          
           .st-card { padding: 18px !important; }
           .st-fieldrow { grid-template-columns: 1fr !important; gap: 12px !important; }
           .st-togglegrid { grid-template-columns: 1fr !important; }
@@ -684,16 +667,11 @@ export default function Settings() {
                     <span style={{ fontSize:12, color:"#1e2740", wordBreak:"break-all" }}>{val}</span>
                   </div>
                 ))}
-                {/* Address / Website aren't part of the settings schema
-                    the API exposes (general.* only has name/email/phone/
-                    country/timezone/date/time/currency/language in the
-                    documented example) - omitted rather than faked. */}
+               
               </div>
             </div>
 
-            {/* System Details - no /system, /version, or /backup endpoints
-                exist in the API, so this stays static rather than pretend
-                it's live. */}
+            
             <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
               <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
               {[

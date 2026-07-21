@@ -1,6 +1,22 @@
 import { Icon, icons } from "./icons.jsx";
 
-export default function TransferSidebar({ transfers, pendingCount, totalQty, onNewTransfer }) {
+const txQty = (t) => (t.items || []).reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+const txValue = (t) => (t.items || []).reduce((s, r) => {
+  const cost = Number(r.unit_cost ?? r.item?.unit_cost ?? 0) || 0;
+  const qty = Number(r.quantity) || 0;
+  return s + qty * cost;
+}, 0);
+
+export default function TransferSidebar({ transfers, pendingCount, onNewTransfer }) {
+  const now = new Date();
+  const monthTransfers = transfers.filter(t => {
+    const d = new Date(t.transfer_date || t.created_at || 0);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const monthQty = monthTransfers.reduce((s, t) => s + txQty(t), 0);
+  const monthValue = monthTransfers.reduce((s, t) => s + txValue(t), 0);
+  const monthPending = monthTransfers.filter(t => t.status === "draft" || t.status === "pending_approval").length;
+
   return (
     <div className="w-full lg:w-72 shrink-0 space-y-4">
       <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -40,12 +56,13 @@ export default function TransferSidebar({ transfers, pendingCount, totalQty, onN
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <h3 className="font-semibold text-gray-800 mb-3">Transfer Summary</h3>
+        <h3 className="font-semibold text-gray-800 mb-3">Transfer Summary <span className="text-gray-400 font-normal">(This Month)</span></h3>
         <div className="space-y-3">
           {[
-            { label: "Total Transfers", value: String(transfers.length) },
-            { label: "Quantity Transferred", value: totalQty.toLocaleString() },
-            { label: "Pending Transfers", value: pendingCount, valueClass: "text-orange-500" },
+            { label: "Total Transfers", value: String(monthTransfers.length) },
+            { label: "Quantity Transferred", value: monthQty.toLocaleString() },
+            { label: "Value Transferred", value: `₦${monthValue.toLocaleString()}` },
+            { label: "Pending Transfers", value: String(monthPending), valueClass: "text-orange-500" },
           ].map(s => (
             <div key={s.label} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
               <span className="text-sm text-gray-600">{s.label}</span>
@@ -53,6 +70,9 @@ export default function TransferSidebar({ transfers, pendingCount, totalQty, onN
             </div>
           ))}
         </div>
+        <button className="text-xs font-semibold text-blue-600 hover:underline mt-3 flex items-center gap-1">
+          View full report <Icon d={icons.arrowRight} size={11} />
+        </button>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -62,6 +82,9 @@ export default function TransferSidebar({ transfers, pendingCount, totalQty, onN
         </div>
         <p className="text-xs font-medium text-gray-700 mb-1">Learn how transfers work</p>
         <p className="text-xs text-gray-500 mb-3">A transfer moves items between locations: draft → submit → approve → complete (stock moves on complete).</p>
+        <button className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
+          View Guide <Icon d={icons.arrowRight} size={11} />
+        </button>
       </div>
     </div>
   );

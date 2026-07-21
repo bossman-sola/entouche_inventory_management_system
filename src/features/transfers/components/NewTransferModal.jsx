@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/client.js";
+import { apiRequest, fetchAllPages } from "../api/Client.js";
 import { Icon, icons } from "./icons.jsx";
 import { Select, DateTimePicker, Modal, Spinner } from "./ui.jsx";
 
@@ -56,6 +56,8 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
     }
   }, [open]);
 
+  const locationKey = (l) => `${l.warehouseId}:${l.id}`;
+
   const suggestions = searchItem.trim().length === 0
     ? []
     : catalog.filter(i => {
@@ -99,8 +101,8 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
   const totalQty = items.reduce((s, r) => s + +r.qty, 0);
 
   const buildPayload = () => {
-    const from = locations.find(l => String(l.id) === fromLocationId);
-    const to = locations.find(l => String(l.id) === toLocationId);
+    const from = locations.find(l => locationKey(l) === fromLocationId);
+    const to = locations.find(l => locationKey(l) === toLocationId);
     const requestedUser = users.find(u => String(u.id) === requestedBy);
 
     const noteParts = [];
@@ -196,7 +198,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
               <Select
                 value={fromLocationId}
                 onChange={setFromLocationId}
-                options={locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} - ${l.name}` }))}
+                options={locations.map(l => ({ value: locationKey(l), label: `${l.warehouseName} — ${l.name}` }))}
                 placeholder={locationsError ? "Couldn't load locations" : "Select source location"}
                 disabled={locationsLoading || !!locationsError}
               />
@@ -206,7 +208,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
               <Select
                 value={toLocationId}
                 onChange={setToLocationId}
-                options={locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} - ${l.name}` }))}
+                options={locations.map(l => ({ value: locationKey(l), label: `${l.warehouseName} — ${l.name}` }))}
                 placeholder={locationsError ? "Couldn't load locations" : "Select destination location"}
                 disabled={locationsLoading || !!locationsError}
               />

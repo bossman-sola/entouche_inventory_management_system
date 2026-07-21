@@ -189,8 +189,8 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     <>
       <style>{`
         .anr-overlay {
-          position: absolute; inset: 0; z-index: 9999;
-          
+          position: fixed; inset: 0; z-index: 9999;
+          background: rgba(15,20,40,0.5);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 20px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;

@@ -15,8 +15,10 @@ import {
   fetchAllLocations,
   aggregateQuantityByLocation,
   buildLocationQtyMap,
+  buildLocationValueMap,
 } from '../../../lib/warehouseData.js';
 import { warehousesApi } from '../../warehouse/api/warehousesApi.js';
+import { locationsApi } from '../../warehouse/api/locationsApi.js';
 
 const emptyWarehouseForm = { name: '', code: '', address: '', city: '', state: '', country: '', status: 'active' };
 
@@ -47,9 +49,19 @@ function duplicateCodeError(err) {
   return `${value ? `"${value}"` : 'That code'} is already in use by another warehouse - try a different code.`;
 }
 
+function inDateRange(dateValue, range) {
+  if (!range?.start || !range?.end) return true;
+  if (!dateValue) return false;
+  const d = new Date(dateValue);
+  const start = new Date(range.start);
+  const end = new Date(range.end);
+  end.setHours(23, 59, 59, 999);
+  return d >= start && d <= end;
+}
+
 export default function WarehouseOverviewPage() {
   const navigate = useNavigate();
-  const [range, setRange] = useState(null); 
+  const [range, setRange] = useState(null);
 
   const [items, setItems] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -106,7 +118,7 @@ export default function WarehouseOverviewPage() {
   }, [load]);
 
   function openWarehouseModal() {
-  
+
     setWarehouseForm({ ...emptyWarehouseForm, code: suggestWarehouseCode(warehouses) });
     setWarehouseFormErrors({});
     setWarehouseModalOpen(true);
@@ -130,14 +142,14 @@ export default function WarehouseOverviewPage() {
 
     setSavingWarehouse(true);
     try {
-      
+
       const payload = Object.fromEntries(
         Object.entries(warehouseForm).filter(([, v]) => v !== '' && v != null)
       );
       await warehousesApi.create(payload);
       showToast('Warehouse created');
       setWarehouseModalOpen(false);
-      await load(); 
+      await load();
     } catch (err) {
       const dupMessage = duplicateCodeError(err);
       const fieldErrors = mapServerErrorsToForm(err.errors);
@@ -155,23 +167,53 @@ export default function WarehouseOverviewPage() {
     }
   }
 
-  const totalQuantity = balances.reduce((sum, b) => sum + (b.balance?.total_on_hand || 0), 0);
-  const totalValue = balances.reduce((sum, b) => {
+  async function handleToggleLocationStatus(location) {
+    const nextStatus = location.status === 'active' ? 'inactive' : 'active';
+    try {
+      await locationsApi.toggleStatus(location.id, nextStatus);
+      showToast(`${location.name} marked ${nextStatus}`);
+      await load();
+    } catch (err) {
+      showToast(apiErrorMessage(err, "Couldn't update this location."), 'error');
+    }
+  }
+
+  async function handleDeleteLocation(location) {
+    if (!window.confirm(`Delete "${location.name}"? This can't be undone.`)) return;
+    try {
+      await locationsApi.remove(location.id);
+      showToast(`${location.name} deleted`);
+      await load();
+    } catch (err) {
+      showToast(apiErrorMessage(err, "Couldn't delete this location."), 'error');
+    }
+  }
+
+  const filteredBalances = balances.filter((b) =>
+    inDateRange(b.item?.updated_at || b.item?.created_at, range)
+  );
+
+  console.log('range:', range);
+console.log('balances:', balances.length, '-> filtered:', filteredBalances.length);
+
+  const totalQuantity = filteredBalances.reduce((sum, b) => sum + (b.balance?.total_on_hand || 0), 0);
+  const totalValue = filteredBalances.reduce((sum, b) => {
     const qty = b.balance?.total_on_hand || 0;
     const cost = parseFloat(b.item.unit_cost) || 0;
     return sum + qty * cost;
   }, 0);
 
   const locationsById = new Map(locations.map((l) => [l.id, l]));
-  const byLocation = aggregateQuantityByLocation(balances, locationsById);
+  const byLocation = aggregateQuantityByLocation(filteredBalances, locationsById);
   const byLocationTotal = byLocation.reduce((s, r) => s + r.qty, 0);
-  const qtyByLocationId = buildLocationQtyMap(balances);
+  const qtyByLocationId = buildLocationQtyMap(filteredBalances);
+  const valueByLocationId = buildLocationValueMap(filteredBalances);
 
   const activeLocations = locations.filter((l) => l.status === 'active').length;
   const inactiveLocations = locations.length - activeLocations;
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
+    <div className=" bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
@@ -239,6 +281,7 @@ export default function WarehouseOverviewPage() {
           locations={locations}
           activeLocations={activeLocations}
           inactiveLocations={inactiveLocations}
+          onViewAll={() => navigate('/locations')}
         />
       </div>
 
@@ -247,10 +290,13 @@ export default function WarehouseOverviewPage() {
           loading={locationsLoading}
           locations={locations}
           qtyByLocationId={qtyByLocationId}
+          valueByLocationId={valueByLocationId}
+          onToggleStatus={handleToggleLocationStatus}
+          onDelete={handleDeleteLocation}
         />
         <RecentMovementsCard />
       </div>
-      
+
       {warehouseModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
