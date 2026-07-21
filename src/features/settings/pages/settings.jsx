@@ -346,7 +346,7 @@ export default function Settings() {
 
   const handleAction = async (item) => {
     if (!item.available) {
-      showToast(`${item.label} isn't available yet — no matching endpoint`);
+      showToast(`${item.label} isn't available yet - no matching endpoint`);
       return;
     }
     
@@ -454,7 +454,7 @@ export default function Settings() {
             <Field label="Warehouse Prefix"><Inp value={warehousePrefix} onChange={setWarehousePrefix}/></Field>
           </FieldRow>
           {warehouses.length===0 && !loading && (
-            <div style={{ fontSize:12, color:"#9aa1b4", marginTop:-8, marginBottom:16 }}>No warehouses returned by the API yet — showing the saved value only.</div>
+            <div style={{ fontSize:12, color:"#9aa1b4", marginTop:-8, marginBottom:16 }}>No warehouses returned by the API yet - showing the saved value only.</div>
           )}
           <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:20 }}>
             {[
@@ -650,7 +650,7 @@ export default function Settings() {
                 </button>
               </div>
               <div style={{ padding:"18px 18px 6px" }}>
-                {/* Logo placeholder — no logo-upload endpoint exists yet */}
+                {/* Logo placeholder - no logo-upload endpoint exists yet */}
                 <div style={{ width:56, height:56, background:"#f4f6fb", border:"1px solid #e4e7ef", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
                 </div>
@@ -675,7 +675,7 @@ export default function Settings() {
             <div style={{ background:"#fff", border:"1px solid #e4e7ef", borderRadius:12, padding:18 }}>
               <div style={{ fontWeight:700, fontSize:13.5, color:"#1e2740", marginBottom:14 }}>System Details</div>
               {[
-                ["Audit Log Entries", auditLogCount !== null ? String(auditLogCount) : "—"],
+                ["Audit Log Entries", auditLogCount !== null ? String(auditLogCount) : "-"],
                 ["Warehouses",        String(warehouses.length)],
               ].map(([label,val])=>(
                 <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"8px 0", borderBottom:"1px solid #f4f6fb", gap:10 }}>
@@ -696,7 +696,7 @@ export default function Settings() {
                     <div style={{ width:32, height:32, borderRadius:8, background:"#f4f6fb", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{a.icon}</div>
                     <div>
                       <div style={{ fontSize:12.5, fontWeight:600, color:a.color, marginBottom:2 }}>{a.label}</div>
-                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.available ? a.sub : "Not available — no matching endpoint"}</div>
+                      <div style={{ fontSize:11, color:"#9aa1b4" }}>{a.available ? a.sub : "Not available - no matching endpoint"}</div>
                     </div>
                   </button>
                 ))}

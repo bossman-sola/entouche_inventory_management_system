@@ -26,7 +26,7 @@ export const statusStyle = {
   Pending:   { bg: "#fff7ed", color: "#c27a0a" },
   Cancelled: { bg: "#fff1f0", color: "#c0392b" },
   Rejected:  { bg: "#fff1f0", color: "#c0392b" },
-  "—":       { bg: "#f4f6fb", color: "#6b7591" },
+  "-":       { bg: "#f4f6fb", color: "#6b7591" },
 };
 
 export const txTypes = [

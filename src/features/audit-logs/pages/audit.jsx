@@ -170,7 +170,7 @@ const Toast = ({msg})=>(<div style={{ position:"fixed",bottom:28,left:"50%",tran
 
 // Builds an activity-feed entry from a raw API record. The API has no
 // audit-log endpoint, so this reconstructs "what happened" from timestamps
-// and status fields on the real records themselves — nothing here is
+// and status fields on the real records themselves - nothing here is
 // invented data.
 function toLogEntry(record, module, userMap) {
   const created = record.created_at, updated = record.updated_at;
@@ -205,10 +205,10 @@ function toLogEntry(record, module, userMap) {
   return {
     id: `${module}-${record.id}`,
     dateObj: dt,
-    date: dt ? dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—",
-    time: dt ? dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—",
+    date: dt ? dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "-",
+    time: dt ? dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-",
     user: actor ? actor.name : "System",
-    role: actor ? (actor.roles?.[0]?.name.replace(/_/g, " ") || "—") : "—",
+    role: actor ? (actor.roles?.[0]?.name.replace(/_/g, " ") || "-") : "-",
     initials: initials(actor ? actor.name : "System"),
     color: colorFor(actor ? actor.name : "System"),
     action,
@@ -403,7 +403,7 @@ export default function AuditLogs() {
       <div style={{ marginBottom:12, display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
         <div>
           <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Audit Logs</h1>
-          <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Activity reconstructed from live Items, Categories, Suppliers, Units and Users records — the API has no dedicated audit-log endpoint yet.</p>
+          <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Activity reconstructed from live Items, Categories, Suppliers, Units and Users records - the API has no dedicated audit-log endpoint yet.</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           {authStatus === "connecting" && <span style={{ fontSize:11.5, color:"#6b7591" }}>Connecting…</span>}

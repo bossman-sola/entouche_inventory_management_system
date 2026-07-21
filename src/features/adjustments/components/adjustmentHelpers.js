@@ -22,7 +22,7 @@ export const STATUS_BADGE_CLASS = {
 
 export const getAdjType = (a) => a.adjustment_type ?? a.type ?? null;
 export const getStatus = (a) => a.status ?? "draft";
-export const getReason = (a) => a.reason ?? "—";
+export const getReason = (a) => a.reason ?? "-";
 export const getDate = (a) => a.adjustment_date ?? a.created_at ?? null;
 export const getReference = (a) => {
   if (a.reference_number) return a.reference_number;
@@ -36,11 +36,11 @@ export const getAdjustedByName = (a) => a.created_by?.name ?? a.user?.name ?? a.
 
 export const getItemRows = (a) => (Array.isArray(a.items) ? a.items : []);
 export const getItemName = (row) => row.item?.name ?? row.name ?? row.item_name ?? "Item";
-export const getItemSku = (row) => row.item?.sku ?? row.sku ?? "—";
+export const getItemSku = (row) => row.item?.sku ?? row.sku ?? "-";
 export const getItemQty = (row) => row.adjustment_quantity ?? row.quantity ?? 0;
 
 export function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

@@ -38,7 +38,7 @@ export function ImportHistoryTable({ history }) {
           </thead>
           <tbody>
             {visibleHistory.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 px-3 text-center text-sm text-gray-400">No imports yet this session — run one above to see it here.</td></tr>
+              <tr><td colSpan={8} className="py-10 px-3 text-center text-sm text-gray-400">No imports yet this session - run one above to see it here.</td></tr>
             ) : visibleHistory.map(h => (
               <tr key={h.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
                 <td className="py-3 px-3 whitespace-nowrap">

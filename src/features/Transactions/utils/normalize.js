@@ -60,16 +60,16 @@ export function normalizeTransaction(raw, itemMeta, assumedType) {
 
   const from = firstDefined(
     raw.from_location?.name, raw.source_location?.name, raw.from,
-    "—"
+    "-"
   );
   const to = firstDefined(
     raw.to_location?.name, raw.destination_location?.name, raw.location?.name, raw.to,
-    "—"
+    "-"
   );
 
   const userName = firstDefined(
     raw.user?.name, raw.created_by_user?.name, raw.performed_by?.name, raw.creator?.name, raw.requested_by?.name,
-    "—"
+    "-"
   );
 
   
@@ -77,13 +77,13 @@ export function normalizeTransaction(raw, itemMeta, assumedType) {
 
   return {
     id: firstDefined(raw.id, raw.reference_number, `${itemMeta?.id || "x"}-${Math.random().toString(36).slice(2, 8)}`),
-    refLabel: formatTxnId(raw.id) || firstDefined(raw.reference_number, "—"),
+    refLabel: formatTxnId(raw.id) || firstDefined(raw.reference_number, "-"),
     date: createdAt,
     type,
     typeDetail,
     direction,
-    item: firstDefined(raw.item?.name, itemMeta?.name, "—"),
-    sku: firstDefined(raw.item?.sku, itemMeta?.sku, "—"),
+    item: firstDefined(raw.item?.name, itemMeta?.name, "-"),
+    sku: firstDefined(raw.item?.sku, itemMeta?.sku, "-"),
     from,
     to,
     qty,
@@ -95,7 +95,7 @@ export function normalizeTransaction(raw, itemMeta, assumedType) {
 }
 
 export function fmtDateTime(d) {
-  if (!d || isNaN(d.getTime())) return { date: "—", time: "" };
+  if (!d || isNaN(d.getTime())) return { date: "-", time: "" };
   return {
     date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),

@@ -23,9 +23,9 @@ export const StatCard = ({
         {loading ? (
           <div className="h-7 w-16 bg-gray-100 rounded animate-pulse" />
         ) : error ? (
-          <p className="text-sm text-red-500 font-medium">—</p>
+          <p className="text-sm text-red-500 font-medium">-</p>
         ) : unavailable ? (
-          <p className="text-2xl font-bold text-gray-300">—</p>
+          <p className="text-2xl font-bold text-gray-300">-</p>
         ) : (
           <p className="text-3xl font-bold text-gray-900 truncate">{value}</p>
         )}
