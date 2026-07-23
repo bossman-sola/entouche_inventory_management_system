@@ -21,11 +21,11 @@ export const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable,
     onChange(row.id, "unit", found.unit?.abbreviation || found.unit?.name || "");
     onChange(row.id, "unitCost", Number(found.unit_cost) || 0);
 
-    // The item catalog (GET /items) doesn't include stock levels — those
+    // The item catalog (GET /items) doesn't include stock levels - those
     // live behind GET /items/{id}/stock-balance. Fetch it live whenever a
     // row's item changes, same pattern as the Transfers page. `null` here
     // is a loading marker (see the render below); it flips to a number, or
-    // "—" if the lookup fails, once the request resolves.
+    // "-" if the lookup fails, once the request resolves.
     if ((showAvailable || showCurrentStock) && fetchStockBalance) {
       onChange(row.id, "stockOnHand", null);
       fetchStockBalance(found.id)
@@ -33,13 +33,13 @@ export const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable,
           const value = showAvailable ? balance?.total_available : balance?.total_on_hand;
           onChange(row.id, "stockOnHand", value ?? 0);
         })
-        .catch(() => onChange(row.id, "stockOnHand", "—"));
+        .catch(() => onChange(row.id, "stockOnHand", "-"));
     } else {
       onChange(row.id, "stockOnHand", undefined);
     }
   };
 
-  const stockCell = row.stockOnHand === null ? "…" : (row.stockOnHand ?? "—");
+  const stockCell = row.stockOnHand === null ? "…" : (row.stockOnHand ?? "-");
 
   return (
     <tr>
@@ -51,7 +51,7 @@ export const ItemRow = ({ row, idx, onChange, onRemove, showCost, showAvailable,
           {catalogItems.map(ci => <option key={ci.id} value={ci.id}>{ci.name}</option>)}
         </select>
       </td>
-      <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{row.sku || "—"}</td>
+      <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{row.sku || "-"}</td>
       {showAvailable    && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{stockCell}</td>}
       {showCurrentStock && <td style={{ ...td, color: "#9aa1b4", fontSize: 12 }}>{stockCell}</td>}
       <td style={td}>

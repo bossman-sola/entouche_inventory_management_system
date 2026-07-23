@@ -22,7 +22,7 @@ const chevron = (
 
 const emptyForm = { supplier: '', receivedBy: '', warehouseId: '', locationId: '', date: '', poNumber: '', notes: '' };
 
-export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '—' }) {
+export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '-' }) {
   const [receiptItems, setReceiptItems] = useState([]);
   const [showNewItem, setShowNewItem]   = useState(false);
   const [noteLen, setNoteLen]           = useState(0);
@@ -139,7 +139,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
       setWarehouseId(editData.warehouseId || '');
       setLocationId(editData.receivingLocationId || '');
       setDate(editData.date || todayIso());
-      setPoNumber(editData.poNumber || (editData.ref !== '—' ? editData.ref : '') || '');
+      setPoNumber(editData.poNumber || (editData.ref !== '-' ? editData.ref : '') || '');
       setNotes(editData.notes || '');
       setNoteLen((editData.notes || '').length);
       setReceiptItems((editData.items || []).map(it => ({ ...it })));

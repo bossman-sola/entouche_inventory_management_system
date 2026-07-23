@@ -78,7 +78,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
       id: rowId,
       itemId: selectedItem.id,
       item: selectedItem.name,
-      sku: selectedItem.sku || "—",
+      sku: selectedItem.sku || "-",
       unit: searchUnit || selectedItem.unit?.abbreviation || "",
       qty: searchQty || 0,
       availableStock: null,
@@ -159,7 +159,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
         {!token && (
           <div className="mb-5 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
             <Icon d={icons.alert} size={15} className="text-orange-500 shrink-0" />
-            <p className="text-xs text-orange-700">Not connected to the API yet — item search and the user list won't load until sign-in succeeds.</p>
+            <p className="text-xs text-orange-700">Not connected to the API yet - item search and the user list won't load until sign-in succeeds.</p>
           </div>
         )}
 
@@ -303,9 +303,9 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
                       <td className="py-2 px-3 text-sm text-gray-500">{idx + 1}</td>
                       <td className="py-2 px-3 text-sm text-gray-800 font-medium whitespace-nowrap">{row.item}</td>
                       <td className="py-2 px-3 text-sm text-gray-400">{row.sku}</td>
-                      <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "—"}</td>
+                      <td className="py-2 px-3 text-sm text-gray-600">{row.unit || "-"}</td>
                       <td className="py-2 px-3 text-sm text-gray-700">
-                        {row.availableStock === null ? <Spinner size={12} className="text-gray-400" /> : row.stockError ? <span className="text-red-500">—</span> : row.availableStock}
+                        {row.availableStock === null ? <Spinner size={12} className="text-gray-400" /> : row.stockError ? <span className="text-red-500">-</span> : row.availableStock}
                       </td>
                       <td className="py-2 px-3">
                         <input
@@ -338,7 +338,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
 
           <div className="mt-3 flex items-start sm:items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
             <Icon d={icons.info} size={15} className="text-blue-500 shrink-0 mt-0.5 sm:mt-0" />
-            <p className="text-xs text-blue-700">Transfers are created as a draft first. Submit for approval when you're ready — stock only moves once the transfer is approved and completed.</p>
+            <p className="text-xs text-blue-700">Transfers are created as a draft first. Submit for approval when you're ready - stock only moves once the transfer is approved and completed.</p>
           </div>
         </div>
 

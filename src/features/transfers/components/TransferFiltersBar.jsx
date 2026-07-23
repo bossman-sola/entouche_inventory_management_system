@@ -56,7 +56,7 @@ export default function TransferFiltersBar({
   itemFilter, setItemFilter,
   dateStart, dateEnd, setDateRange,
 }) {
-  const locationOptions = locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} — ${l.name}` }));
+  const locationOptions = locations.map(l => ({ value: String(l.id), label: `${l.warehouseName} - ${l.name}` }));
   const statusOptions = TRANSFER_STATUSES.map(s => ({ value: s, label: STATUS_META[s].label }));
   const hasFilters = fromFilter || toFilter || statusFilter || itemFilter || (dateStart && dateEnd);
 

@@ -12,7 +12,7 @@ export function DataPreviewTable({ parsedData }) {
           <tbody>
             {parsedData.rows.slice(0, 3).map((row, i) => (
               <tr key={i} className="border-t border-gray-200">
-                {row.map((cell, j) => <td key={j} className="py-1 px-2 text-gray-700 whitespace-nowrap">{cell || "—"}</td>)}
+                {row.map((cell, j) => <td key={j} className="py-1 px-2 text-gray-700 whitespace-nowrap">{cell || "-"}</td>)}
               </tr>
             ))}
           </tbody>

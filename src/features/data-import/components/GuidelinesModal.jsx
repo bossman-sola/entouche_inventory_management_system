@@ -2,11 +2,11 @@ import { Icon, icons } from "../../../lib/icons";
 
 const GUIDELINES = [
   { title: "1. Download Template", desc: "Always start by downloading the appropriate template for your data type (Items or Users). This ensures your data is in the correct format." },
-  { title: "2. Prepare Your Data", desc: "Fill in the template with your data. Category and Unit of Measure values must match records that already exist in the system — they're checked against the live API during validation. Role is required but not checked against a list, since the API doesn't expose one." },
+  { title: "2. Prepare Your Data", desc: "Fill in the template with your data. Category and Unit of Measure values must match records that already exist in the system - they're checked against the live API during validation. Role is required but not checked against a list, since the API doesn't expose one." },
   { title: "3. Upload Your File", desc: "Drag and drop your file into the upload area, or click 'Browse Files'. Only CSV and XLSX files are supported." },
   { title: "4. Validate Before Importing", desc: "Click 'Validate File' to check for errors. Review any validation errors and fix them in your file before proceeding." },
   { title: "5. Import Valid Data", desc: "Once validation is complete, click 'Import Valid Data'. Each valid row is sent to the live API individually; rows with errors are skipped." },
-  { title: "Notes", desc: "• Inventory import has no backing API endpoint yet, so it's disabled\n• Users import is list/view only for now — the API has no endpoint to create users\n• Item SKUs are assigned automatically by the system" },
+  { title: "Notes", desc: "• Inventory import has no backing API endpoint yet, so it's disabled\n• Users import is list/view only for now - the API has no endpoint to create users\n• Item SKUs are assigned automatically by the system" },
 ];
 
 export function GuidelinesModal({ onClose }) {

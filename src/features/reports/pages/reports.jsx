@@ -265,7 +265,7 @@ export default function Reports() {
     const source = def.available ? sourceFor(def.dataKey) : null;
     const lastGenTs = source ? latestTimestamp(source) : null;
     const lastGen = lastGenTs ? fmtDateTime(lastGenTs) : (def.available ? "No data yet" : "Not available");
-    const genBy = !def.available ? "—" : (def.systemGenerated ? "System" : (currentUser?.name || "—"));
+    const genBy = !def.available ? "-" : (def.systemGenerated ? "System" : (currentUser?.name || "-"));
     const recordCount = source ? source.length : 0;
     return { ...def, lastGen, genBy, recordCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -369,7 +369,7 @@ export default function Reports() {
 
   const handleDownload = (report, fmt) => {
     if (!report.available) {
-      showToast(`${report.name} isn't available yet — no matching endpoint`);
+      showToast(`${report.name} isn't available yet - no matching endpoint`);
       return;
     }
     const rows = buildRows(report);

@@ -6,9 +6,9 @@ import { Spinner, StatusBadge } from "./ui.jsx";
 const firstItemName = (t) => t.items?.[0]?.item?.name ?? t.items?.[0]?.item_name ?? "—";
 const itemCount = (t) => t.items?.length ?? 0;
 const totalQty = (t) => (t.items || []).reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-const locationLabel = (loc) => loc ? `${loc.warehouse?.name ?? ""}${loc.warehouse?.name ? " — " : ""}${loc.name ?? ""}` : "—";
-const requestedByLabel = (t) => t.creator?.name ?? t.created_by_user?.name ?? t.requested_by_name ?? "—";
-const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+const locationLabel = (loc) => loc ? `${loc.warehouse?.name ?? ""}${loc.warehouse?.name ? " - " : ""}${loc.name ?? ""}` : "-";
+const requestedByLabel = (t) => t.creator?.name ?? t.created_by_user?.name ?? t.requested_by_name ?? "-";
+const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
 const formatTime = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
 
 function actionsFor(status) {
@@ -127,7 +127,7 @@ export default function TransferTable({
             {loading ? (
               <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400"><Spinner size={16} className="inline mr-2" /> Loading transfers…</td></tr>
             ) : visible.length === 0 ? (
-              <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400">No transfers yet — create one to see it here.</td></tr>
+              <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400">No transfers yet - create one to see it here.</td></tr>
             ) : visible.map(t => {
               const available = actionsFor(t.status);
               const count = itemCount(t);

@@ -62,7 +62,7 @@ const AddItemModal = ({
   const allSuppliers = [...suppliers, ...localSuppliers];
   const allUnits = [...units, ...localUnits];
 
-  // Type isn't chosen manually anymore — it's derived from whichever Unit
+  // Type isn't chosen manually anymore - it's derived from whichever Unit
   // of Measure is selected (e.g. Piece -> Count, Kilogram -> Weight).
   const selectedUnit = allUnits.find((u) => String(u.id) === String(formData.unitId));
   const derivedUnitType = selectedUnit ? getUnitType(selectedUnit.name, selectedUnit.abbreviation) : null;
@@ -630,7 +630,7 @@ const NewUnitModal = ({ isOpen, onClose, onCreate }) => {
 
   // Unit Name options depend on which Unit Type is picked first; Symbol is
   // fully determined by Unit Name, so it's a read-only dropdown, not
-  // free text — this keeps every unit consistent with the reference table.
+  // free text - this keeps every unit consistent with the reference table.
   const nameOptions = form.type
     ? getUnitNamesByType(form.type).map((u) => ({ value: u.name, label: `${u.name} (${u.symbol})` }))
     : [];

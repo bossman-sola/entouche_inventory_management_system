@@ -83,7 +83,7 @@ export default function TransactionsPage() {
         fetchAllPages("/suppliers", token),
         fetchAllPages("/units", token),
         fetchAllPages("/warehouses", token),
-        // Global ledger — filters (item_id, warehouse_id, transaction_type,
+        // Global ledger - filters (item_id, warehouse_id, transaction_type,
         // direction, date_from, date_to) are supported server-side if we
         // later want to push filtering down instead of doing it client-side.
         fetchAllPages("/transactions", token, { maxPages: TRANSACTIONS_MAX_PAGES }),
@@ -106,7 +106,7 @@ export default function TransactionsPage() {
 
       if (transactionsRaw.length >= TRANSACTIONS_MAX_PAGES * PER_PAGE) {
         setPartialWarning(
-          `Showing the most recent ${transactionsRaw.length.toLocaleString()} transactions — there may be more in the ledger than this page can display.`
+          `Showing the most recent ${transactionsRaw.length.toLocaleString()} transactions - there may be more in the ledger than this page can display.`
         );
       }
     } catch (e) {
@@ -143,7 +143,7 @@ export default function TransactionsPage() {
     return Array.isArray(json.data) ? json.data : [];
   }, [token]);
 
-  // Builds the exact request body each endpoint documents — the four
+  // Builds the exact request body each endpoint documents - the four
   // transaction types don't share a shape, so this branches per type
   // rather than trying to force one generic payload.
   const buildBody = (form) => {

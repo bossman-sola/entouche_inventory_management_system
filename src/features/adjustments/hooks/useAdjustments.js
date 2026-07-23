@@ -41,7 +41,7 @@ export function useAdjustments() {
   }
 
   const submitAdjustment = (id) => runAction(() => api.submitAdjustment(id), "Adjustment submitted for approval");
-  const approveAdjustment = (id) => runAction(() => api.approveAdjustment(id), "Adjustment approved — stock updated");
+  const approveAdjustment = (id) => runAction(() => api.approveAdjustment(id), "Adjustment approved - stock updated");
   const rejectAdjustment = (id, reason) => runAction(() => api.rejectAdjustment(id, reason), "Adjustment rejected");
   const cancelAdjustment = (id) => runAction(() => api.cancelAdjustment(id), "Adjustment cancelled");
   const deleteAdjustment = (id) => runAction(() => api.deleteAdjustment(id), "Draft adjustment deleted");

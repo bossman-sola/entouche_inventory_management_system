@@ -164,7 +164,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
               </div>
               <div>
                 <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1 tracking-widest">Barcode</p>
-                <div className="text-[16px] font-bold text-[#1E2740] mt-1 tracking-tighter">{item.barcode || "—"}</div>
+                <div className="text-[16px] font-bold text-[#1E2740] mt-1 tracking-tighter">{item.barcode || "-"}</div>
               </div>
             </div>
           </div>
@@ -201,8 +201,8 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
                       <DataField label="Category" value={item.category} />
                       <DataField label="Reorder Level" value={item.reorderLevel} />
                       <DataField label="Unit of Measure" value={item.uom} />
-                      <DataField label="Unit Cost" value={item.unitCost != null ? `₦${item.unitCost}` : "—"} />
-                      <DataField label="Selling Price" value={item.sellingPrice != null ? `₦${item.sellingPrice}` : "—"} />
+                      <DataField label="Unit Cost" value={item.unitCost != null ? `₦${item.unitCost}` : "-"} />
+                      <DataField label="Selling Price" value={item.sellingPrice != null ? `₦${item.sellingPrice}` : "-"} />
                       <DataField label="Brand" value={item.brand} />
                     </>
                   )}
@@ -277,7 +277,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
                       <TransactionRow
                         key={txn.id || idx}
                         type={txn.type || txn.transaction_type || "Transaction"}
-                        qty={txn.quantity ? `${txn.quantity > 0 ? "+" : ""}${txn.quantity}` : "—"}
+                        qty={txn.quantity ? `${txn.quantity > 0 ? "+" : ""}${txn.quantity}` : "-"}
                         date={txn.created_at ? new Date(txn.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
                         refId={txn.reference || txn.reference_number || ""}
                         isNegative={txn.quantity < 0}
@@ -342,7 +342,7 @@ const SectionCard = ({ title, action, children }) => (
 const DataField = ({ label, value }) => (
   <div className="text-left">
     <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1.5 tracking-widest">{label}</p>
-    <div className="text-[13px] font-bold text-[#1E2740] tracking-tight">{value || "—"}</div>
+    <div className="text-[13px] font-bold text-[#1E2740] tracking-tight">{value || "-"}</div>
   </div>
 );
 
