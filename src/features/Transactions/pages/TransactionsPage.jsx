@@ -278,7 +278,7 @@ export default function TransactionsPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Transactions</h1>
           <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>
             View and track all inventory transactions across your organization.
-            {currentUserName && <span style={{ color: "#9aa1b4" }}> · Signed in as {currentUserName}</span>}
+            
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

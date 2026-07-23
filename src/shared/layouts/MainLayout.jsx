@@ -12,6 +12,14 @@ import UsersIcon from "../../assets/icons/Users.svg?react";
 import WarehouseIcon from "../../assets/icons/Warehouse.svg?react";
 import AuditIcon from "../../assets/icons/Audit.svg?react";
 import SettingsIcon from "../../assets/icons/Settings.svg?react";
+import Notifications from "./Notifications";
+import AlertDialog from "./dialogs/AlertDialog";
+import ReceiptCompletedDialog from "./dialogs/ReceiptCompletedDialog";
+import TransferApprovedDialog from "./dialogs/TransferApprovedDialog";
+import TransferCompletedDialog from "./dialogs/TransferCompletedDialog";
+import AdjustmentPendingDialog from "./dialogs/AdjustmentPendingDialog";
+import StockCountVarianceDialog from "./dialogs/StockCountVarianceDialog";
+import NewReceiptApprovalDialog from "./dialogs/NewReceiptApprovalDialog";
 
 import {
   ChevronDown,
@@ -25,6 +33,172 @@ import {
   LogOut,
 } from "lucide-react";
 
+
+const DEMO_NOTIFICATIONS = [
+  {
+    id: "n1",
+    type: "low_stock_alert",
+    title: "Low Stock Alert",
+    description: "Dell Latitude 5440 is low on stock at Storage Area.",
+    timeAgo: "2 min ago",
+    unread: true,
+    itemId: "LAP-001",
+  },
+  {
+    id: "n2",
+    type: "receipt_completed",
+    title: "Receipt Completed",
+    description: "Receipt RCPT-000156 has been completed and added to inventory.",
+    timeAgo: "15 min ago",
+    unread: true,
+    receiptId: "RCPT-000156",
+  },
+  {
+    id: "n3",
+    type: "transfer_approved",
+    title: "Transfer Approved",
+    description: "Transfer TRF-000089 has been approved and is ready for completion.",
+    timeAgo: "32 min ago",
+    unread: true,
+    transferId: "TRF-000089",
+  },
+  {
+    id: "n4",
+    type: "reorder_level_reached",
+    title: "Reorder Level Reached",
+    description: "HP LaserJet Pro has reached reorder level at Storage Area.",
+    timeAgo: "1 hr ago",
+    unread: true,
+    itemId: "HPLJ-M404",
+  },
+  {
+    id: "n5",
+    type: "adjustment_pending",
+    title: "Adjustment Pending",
+    description: "Adjustment ADJ-000045 for item iPhone 13 is awaiting approval.",
+    timeAgo: "1 hr ago",
+    unread: true,
+    adjustmentId: "ADJ-000045",
+  },
+  {
+    id: "n6",
+    type: "stock_count_variance",
+    title: "Stock Count Variance",
+    description: "Stock Count SC-000123 has variance exceeding the allowed limit.",
+    timeAgo: "2 hr ago",
+    unread: false,
+    stockCountId: "SC-000123",
+  },
+  {
+    id: "n7",
+    type: "system_maintenance",
+    title: "System Maintenance Scheduled",
+    description: "System maintenance planned for July 25, 2026 at 02:00 AM.",
+    timeAgo: "2 hr ago",
+    unread: false,
+  },
+  {
+    id: "n8",
+    type: "new_receipt_awaiting_approval",
+    title: "New Receipt Awaiting Approval",
+    description: "Receipt RCPT-000157 has been submitted and is awaiting approval.",
+    timeAgo: "3 hr ago",
+    unread: false,
+    receiptId: "RCPT-000157",
+  },
+];
+
+const DEMO_DIALOG_DATA = {
+  low_stock_alert: {
+    item: { name: "Dell Latitude 5440", sku: "LAP-001", category: "Laptops", brand: "Dell", unit: "PCS", status: "Active" },
+    locations: [
+      { name: "Receiving Area", zone: "Receiving Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+      { name: "Storage Area", zone: "Storage Zone A", onHand: 15, reserved: 0, available: 15, status: "Low Stock" },
+      { name: "Dispatch Area", zone: "Dispatch Zone", onHand: 2, reserved: 0, available: 2, status: "In Stock" },
+      { name: "Damaged Goods Area", zone: "Damage Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+    ],
+    stats: { totalAvailable: 17, reorderLevel: 20, shortage: 3, leadTimeDays: 5 },
+  },
+  reorder_level_reached: {
+    item: { name: "HP LaserJet Pro M404dn", sku: "HPLJ-M404", category: "Printers", brand: "HP", unit: "PCS", status: "Active" },
+    locations: [
+      { name: "Receiving Area", zone: "Receiving Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+      { name: "Storage Area", zone: "Storage Zone A", onHand: 10, reserved: 0, available: 10, status: "Reorder Level" },
+      { name: "Dispatch Area", zone: "Dispatch Zone", onHand: 3, reserved: 0, available: 3, status: "In Stock" },
+      { name: "Damaged Goods Area", zone: "Damage Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+    ],
+    stats: { totalAvailable: 10, reorderLevel: 10, leadTimeDays: 3 },
+  },
+  receipt_completed: {
+    receipt: { number: "RCPT-000156", completedOn: "May 20, 2025 10:15 AM", receivedBy: "John Michael", supplier: "Dell Technologies", warehouse: "Main Warehouse", type: "Purchase Receipt" },
+    items: [{ name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 20, unit: "PCS", unitCost: 650000, totalCost: 13000000 }],
+    totals: { items: 1, qty: "20 PCS", amount: 13000000 },
+    inventoryUpdates: [{ location: "Storage Area", zone: "Storage Zone A", previous: "10 PCS", received: "20 PCS", newStock: "30 PCS" }],
+    notes: "Dell laptop delivery for Q2 purchase order.",
+  },
+  transfer_approved: {
+    transfer: { number: "TRF-000089", approvedOn: "May 20, 2025 9:42 AM", approvedBy: "Michael Johnson", approvedByRole: "Warehouse Manager", fromLocation: "Receiving Area", fromZone: "Receiving Zone", toLocation: "Storage Area A", toZone: "Storage Zone A", purpose: "Regular Stock Transfer" },
+    items: [
+      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 15, unit: "PCS" },
+      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 5, unit: "PCS" },
+    ],
+    totals: { items: 2, qty: "20 PCS", type: "Stock Transfer" },
+    details: { requestedOn: "May 20, 2025 8:55 AM", requestedBy: "John Michael", requestedByRole: "Inventory Officer", reference: "PO-REF-2025-048", status: "Approved" },
+  },
+  transfer_completed: {
+    transfer: { number: "TRF-000089", completedOn: "May 20, 2025 10:28 AM", completedBy: "John Michael", completedByRole: "Inventory Officer", fromLocation: "Receiving Area", fromZone: "Receiving Zone", toLocation: "Storage Area A", toZone: "Storage Zone A", purpose: "Regular Stock Transfer" },
+    items: [
+      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 15, unit: "PCS" },
+      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 5, unit: "PCS" },
+    ],
+    totals: { items: 2, qty: "20 PCS" },
+    summary: { previousLocation: "Receiving Area", previousStock: "25 PCS", transferredOut: "20 PCS", transferredIn: "20 PCS", newLocation: "Storage Area A", newStock: "120 PCS" },
+    notes: "Transfer completed and inventory updated successfully.",
+  },
+  adjustment_pending: {
+    adjustment: { number: "ADJ-000045", submittedOn: "May 20, 2025 11:35 AM", submittedBy: "John Michael", submittedByRole: "Inventory Officer", type: "Decrease", reason: "Damaged Goods", approvalFrom: "Michael Johnson", approvalFromRole: "Warehouse Manager" },
+    items: [{ name: "iPhone 13", cat: "Mobile Phones", sku: "IP13-128", location: "Storage Area A", zone: "Storage Zone A", qtyChange: "-2", unit: "PCS" }],
+    stockSummary: { previous: "10 PCS", adjustment: "-2 PCS", expected: "8 PCS" },
+    details: { reasonDetails: "2 units damaged beyond repair during handling.", reference: "DAM-2025-005", affectedBy: "Handling Damage", attachment: "damage_photo.jpg" },
+    workflowSteps: [
+      { label: "Submitted", status: "done", date: "May 20, 2025 11:35 AM", by: "John Michael" },
+      { label: "Pending Approval", status: "current", by: "Michael Johnson", byRole: "Warehouse Manager" },
+      { label: "Approved", status: "pending" },
+    ],
+  },
+  stock_count_variance: {
+    count: { number: "SC-000123", countedOn: "May 20, 2025 2:45 PM", location: "Storage Area A", zone: "Storage Zone A", countType: "Cycle Count", countedBy: "John Michael", countedByRole: "Inventory Officer", approvalFrom: "Michael Johnson", approvalFromRole: "Warehouse Manager" },
+    summary: { itemsCounted: 25, totalVarianceQty: "-15 PCS", totalVarianceValue: 215000, variancePct: 5.62 },
+    varianceLevels: [
+      { level: "Critical", range: "> 10%", items: 2, qty: "-8 PCS", value: 130000 },
+      { level: "High", range: "5% - 10%", items: 3, qty: "-5 PCS", value: 85000 },
+      { level: "Low", range: "2% - 5%", items: 6, qty: "-2 PCS", value: 25000 },
+      { level: "Within Limit", range: "≤ 2%", items: 14, qty: "0 PCS", value: 0 },
+    ],
+    topVariances: [
+      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", systemQty: "20 PCS", countedQty: "15 PCS", variance: "-5 PCS", variancePct: -25.0 },
+      { name: "iPhone 13", cat: "Mobile Phones", sku: "IP13-128", systemQty: "10 PCS", countedQty: "6 PCS", variance: "-4 PCS", variancePct: -40.0 },
+      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", systemQty: "8 PCS", countedQty: "7 PCS", variance: "-1 PCS", variancePct: -12.5 },
+    ],
+  },
+  new_receipt_awaiting_approval: {
+    receipt: { number: "RCPT-000157", submittedOn: "May 22, 2025 9:18 AM", submittedBy: "John Michael", submittedByRole: "Inventory Officer", supplier: "Dell Technologies", warehouse: "Main Warehouse", type: "Purchase Receipt", expectedDeliveryDate: "May 22, 2025" },
+    items: [
+      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 20, unit: "PCS", unitCost: 650000, totalCost: 13000000 },
+      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 10, unit: "PCS", unitCost: 120000, totalCost: 1200000 },
+      { name: "Dell Wireless Mouse", cat: "Accessories", sku: "WM-500", qty: 25, unit: "PCS", unitCost: 15000, totalCost: 375000 },
+    ],
+    totals: { items: 3, qty: "55 PCS", amount: 14575000, taxPct: 7.5, taxAmount: 1093125 },
+    reference: { poNumber: "PO-2025-05-078", invoiceNumber: "INV-2025-05078", deliveryNote: "DN-2025-05078" },
+    notes: "New laptops for Q2 project deployment.",
+    workflowSteps: [
+      { label: "Submitted", status: "done", date: "May 22, 2025 9:18 AM", by: "John Michael" },
+      { label: "Pending Approval", status: "current", by: "Michael Johnson", byRole: "Warehouse Manager" },
+      { label: "Approved", status: "pending" },
+    ],
+  },
+};
+
 const MainLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -32,12 +206,19 @@ const MainLayout = () => {
   const [inventoryOpen, setInventoryOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS);
+  const [activeDialog, setActiveDialog] = useState(null); // { type, data } | null
   const profileRef = useRef(null);
+  const notifRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -49,6 +230,77 @@ const MainLayout = () => {
     await logout();
     navigate("/signin", { replace: true });
   };
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const handleToggleRead = (notification) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, unread: !n.unread } : n))
+    );
+  };
+
+  const handleDeleteNotification = (notification) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+  };
+
+  const handleViewAllNotifications = () => {
+    setNotifOpen(false);
+    navigate("/notifications");
+  };
+
+  const handleNotificationClick = (notification) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, unread: false } : n))
+    );
+    setNotifOpen(false);
+
+    switch (notification.type) {
+      case "low_stock_alert":
+        setActiveDialog({ type: "low_stock_alert", data: DEMO_DIALOG_DATA.low_stock_alert });
+        break;
+      case "reorder_level_reached":
+        setActiveDialog({ type: "reorder_level_reached", data: DEMO_DIALOG_DATA.reorder_level_reached });
+        break;
+      case "receipt_completed":
+        setActiveDialog({ type: "receipt_completed", data: DEMO_DIALOG_DATA.receipt_completed });
+        break;
+      case "transfer_approved":
+        setActiveDialog({ type: "transfer_approved", data: DEMO_DIALOG_DATA.transfer_approved });
+        break;
+      case "transfer_completed":
+        setActiveDialog({ type: "transfer_completed", data: DEMO_DIALOG_DATA.transfer_completed });
+        break;
+      case "adjustment_pending":
+        setActiveDialog({ type: "adjustment_pending", data: DEMO_DIALOG_DATA.adjustment_pending });
+        break;
+      case "stock_count_variance":
+        setActiveDialog({ type: "stock_count_variance", data: DEMO_DIALOG_DATA.stock_count_variance });
+        break;
+      case "new_receipt_awaiting_approval":
+        setActiveDialog({ type: "new_receipt_awaiting_approval", data: DEMO_DIALOG_DATA.new_receipt_awaiting_approval });
+        break;
+      case "user_created":
+       
+        break;
+      case "system_maintenance":
+        
+        break;
+      case "import_completed":
+       
+        break;
+      case "import_failed":
+        break;
+      default:
+        break;
+    }
+  };
+
+  const closeDialog = () => setActiveDialog(null);
+  const goTo = (path) => { closeDialog(); navigate(path); };
 
   const initials = user?.name
     ? user.name
@@ -288,12 +540,32 @@ const MainLayout = () => {
           </div>
 
           <div className="flex items-center gap-5">
-            <div className="relative cursor-pointer hover:bg-gray-50 p-2 rounded-full transition-colors">
-              <Bell size={18} className="text-gray-500" />
-              <span className="absolute top-1.5 right-1.5 bg-red-500 border-2 border-white text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
-                3
-              </span>
+            {/* Notifications */}
+            <div className="relative" ref={notifRef}>
+              <div
+                onClick={() => setNotifOpen((o) => !o)}
+                className="relative cursor-pointer hover:bg-gray-50 p-2 rounded-full transition-colors"
+              >
+                <Bell size={18} className="text-gray-500" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 bg-red-500 border-2 border-white text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
+
+              <Notifications
+                isOpen={notifOpen}
+                onClose={() => setNotifOpen(false)}
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onNotificationClick={handleNotificationClick}
+                onToggleRead={handleToggleRead}
+                onDelete={handleDeleteNotification}
+                onViewAll={handleViewAllNotifications}
+              />
             </div>
+
             <HelpCircle size={18} className="text-gray-500 cursor-pointer" />
 
             {/* Profile dropdown */}
@@ -374,6 +646,72 @@ const MainLayout = () => {
           </main>
         </div>
       </div>
+
+      {/* Notification detail dialogs */}
+      <AlertDialog
+        isOpen={activeDialog?.type === "low_stock_alert"}
+        variant="low_stock"
+        onClose={closeDialog}
+        {...(activeDialog?.type === "low_stock_alert" ? activeDialog.data : {})}
+        onCreateReceipt={() => goTo("/receipts")}
+        onTransferStock={() => goTo("/transfers")}
+        onAdjustStock={() => goTo("/adjustments")}
+        onViewStockHistory={closeDialog}
+      />
+      <AlertDialog
+        isOpen={activeDialog?.type === "reorder_level_reached"}
+        variant="reorder"
+        onClose={closeDialog}
+        {...(activeDialog?.type === "reorder_level_reached" ? activeDialog.data : {})}
+        onCreateReceipt={() => goTo("/receipts")}
+        onAdjustStock={() => goTo("/adjustments")}
+        onViewStockHistory={closeDialog}
+      />
+      <ReceiptCompletedDialog
+        isOpen={activeDialog?.type === "receipt_completed"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "receipt_completed" ? activeDialog.data : {})}
+        onViewReceiptDetails={() => goTo("/receipts")}
+        onViewInventory={() => goTo("/items")}
+      />
+      <TransferApprovedDialog
+        isOpen={activeDialog?.type === "transfer_approved"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "transfer_approved" ? activeDialog.data : {})}
+        onViewDetails={() => goTo("/transfers")}
+        onComplete={closeDialog}
+        onPrintSlip={closeDialog}
+      />
+      <TransferCompletedDialog
+        isOpen={activeDialog?.type === "transfer_completed"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "transfer_completed" ? activeDialog.data : {})}
+        onViewDetails={() => goTo("/transfers")}
+        onPrintSlip={closeDialog}
+      />
+      <AdjustmentPendingDialog
+        isOpen={activeDialog?.type === "adjustment_pending"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "adjustment_pending" ? activeDialog.data : {})}
+        onViewDetails={() => goTo("/adjustments")}
+        onApprove={closeDialog}
+      />
+      <StockCountVarianceDialog
+        isOpen={activeDialog?.type === "stock_count_variance"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "stock_count_variance" ? activeDialog.data : {})}
+        onViewFull={() => goTo("/stock-counts")}
+        onRequestRecount={closeDialog}
+        onReviewApprove={closeDialog}
+      />
+      <NewReceiptApprovalDialog
+        isOpen={activeDialog?.type === "new_receipt_awaiting_approval"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "new_receipt_awaiting_approval" ? activeDialog.data : {})}
+        onViewDetails={() => goTo("/receipts")}
+        onPrint={closeDialog}
+        onApprove={closeDialog}
+      />
     </div>
   );
 };
