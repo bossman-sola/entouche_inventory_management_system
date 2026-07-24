@@ -15,7 +15,6 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
   const [items, setItems] = useState([]);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
-
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
@@ -215,7 +214,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={1} placeholder="Enter any notes for this transfer" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Enter any notes for this transfer" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
           </div>
           {locationsError && <p className="text-xs text-red-500 mt-2">{locationsError}</p>}
