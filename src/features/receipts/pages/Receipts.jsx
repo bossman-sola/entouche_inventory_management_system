@@ -27,9 +27,9 @@ function fmtNaira(n) {
 
 function fmtDateDisplay(iso) {
   if (!iso) return "-";
-  const d = new Date(`${iso}T00:00:00`);
+  const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 const statusStyle = {

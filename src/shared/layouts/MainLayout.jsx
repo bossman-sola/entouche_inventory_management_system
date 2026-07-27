@@ -20,6 +20,10 @@ import TransferCompletedDialog from "./dialogs/TransferCompletedDialog";
 import AdjustmentPendingDialog from "./dialogs/AdjustmentPendingDialog";
 import StockCountVarianceDialog from "./dialogs/StockCountVarianceDialog";
 import NewReceiptApprovalDialog from "./dialogs/NewReceiptApprovalDialog";
+import UserCreatedDialog from "./dialogs/UserCreatedDialog";
+import SystemMaintenanceDialog from "./dialogs/SystemMaintenanceDialog";
+import ImportCompletedDialog from "./dialogs/ImportCompletedDialog";
+import { RefreshCw as RefreshCwIcon, Boxes as BoxesIcon, FileBarChart2 as FileBarChart2Icon, PlugZap as PlugZapIcon } from "lucide-react";
 
 import {
   ChevronDown,
@@ -105,6 +109,22 @@ const DEMO_NOTIFICATIONS = [
     timeAgo: "3 hr ago",
     unread: false,
     receiptId: "RCPT-000157",
+  },
+  {
+    id: "n9",
+    type: "import_completed",
+    title: "Import Completed",
+    description: "Import IMP-000045 has been completed successfully. 245 items were imported.",
+    timeAgo: "Just now",
+    unread: true,
+  },
+  {
+    id: "n10",
+    type: "user_created",
+    title: "User Created",
+    description: "New user Michael Johnson has been created and account is active.",
+    timeAgo: "5 min ago",
+    unread: true,
   },
 ];
 
@@ -197,6 +217,79 @@ const DEMO_DIALOG_DATA = {
       { label: "Approved", status: "pending" },
     ],
   },
+  system_maintenance: {
+    maintenance: {
+      startsAt: "May 24, 2025 11:00 PM",
+      endsAt: "May 25, 2025 02:00 AM",
+      id: "MAINT-2025-05-24-001",
+      initiatedBy: "System Administrator",
+      reason: "Database optimization, security updates and system performance improvements.",
+      impactLevel: "Medium",
+      durationLabel: "3 hours",
+      statusNote: "The system will remain accessible, but some operations may be slower than usual.",
+    },
+    features: [
+      { icon: RefreshCwIcon, label: "Transactions", note: "May be delayed" },
+      { icon: BoxesIcon, label: "Inventory Updates", note: "May be restricted" },
+      { icon: FileBarChart2Icon, label: "Reporting", note: "May be unavailable" },
+      { icon: PlugZapIcon, label: "Integrations", note: "May be limited" },
+    ],
+    actionItems: [
+      "Wrap up important transactions before the maintenance window.",
+      "Avoid initiating large imports or exports during this period.",
+      "Saved data will not be affected.",
+      "We appreciate your patience and understanding.",
+    ],
+  },
+  import_completed: {
+    importInfo: {
+      id: "IMP-000045",
+      type: "Items",
+      fileName: "items_import_2025-05-24.xlsx",
+      source: "Excel File Upload",
+      importedBy: "Ayomide Ajayi",
+      importedByRole: "System Administrator",
+      warehouse: "Main Warehouse",
+      completedOn: "May 24, 2025 02:45 PM",
+      totalRows: 262,
+      durationLabel: "1 min 32 sec",
+    },
+    stats: { imported: 245, importedPct: 93.5, updated: 8, updatedPct: 3.1, skipped: 6, skippedPct: 2.3, failed: 3, failedPct: 1.1 },
+    summaryRows: [
+      { kind: "imported", status: "Successfully Imported", description: "New items added to inventory", count: 245, pct: 93.5 },
+      { kind: "updated", status: "Updated", description: "Existing items updated", count: 8, pct: 3.1 },
+      { kind: "skipped", status: "Skipped", description: "Duplicates or unchanged items", count: 6, pct: 2.3 },
+      { kind: "failed", status: "Failed", description: "Errors during import", count: 3, pct: 1.1 },
+    ],
+    fileSummary: { fileSize: "125.6 KB", fileType: "Microsoft Excel (.xlsx)", sheetsProcessed: 1, itemsPerSheet: 262 },
+    nextSteps: [
+      "All valid items have been imported to inventory.",
+      "You can review the import log for details.",
+      "Download the error report to fix failed rows.",
+    ],
+  },
+  user_created: {
+    user: {
+      name: "Michael Johnson",
+      role: "Inventory Officer",
+      status: "Active",
+      email: "michael.johnson@delltech.com",
+      phone: "+234 801 234 5678",
+    },
+    details: {
+      userId: "USR-000248",
+      username: "michael.johnson",
+      role: "Inventory Officer",
+      status: "Active",
+      department: "Warehouse Operations",
+      dateCreated: "May 22, 2025 10:15 AM",
+      warehouseAccess: "Main Warehouse, Storage Zone A",
+      lastLogin: "Never",
+      createdBy: "Ayomide Ajayi",
+      createdByRole: "System Administrator",
+      temporaryPassword: "Auto-generated (Email Sent)",
+    },
+  },
 };
 
 const MainLayout = () => {
@@ -284,13 +377,13 @@ const MainLayout = () => {
         setActiveDialog({ type: "new_receipt_awaiting_approval", data: DEMO_DIALOG_DATA.new_receipt_awaiting_approval });
         break;
       case "user_created":
-       
+        setActiveDialog({ type: "user_created", data: DEMO_DIALOG_DATA.user_created });
         break;
       case "system_maintenance":
-        
+        setActiveDialog({ type: "system_maintenance", data: DEMO_DIALOG_DATA.system_maintenance });
         break;
       case "import_completed":
-       
+        setActiveDialog({ type: "import_completed", data: DEMO_DIALOG_DATA.import_completed });
         break;
       case "import_failed":
         break;
@@ -711,6 +804,27 @@ const MainLayout = () => {
         onViewDetails={() => goTo("/receipts")}
         onPrint={closeDialog}
         onApprove={closeDialog}
+      />
+      <UserCreatedDialog
+        isOpen={activeDialog?.type === "user_created"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "user_created" ? activeDialog.data : {})}
+        onViewUser={() => goTo("/settings")}
+        onAddAnotherUser={() => goTo("/settings")}
+      />
+      <SystemMaintenanceDialog
+        isOpen={activeDialog?.type === "system_maintenance"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "system_maintenance" ? activeDialog.data : {})}
+        onContactSupport={closeDialog}
+        onViewHistory={closeDialog}
+      />
+      <ImportCompletedDialog
+        isOpen={activeDialog?.type === "import_completed"}
+        onClose={closeDialog}
+        {...(activeDialog?.type === "import_completed" ? activeDialog.data : {})}
+        onDownloadErrorReport={closeDialog}
+        onViewImportLog={() => goTo("/data-import")}
       />
     </div>
   );

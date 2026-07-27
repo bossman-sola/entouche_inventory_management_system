@@ -103,7 +103,8 @@ export default function WarehouseOverviewPage() {
     try {
       const { warehouses: whs, locations: locs } = await fetchAllLocations();
       setWarehouses(whs);
-      setLocations(locs);
+      const dedupedLocs = Array.from(new Map((locs || []).map((l) => [l.id, l])).values());
+      setLocations(dedupedLocs);
     } catch (err) {
       setLocationsError(apiErrorMessage(err, "Couldn't load locations."));
       setWarehouses([]);
