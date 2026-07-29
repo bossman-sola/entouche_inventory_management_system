@@ -89,16 +89,20 @@ export default function LocationsPage() {
         whs.map((w) => warehousesApi.listLocations(w.id))
       );
 
-      const flattened = settled.flatMap((r, idx) => {
-        if (r.status !== 'fulfilled') return [];
-        return (r.value || []).map((loc) => ({
-          ...loc,
-          warehouse: whs[idx].name,
-          warehouseId: whs[idx].id,
-        }));
+      
+      const byId = new Map();
+      settled.forEach((r, idx) => {
+        if (r.status !== 'fulfilled') return;
+        const requestedWarehouse = whs[idx];
+        (r.value || []).forEach((loc) => {
+          if (byId.has(loc.id)) return;
+          const ownerId = loc.warehouseId ?? loc.warehouse_id ?? requestedWarehouse.id;
+          const owner = whs.find((w) => String(w.id) === String(ownerId)) || requestedWarehouse;
+          byId.set(loc.id, { ...loc, warehouse: owner.name, warehouseId: owner.id });
+        });
       });
 
-      setLocations(flattened);
+      setLocations(Array.from(byId.values()));
     } catch (err) {
       setError(err.message || 'Failed to load locations');
       setLocations([]);
