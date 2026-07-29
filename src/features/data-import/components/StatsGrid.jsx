@@ -8,7 +8,7 @@ export function StatsGrid({ history, successCount, failedCount, itemsTotal, user
     { label: "Total Imports", value: history.length, sub: "This session", subColor: "text-gray-500", icon: icons.upload, bg: "bg-blue-50", color: "text-blue-500" },
     { label: "Successful Imports", value: successCount, sub: `${successRate}% success rate`, subColor: "text-green-600", icon: icons.check, bg: "bg-green-50", color: "text-green-500" },
     { label: "Failed Imports", value: failedCount, sub: `${failRate}% failure rate`, subColor: "text-red-500", icon: icons.x, bg: "bg-red-50", color: "text-red-500" },
-    { label: "Items in System", value: itemsTotal ?? "—", sub: usersTotal != null ? `${usersTotal} users total` : "Live from API", subColor: "text-orange-500", icon: icons.clock, bg: "bg-orange-50", color: "text-orange-500" },
+    { label: "Items in System", value: itemsTotal ?? "-", sub: usersTotal != null ? `${usersTotal} users total` : "Live from API", subColor: "text-orange-500", icon: icons.clock, bg: "bg-orange-50", color: "text-orange-500" },
   ];
 
   return (

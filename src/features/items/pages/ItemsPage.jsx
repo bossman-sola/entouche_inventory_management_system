@@ -40,6 +40,7 @@ const Items = () => {
     createItem,
     updateItem,
     deleteItem,
+    toggleItemStatus,
   } = useItems();
 
  
@@ -208,6 +209,8 @@ const Items = () => {
 
   
   const handleImportComplete = async (validRows) => {
+    setActionError(null);
+    const failures = [];
     for (const row of validRows) {
       const category = categories.find(
         (c) => c.name.toLowerCase() === (row.category || '').toLowerCase()
@@ -215,18 +218,32 @@ const Items = () => {
       const unit = units.find(
         (u) => u.name.toLowerCase() === (row.unit || '').toLowerCase()
       );
-      await createItem({
-        name: row.name,
-        category_id: category?.id,
-        unit_of_measure_id: unit?.id,
-        barcode: row.barcode || undefined,
-        item_type: (row.unitType || '').toLowerCase() || undefined,
-        brand: row.brand || undefined,
-        unit_cost: row.unitCost ? Number(row.unitCost) : undefined,
-        selling_price: row.sellingPrice ? Number(row.sellingPrice) : undefined,
-        reorder_level: row.reorderLevel ? Number(row.reorderLevel) : undefined,
-        status: "active",
-      });
+      try {
+        const created = await createItem({
+          name: row.name,
+          category_id: category?.id,
+          unit_of_measure_id: unit?.id,
+          barcode: row.barcode || undefined,
+          item_type: (row.unitType || '').toLowerCase() || undefined,
+          brand: row.brand || undefined,
+          unit_cost: row.unitCost ? Number(row.unitCost) : undefined,
+          selling_price: row.sellingPrice ? Number(row.sellingPrice) : undefined,
+          reorder_level: row.reorderLevel ? Number(row.reorderLevel) : undefined,
+          status: "active",
+        });
+
+        
+        if (row.itemStatus === 'Inactive') {
+          await toggleItemStatus(created.id);
+        }
+      } catch (err) {
+        failures.push({ name: row.name, message: err.response?.data?.message || 'Import failed for this row.' });
+      }
+    }
+    if (failures.length) {
+      const message = `${failures.length} of ${validRows.length} item${validRows.length === 1 ? '' : 's'} failed to import: ${failures.map(f => f.name).join(', ')}. The rest were created successfully.`;
+      setActionError(message);
+      throw new Error(message);
     }
   };
 

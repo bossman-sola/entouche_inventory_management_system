@@ -13,6 +13,12 @@ import { FiltersBar } from "../components/FiltersBar.jsx";
 import { TransactionsTable } from "../components/TransactionsTable.jsx";
 import { NewTransactionModal } from "../components/NewTransactionModal.jsx";
 
+// /api/v1/transactions is now a live, global, read-only ledger endpoint
+// (filterable by item_id, warehouse_id, transaction_type, direction,
+// date_from, date_to). This replaces the old per-item aggregation
+// workaround that hit /items/{id}/transactions once per item.
+const TRANSACTIONS_MAX_PAGES = 50;
+
 export default function TransactionsPage() {
   const [token, setToken]                 = useState(null);
   const [authError, setAuthError]         = useState("");
@@ -26,7 +32,7 @@ export default function TransactionsPage() {
   const [catalogItems, setCatalogItems]   = useState([]);
   const [suppliers, setSuppliers]         = useState([]);
   const [units, setUnits]                 = useState([]);
-  const [users, setUsers]                 = useState([]);
+  const [warehouses, setWarehouses]       = useState([]);
 
   const [dataLoading, setDataLoading]     = useState(false);
   const [dataError, setDataError]         = useState("");
@@ -72,43 +78,36 @@ export default function TransactionsPage() {
     setDataError("");
     setPartialWarning("");
     try {
-      const [itemsRaw, suppliersRaw, unitsRaw, usersRaw] = await Promise.all([
+      const [itemsRaw, suppliersRaw, unitsRaw, warehousesRaw, transactionsRaw] = await Promise.all([
         fetchAllPages("/items", token),
         fetchAllPages("/suppliers", token),
         fetchAllPages("/units", token),
-        fetchAllPages("/users", token),
+        fetchAllPages("/warehouses", token),
+        // Global ledger - filters (item_id, warehouse_id, transaction_type,
+        // direction, date_from, date_to) are supported server-side if we
+        // later want to push filtering down instead of doing it client-side.
+        fetchAllPages("/transactions", token, { maxPages: TRANSACTIONS_MAX_PAGES }),
       ]);
 
       setCatalogItems(itemsRaw);
       setSuppliers(suppliersRaw);
       setUnits(unitsRaw);
-      setUsers(usersRaw);
+      setWarehouses(warehousesRaw);
 
-      // No global "list all transactions" endpoint exists in the API — aggregate
-      // from each item's transaction history instead.
-      const ITEM_CAP = 40;
-      const itemsToFetch = itemsRaw.slice(0, ITEM_CAP);
-      let warned = itemsRaw.length > ITEM_CAP;
+      // Transactions come back from the API with their related item
+      // (assumed eager-loaded as `item`). Fall back to the catalog lookup
+      // by item_id in case a given record doesn't have it embedded.
+      const itemsById = new Map(itemsRaw.map(it => [it.id, it]));
+      const flat = transactionsRaw
+        .map(raw => normalizeTransaction(raw, raw.item || itemsById.get(raw.item_id)))
+        .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
 
-      const results = await Promise.all(itemsToFetch.map(async (it) => {
-        try {
-          const json = await apiRequest(`/items/${it.id}/transactions`, { token });
-          const list = Array.isArray(json.data?.data) ? json.data.data
-                     : Array.isArray(json.data) ? json.data
-                     : [];
-          return list.map(raw => normalizeTransaction(raw, it));
-        } catch (e) {
-          warned = true;
-          return [];
-        }
-      }));
-
-      const flat = results.flat().sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
       setTransactions(flat);
-      if (warned) {
-        setPartialWarning(itemsRaw.length > ITEM_CAP
-          ? `Showing transaction history for the first ${ITEM_CAP} of ${itemsRaw.length} items.`
-          : "Some items' transaction history could not be loaded.");
+
+      if (transactionsRaw.length >= TRANSACTIONS_MAX_PAGES * PER_PAGE) {
+        setPartialWarning(
+          `Showing the most recent ${transactionsRaw.length.toLocaleString()} transactions - there may be more in the ledger than this page can display.`
+        );
       }
     } catch (e) {
       setDataError(e.message || "Could not reach the API. Check your connection or CORS access to the staging server.");
@@ -118,10 +117,6 @@ export default function TransactionsPage() {
   }, [token]);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const knownLocations = Array.from(new Set(
-    transactions.flatMap(t => [t.from, t.to]).filter(l => l && l !== "—")
-  )).sort();
 
   /* date-aware filtering */
   const filtered = transactions.filter(t => {
@@ -141,6 +136,71 @@ export default function TransactionsPage() {
   const pages   = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const visible = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // Passed down to the modal so each location dropdown can load the
+  // right options once a warehouse is picked.
+  const fetchLocationsForWarehouse = useCallback(async (warehouseId) => {
+    const json = await apiRequest(`/warehouses/${warehouseId}/locations`, { token });
+    return Array.isArray(json.data) ? json.data : [];
+  }, [token]);
+
+  // Builds the exact request body each endpoint documents - the four
+  // transaction types don't share a shape, so this branches per type
+  // rather than trying to force one generic payload.
+  const buildBody = (form) => {
+    switch (form.type) {
+      case "Receipt":
+        return {
+          supplier_id: form.supplier || undefined,
+          warehouse_id: form.receivingWarehouseId || undefined,
+          receiving_location_id: form.receivingLocationId || undefined,
+          receipt_date: form.date,
+          notes: form.notes || undefined,
+          items: form.items
+            .filter(r => r.itemId && r.qty)
+            .map(r => ({
+              item_id: r.itemId,
+              quantity: +r.qty,
+              unit_cost: r.unitCost ? +r.unitCost : undefined,
+            })),
+        };
+      case "Transfer":
+        return {
+          from_warehouse_id: form.fromWarehouseId || undefined,
+          from_location_id: form.fromLocationId || undefined,
+          to_warehouse_id: form.toWarehouseId || undefined,
+          to_location_id: form.toLocationId || undefined,
+          transfer_date: form.date,
+          notes: form.notes || undefined,
+          items: form.items
+            .filter(r => r.itemId && r.qty)
+            .map(r => ({ item_id: r.itemId, quantity: +r.qty })),
+        };
+      case "Adjustment":
+        return {
+          warehouse_id: form.generalWarehouseId || undefined,
+          warehouse_location_id: form.generalLocationId || undefined,
+          adjustment_type: form.adjustType || undefined,
+          reason: form.reason || undefined,
+          adjustment_date: form.date,
+          items: form.items
+            .filter(r => r.itemId && r.qty)
+            .map(r => ({ item_id: r.itemId, adjustment_quantity: +r.qty })),
+        };
+      case "Stock Count":
+        return {
+          warehouse_id: form.generalWarehouseId || undefined,
+          warehouse_location_id: form.generalLocationId || undefined,
+          count_date: form.date,
+          notes: form.notes || undefined,
+          items: form.items
+            .filter(r => r.itemId && r.qty)
+            .map(r => ({ item_id: r.itemId, counted_quantity: +r.qty })),
+        };
+      default:
+        return {};
+    }
+  };
+
   const handleSave = async (form) => {
     setSaving(true);
     setSaveError("");
@@ -153,39 +213,16 @@ export default function TransactionsPage() {
       stock_count: "/stock-counts",
     };
     const endpoint = endpointMap[typeConfig.apiType];
-
-    const payloadItems = form.items
-      .filter(r => r.itemId && r.qty)
-      .map(r => ({
-        item_id: r.itemId,
-        quantity: r.qty,
-        unit_cost: r.unitCost || undefined,
-      }));
-
-    const body = {
-      date: form.date,
-      reference_number: form.refNum || undefined,
-      notes: form.notes || undefined,
-      supplier_id: form.supplier || undefined,
-      location: form.receivingLoc || form.location || undefined,
-      from_location: form.fromLoc || undefined,
-      to_location: form.toLoc || undefined,
-      requested_by: form.requestedBy || undefined,
-      reason: form.reason || undefined,
-      adjustment_type: form.adjustType || undefined,
-      items: payloadItems,
-    };
+    const body = buildBody(form);
 
     try {
       await apiRequest(endpoint, { method: "POST", token, body });
       setModalOpen(false);
       await loadData();
     } catch (e) {
-      // The tested API reference doesn't document a create endpoint for this
-      // transaction type, so the write may not be supported server-side yet.
       setSaveError(
-        e.status === 404
-          ? `The API has no ${endpoint} endpoint yet — this transaction type can't be saved until that's added server-side.`
+        e.status === 422 && e.errors
+          ? Object.values(e.errors).flat().join(" ")
           : (e.message || "Could not save this transaction.")
       );
     } finally {
@@ -229,8 +266,8 @@ export default function TransactionsPage() {
         catalogItems={catalogItems}
         units={units}
         suppliers={suppliers}
-        users={users}
-        knownLocations={knownLocations}
+        warehouses={warehouses}
+        fetchLocationsForWarehouse={fetchLocationsForWarehouse}
         saving={saving}
         saveError={saveError}
       />
@@ -241,7 +278,7 @@ export default function TransactionsPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Transactions</h1>
           <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>
             View and track all inventory transactions across your organization.
-            {currentUserName && <span style={{ color: "#9aa1b4" }}> · Signed in as {currentUserName}</span>}
+            
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

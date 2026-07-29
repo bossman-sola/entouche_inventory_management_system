@@ -3,8 +3,17 @@ import * as XLSX from "xlsx";
 import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
-import { listSuppliers } from "../../../lib/api.js";
-import { listReceipts, createReceipt, updateReceipt } from "../../../lib/receiptsStore";
+import {
+  listSuppliers,
+  listReceipts,
+  createReceipt,
+  updateReceipt,
+  deleteReceipt,
+  receiveReceipt,
+  cancelReceipt,
+  mapApiReceipt,
+  packReceiptNotes,
+} from "../../../lib/api.js";
 import {
   Upload
 } from 'lucide-react';
@@ -15,44 +24,20 @@ function parseNaira(str) {
 function fmtNaira(n) {
   return "₦" + Math.round(Number(n) || 0).toLocaleString("en-NG");
 }
-function buildTimeline(status, fullDate, by) {
-  const created = { title: "Receipt Created", date: fullDate, by, status: "done" };
-  if (status === "Completed") {
-    return [
-      { title: "Receipt Completed", date: fullDate, by, status: "done" },
-      { title: "Items Verified", date: fullDate, by, status: "done" },
-      { title: "Items Received", date: fullDate, by, status: "done" },
-      created,
-    ];
-  }
-  if (status === "Cancelled") {
-    return [
-      { title: "Receipt Cancelled", date: fullDate, by, status: "done" },
-      created,
-    ];
-  }
-  return [
-    { title: "Awaiting Verification", date: fullDate, by, status: "pending" },
-    created,
-  ];
-}
-function nowString() {
-  const d = new Date();
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  let h = d.getHours();
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h}:${mm} ${ampm}`;
+
+function fmtDateDisplay(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 const statusStyle = {
-  Completed: { bg: "#e6faf3", color: "#16a369" },
-  Pending: { bg: "#fff7ed", color: "#c27a0a" },
+  Received: { bg: "#e6faf3", color: "#16a369" },
+  Draft: { bg: "#fff7ed", color: "#c27a0a" },
   Cancelled: { bg: "#fff1f0", color: "#c0392b" },
 };
 
-/* ───────────────────────── icons ───────────────────────── */
 const SearchSm = () => (<svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>);
 const CalIcon = () => (<svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5c657a" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>);
 const FilterIcon = () => (<svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5c657a" strokeWidth={2}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>);
@@ -89,39 +74,49 @@ const MetricCard = ({ iconBg, icon, label, value, sub, subAccent, onClick }) => 
   </div>
 );
 
-/* ───────────────────────── page ───────────────────────── */
+
 
 export default function Receipts() {
   const [receipts, setReceipts] = useState([]);
   const [loadingReceipts, setLoadingReceipts] = useState(true);
 
-  const [supplierOptions, setSupplierOptions] = useState([]); // from live Suppliers API
+  const [supplierOptions, setSupplierOptions] = useState([]); 
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState(null);
   const [detailsReceipt, setDetailsReceipt] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState(null); 
 
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [dateRange, setDateRange] = useState(null); // { start: Date, end: Date }
+  const [dateRange, setDateRange] = useState(null); 
   const dateBtnRef = useRef(null);
 
-  // Load receipts (local store — see src/lib/receiptsStore.js for why) on mount
-  useEffect(() => {
-    let cancelled = false;
+  const [receiptsError, setReceiptsError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actioningId, setActioningId] = useState(null); 
+
+  const refreshReceipts = () => {
     setLoadingReceipts(true);
-    listReceipts()
-      .then((rows) => { if (!cancelled) setReceipts(rows); })
-      .finally(() => { if (!cancelled) setLoadingReceipts(false); });
-    return () => { cancelled = true; };
+    setReceiptsError("");
+    return listReceipts()
+      .then((rows) => setReceipts((rows || []).map(mapApiReceipt)))
+      .catch((err) => setReceiptsError(err.message || "Failed to load receipts."))
+      .finally(() => setLoadingReceipts(false));
+  };
+
+  
+  useEffect(() => {
+    refreshReceipts();
+    
   }, []);
 
-  // Load suppliers from the live API for the filter dropdown (independent of receipts)
+  
   useEffect(() => {
     let cancelled = false;
     setLoadingSuppliers(true);
@@ -132,93 +127,94 @@ export default function Receipts() {
     return () => { cancelled = true; };
   }, []);
 
-  // close any open row menu when clicking elsewhere
+  
   useEffect(() => {
-    const close = () => setOpenMenuId(null);
+    const close = () => { setOpenMenuId(null); setMenuPos(null); };
     window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, []);
 
-  /* ── derive next receipt number ── */
-  const nextReceiptNo = () => {
-    let max = 0;
-    receipts.forEach(r => {
-      const m = /RCPT-(\d+)/.exec(r.no);
-      if (m) max = Math.max(max, parseInt(m[1], 10));
-    });
-    return `RCPT-${String(max + 1).padStart(6, "0")}`;
+  
+  const toApiReceiptPayload = (form) => ({
+    supplier_id: Number(form.supplierId),
+    warehouse_id: Number(form.warehouseId),
+    receiving_location_id: Number(form.receivingLocationId),
+    receipt_date: form.date,
+    notes: packReceiptNotes(form.poNumber, form.notes),
+    items: form.items.map((it) => ({
+      item_id: it.id,
+      quantity: Number(it.qty) || 0,
+      unit_cost: Number(it.cost) || 0,
+    })),
+  });
+
+ 
+  const handleSaveReceipt = async (form) => {
+    setActionError("");
+    try {
+      if (form.id) {
+        await updateReceipt(form.id, toApiReceiptPayload(form));
+      } else {
+        await createReceipt(toApiReceiptPayload(form));
+      }
+      await refreshReceipts();
+      setEditingReceipt(null);
+    } catch (err) {
+      setActionError(err.message || "Failed to save receipt.");
+    }
   };
 
-  /* ── save (create or update) a receipt from AddNewReceipt ── */
-  const handleSaveReceipt = async (form) => {
-    const totQty = form.items.reduce((a, r) => a + Number(r.qty || 0), 0);
-    const totVal = form.items.reduce((a, r) => a + Number(r.qty || 0) * Number(r.cost || 0), 0);
-
-    if (form.id) {
-      // update existing
-      const existing = receipts.find(r => r.id === form.id);
-      const patch = {
-        supplier: form.supplier,
-        supplierId: form.supplierId,
-        by: form.receivedBy,
-        receivedById: form.receivedById,
-        warehouse: form.warehouse,
-        receivingLocation: form.warehouse,
-        storageLocation: form.warehouse,
-        date: form.date,
-        deliveryDate: form.date,
-        ref: form.poNumber || existing?.ref || "—",
-        notes: form.notes,
-        items: form.items,
-        qty: totQty,
-        val: fmtNaira(totVal),
-        timeline: [
-          { title: "Receipt Updated", date: nowString(), by: form.receivedBy, status: "done" },
-          ...(existing?.timeline || []),
-        ],
-      };
-      const updated = await updateReceipt(form.id, patch);
-      setReceipts(prev => prev.map(r => r.id === form.id ? updated : r));
-    } else {
-      // create new
-      const no = form.no || nextReceiptNo();
-      const created = nowString();
-      const newReceipt = {
-        id: Date.now(),
-        no,
-        date: form.date,
-        supplier: form.supplier,
-        supplierId: form.supplierId,
-        ref: form.poNumber || "—",
-        by: form.receivedBy,
-        receivedById: form.receivedById,
-        qty: totQty,
-        val: fmtNaira(totVal),
-        status: "Completed",
-        deliveryNoteNo: "DN-" + String(Date.now()).slice(-6),
-        deliveryDate: form.date,
-        warehouse: form.warehouse,
-        receivingLocation: form.warehouse,
-        storageLocation: form.warehouse,
-        notes: form.notes,
-        items: form.items,
-        discount: 0,
-        otherCharges: 0,
-        attachments: [],
-        timeline: buildTimeline("Completed", created, form.receivedBy),
-      };
-      await createReceipt(newReceipt);
-      setReceipts(prev => [newReceipt, ...prev]);
+  
+  const handleReceive = async (receipt) => {
+    setActioningId(receipt.id);
+    setActionError("");
+    try {
+      await receiveReceipt(receipt.id);
+      await refreshReceipts();
+    } catch (err) {
+      setActionError(err.message || "Failed to receive this receipt.");
+    } finally {
+      setActioningId(null);
     }
-    setEditingReceipt(null);
+  };
+
+  const handleCancelReceipt = async (receipt) => {
+    setActioningId(receipt.id);
+    setActionError("");
+    try {
+      await cancelReceipt(receipt.id);
+      await refreshReceipts();
+    } catch (err) {
+      setActionError(err.message || "Failed to cancel this receipt.");
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleDeleteReceipt = async (receipt) => {
+    if (!window.confirm(`Delete draft receipt ${receipt.no}? This can't be undone.`)) return;
+    setActioningId(receipt.id);
+    setActionError("");
+    try {
+      await deleteReceipt(receipt.id);
+      setReceipts(prev => prev.filter(r => r.id !== receipt.id));
+    } catch (err) {
+      setActionError(err.message || "Failed to delete this receipt.");
+    } finally {
+      setActioningId(null);
+    }
   };
 
   const openNewReceiptModal = () => { setEditingReceipt(null); setIsAddModalOpen(true); };
   const openEditReceiptModal = (receipt) => { setDetailsReceipt(null); setEditingReceipt(receipt); setIsAddModalOpen(true); };
 
-  /* ── filtering ── */
-  // Supplier filter list comes from the live Suppliers API, not just suppliers
-  // that happen to already be on a receipt — so it's accurate even with 0 receipts.
+  
   const suppliers = ["All Suppliers", ...supplierOptions.map(s => s.name)];
 
   const filtered = receipts.filter(r => {
@@ -270,15 +266,12 @@ export default function Receipts() {
   };
 
   return (
-    // position:relative makes this the containing block for AddNewReceipt / ReceiptDetails,
-    // so those panels render inline within this dashboard page instead of covering the
-    // whole browser viewport (sidebar/topbar chrome outside this component stays visible).
     <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740", position: "relative", minHeight: "100%" }}>
 
       <AddNewReceipt
         isOpen={isAddModalOpen}
         editData={editingReceipt}
-        receiptNumber={nextReceiptNo()}
+        receiptNumber="Auto-generated on save"
         onClose={() => { setIsAddModalOpen(false); setEditingReceipt(null); }}
         onSave={handleSaveReceipt}
       />
@@ -295,6 +288,12 @@ export default function Receipts() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>Receipts</h1>
           <p style={{ color: "#6b7591", fontSize: 12.5, marginTop: 3, margin: "3px 0 0" }}>View and manage all goods received into the warehouse</p>
+          {actionError && (
+            <div style={{ marginTop: 8, padding: "8px 12px", background: "#fff1f0", border: "1px solid #ffd0ce", borderRadius: 7, fontSize: 12, color: "#c0392b", display: "flex", alignItems: "center", gap: 8 }}>
+              {actionError}
+              <span style={{ marginLeft: "auto", cursor: "pointer", fontWeight: 600 }} onClick={() => setActionError("")}>×</span>
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -316,10 +315,10 @@ export default function Receipts() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14, marginBottom: 20 }}>
         <MetricCard iconBg="#eef2ff" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>} label="Total Receipts" value={receipts.length} sub="All time" />
-        <MetricCard iconBg="#e6faf3" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>} label="Total Qty Received" value={receipts.reduce((a, r) => a + r.qty, 0).toLocaleString()} sub="All time" />
-        <MetricCard iconBg="#f3f0ff" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>} label="Total Value" value={fmtNaira(receipts.reduce((a, r) => a + parseNaira(r.val), 0))} sub="All time" />
+        <MetricCard iconBg="#e6faf3" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#22c27e" strokeWidth={2}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>} label="Total Qty Received" value={receipts.filter(r => r.status !== "Cancelled").reduce((a, r) => a + r.qty, 0).toLocaleString()} sub="All time" />
+        <MetricCard iconBg="#f3f0ff" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth={2}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>} label="Total Value" value={fmtNaira(receipts.filter(r => r.status !== "Cancelled").reduce((a, r) => a + parseNaira(r.val), 0))} sub="All time" />
         <MetricCard iconBg="#fff7ed" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} label="This Month" value={thisMonthCount} sub={thisMonthLabel} />
-        <MetricCard iconBg="#fff1f0" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f25c54" strokeWidth={2}><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8l5 3-5 3V8z" /></svg>} label="Pending Receipts" value={receipts.filter(r => r.status === "Pending").length} sub="View pending" subAccent onClick={() => setStatusFilter("Pending")} />
+        <MetricCard iconBg="#fff1f0" icon={<svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#f25c54" strokeWidth={2}><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8l5 3-5 3V8z" /></svg>} label="Draft Receipts" value={receipts.filter(r => r.status === "Draft").length} sub="View drafts" subAccent onClick={() => setStatusFilter("Draft")} />
       </div>
 
       <div style={{ background: "#fff", border: "1px solid #e4e7ef", borderRadius: 10, padding: "14px 16px", marginBottom: 4, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -381,7 +380,7 @@ export default function Receipts() {
               onChange={e => setStatusFilter(e.target.value)}
               style={{ appearance: "none", padding: "7px 28px 7px 10px", background: "#fff", border: "1px solid #e4e7ef", borderRadius: 7, fontSize: 12, cursor: "pointer", minWidth: 120, color: "#1e2740", fontFamily: "inherit" }}
             >
-              {["All Statuses", "Completed", "Pending", "Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+              {["All Statuses", "Draft", "Received", "Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><ChevDown /></span>
           </div>
@@ -419,6 +418,13 @@ export default function Receipts() {
                     Loading receipts…
                   </td>
                 </tr>
+              ) : receiptsError ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: "40px 20px", textAlign: "center", color: "#c0392b", fontSize: 12.5 }}>
+                    {receiptsError}{" "}
+                    <span style={{ color: "#4f6ef7", cursor: "pointer", fontWeight: 500 }} onClick={refreshReceipts}>Retry</span>
+                  </td>
+                </tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={10} style={{ padding: "40px 20px", textAlign: "center", color: "#9aa1b4", fontSize: 12.5 }}>
@@ -428,15 +434,16 @@ export default function Receipts() {
                   </td>
                 </tr>
               ) : filtered.map((r) => {
-                const s = statusStyle[r.status];
+                const s = statusStyle[r.status] || statusStyle.Draft;
+                const busy = actioningId === r.id;
                 return (
                   <tr key={r.id}
-                    style={{ borderBottom: "1px solid #f4f6fb", transition: "background .15s" }}
+                    style={{ borderBottom: "1px solid #f4f6fb", transition: "background .15s", opacity: busy ? 0.6 : 1 }}
                     onMouseEnter={e => e.currentTarget.style.background = "#f8f9fb"}
                     onMouseLeave={e => e.currentTarget.style.background = ""}
                   >
                     <td style={{ padding: "12px 16px", fontWeight: 500, color: "#4f6ef7", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => setDetailsReceipt(r)}>{r.no}</td>
-                    <td style={{ padding: "12px 8px", color: "#6b7591", whiteSpace: "nowrap" }}>{r.date}</td>
+                    <td style={{ padding: "12px 8px", color: "#6b7591", whiteSpace: "nowrap" }}>{fmtDateDisplay(r.date)}</td>
                     <td style={{ padding: "12px 8px", fontWeight: 500, whiteSpace: "nowrap" }}>{r.supplier}</td>
                     <td style={{ padding: "12px 8px", color: "#6b7591", whiteSpace: "nowrap" }}>{r.ref}</td>
                     <td style={{ padding: "12px 8px", color: "#6b7591", whiteSpace: "nowrap" }}>{r.by}</td>
@@ -448,21 +455,31 @@ export default function Receipts() {
                     </td>
                     <td style={{ padding: "12px 8px", textAlign: "center", position: "relative" }}>
                       <div
-                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === r.id ? null : r.id); }}
-                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 6, margin: "0 auto", transition: "background .15s" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (openMenuId === r.id) {
+                            setOpenMenuId(null);
+                            setMenuPos(null);
+                            return;
+                          }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPos({ top: rect.bottom + 4, left: rect.right - 170 });
+                          setOpenMenuId(r.id);
+                        }}
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: busy ? "not-allowed" : "pointer", borderRadius: 6, margin: "0 auto", transition: "background .15s" }}
                         onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
                         <DotsIcon />
                       </div>
 
-                      {openMenuId === r.id && (
+                      {openMenuId === r.id && menuPos && (
                         <div
                           onClick={e => e.stopPropagation()}
                           style={{
-                            position: "absolute", right: 8, top: 32, zIndex: 50,
+                            position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 1000,
                             background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8,
-                            boxShadow: "0 8px 24px rgba(20,25,50,0.14)", minWidth: 150, padding: 4,
+                            boxShadow: "0 8px 24px rgba(20,25,50,0.14)", minWidth: 170, padding: 4,
                             textAlign: "left",
                           }}
                         >
@@ -474,6 +491,50 @@ export default function Receipts() {
                           >
                             <EyeIcon /> View Details
                           </div>
+
+                          {r.canEdit && (
+                            <div
+                              onClick={() => { openEditReceiptModal(r); setOpenMenuId(null); }}
+                              style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, color: "#1e2740", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
+                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                              Edit Receipt
+                            </div>
+                          )}
+
+                          {r.canReceive && (
+                            <div
+                              onClick={() => { setOpenMenuId(null); handleReceive(r); }}
+                              style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, color: "#16a369", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
+                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                              Receive Stock
+                            </div>
+                          )}
+
+                          {r.canCancel && (
+                            <div
+                              onClick={() => { setOpenMenuId(null); handleCancelReceipt(r); }}
+                              style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, color: "#c27a0a", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
+                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                              Cancel Receipt
+                            </div>
+                          )}
+
+                          {r.canDelete && (
+                            <div
+                              onClick={() => { setOpenMenuId(null); handleDeleteReceipt(r); }}
+                              style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, color: "#f25c54", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
+                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                            >
+                              Delete Receipt
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

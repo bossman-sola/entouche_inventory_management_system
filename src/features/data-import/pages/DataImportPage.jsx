@@ -27,7 +27,7 @@ export default function DataImportPage() {
   const failedCount = history.filter(h => h.status === "Failed").length;
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
+    <div className=" bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-2 gap-3">
         <div>

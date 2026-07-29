@@ -2,8 +2,7 @@ import React, { useRef } from "react";
 import { SearchSm, CalIcon, ChevDown, FilterIcon } from "./icons/SmallIcons.jsx";
 import { DateRangePicker } from "./DateRangePicker.jsx";
 
-// The search box + date range + type/status selects + clear button row
-// that sits above the transactions table.
+
 export const FiltersBar = ({
   search, onSearchChange,
   dateRange, onDateRangeChange,

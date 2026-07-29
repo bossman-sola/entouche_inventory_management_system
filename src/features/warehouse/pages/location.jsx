@@ -3,29 +3,57 @@ import {
   Search, RefreshCw, List, LayoutGrid, ChevronsUpDown,
   Plus, X, Info, Edit2, Trash2, Warehouse, CheckCircle2, Wallet, Layers,
   Download, Archive, ArrowRight, AlertTriangle, ChevronLeft, ChevronRight,
-  PackageSearch, PlugZap,
+  PackageSearch,
 } from 'lucide-react';
 import { locationsApi } from '../api/locationsApi';
+import { warehousesApi } from '../api/warehousesApi';
 import './location.css';
 
-
 const TYPE_META = {
-  Receiving: { icon: Download, iconClass: 'indigo', codeClass: 'code-indigo', typeClass: 'type-receiving' },
-  Storage: { icon: Archive, iconClass: 'green', codeClass: 'code-green', typeClass: 'type-storage' },
-  Dispatch: { icon: ArrowRight, iconClass: 'orange', codeClass: 'code-orange', typeClass: 'type-dispatch' },
-  Damaged: { icon: AlertTriangle, iconClass: 'red', codeClass: 'code-red', typeClass: 'type-damaged' },
+  receiving_area: { label: 'Receiving Area', icon: Download, iconClass: 'indigo', codeClass: 'code-indigo', typeClass: 'type-receiving', codePrefix: 'RA' },
+  storage_area: { label: 'Storage Area', icon: Archive, iconClass: 'green', codeClass: 'code-green', typeClass: 'type-storage', codePrefix: 'STR' },
+  dispatch_area: { label: 'Dispatch Area', icon: ArrowRight, iconClass: 'orange', codeClass: 'code-orange', typeClass: 'type-dispatch', codePrefix: 'DIS' },
+  damaged_goods_area: { label: 'Damaged Goods Area', icon: AlertTriangle, iconClass: 'red', codeClass: 'code-red', typeClass: 'type-damaged', codePrefix: 'DMG' },
 };
 
-const LOCATION_TYPES = Object.keys(TYPE_META);
+const LOCATION_TYPE_OPTIONS = Object.entries(TYPE_META).map(([value, meta]) => ({ value, label: meta.label }));
 
 const currency = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`;
 
-const emptyForm = { name: '', code: '', type: '', description: '', warehouse: '' };
+const emptyForm = { name: '', code: '', type: '', warehouseId: '' };
+
+const SERVER_FIELD_MAP = {
+  warehouse_id: 'warehouseId',
+  name: 'name',
+  code: 'code',
+  type: 'type',
+};
+
+function mapServerErrorsToForm(apiErrors) {
+  const fieldErrors = {};
+  for (const [key, msgs] of Object.entries(apiErrors || {})) {
+    const formKey = SERVER_FIELD_MAP[key] || key;
+    fieldErrors[formKey] = Array.isArray(msgs) ? msgs[0] : msgs;
+  }
+  return fieldErrors;
+}
+
+function generateLocationCode(warehouseId, type, existingLocations) {
+  if (!warehouseId || !type) return '';
+  const prefix = TYPE_META[type]?.codePrefix || 'LOC';
+  const whPart = String(warehouseId).padStart(3, '0');
+  const base = `WH-${whPart}-${prefix}`;
+  const sameTypeCount = existingLocations.filter(
+    (l) => String(l.warehouseId) === String(warehouseId) && l.type === type
+  ).length;
+  return sameTypeCount === 0 ? base : `${base}-${String(sameTypeCount + 1).padStart(2, '0')}`;
+}
 
 export default function LocationsPage() {
+  const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(true); 
+  const [error, setError] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
@@ -52,14 +80,32 @@ export default function LocationsPage() {
 
   async function loadLocations() {
     setLoading(true);
+    setError(null);
     try {
-      const data = await locationsApi.list();
-      setLocations(data ?? []);
-      setConnected(true);
-    } catch {
+      const whs = await warehousesApi.listAll();
+      setWarehouses(whs);
+
+      const settled = await Promise.allSettled(
+        whs.map((w) => warehousesApi.listLocations(w.id))
+      );
+
       
+      const byId = new Map();
+      settled.forEach((r, idx) => {
+        if (r.status !== 'fulfilled') return;
+        const requestedWarehouse = whs[idx];
+        (r.value || []).forEach((loc) => {
+          if (byId.has(loc.id)) return;
+          const ownerId = loc.warehouseId ?? loc.warehouse_id ?? requestedWarehouse.id;
+          const owner = whs.find((w) => String(w.id) === String(ownerId)) || requestedWarehouse;
+          byId.set(loc.id, { ...loc, warehouse: owner.name, warehouseId: owner.id });
+        });
+      });
+
+      setLocations(Array.from(byId.values()));
+    } catch (err) {
+      setError(err.message || 'Failed to load locations');
       setLocations([]);
-      setConnected(false);
     } finally {
       setLoading(false);
     }
@@ -67,13 +113,17 @@ export default function LocationsPage() {
 
   useEffect(() => { loadLocations(); }, []);
 
-  
+  useEffect(() => {
+    if (editingId) return;
+    const nextCode = generateLocationCode(form.warehouseId, form.type, locations);
+    setForm((f) => (f.code === nextCode ? f : { ...f, code: nextCode }));
+  }, [form.warehouseId, form.type, editingId, locations]);
+
   const warehouseOptions = useMemo(
     () => ['All Warehouses', ...Array.from(new Set(locations.map((l) => l.warehouse).filter(Boolean)))],
     [locations]
   );
 
-  
   const filteredLocations = useMemo(() => {
     let rows = [...locations];
 
@@ -82,8 +132,7 @@ export default function LocationsPage() {
       rows = rows.filter((l) =>
         l.name?.toLowerCase().includes(q) ||
         l.code?.toLowerCase().includes(q) ||
-        l.type?.toLowerCase().includes(q) ||
-        (l.description || '').toLowerCase().includes(q)
+        (TYPE_META[l.type]?.label || l.type || '').toLowerCase().includes(q)
       );
     }
     if (warehouseFilter !== 'All Warehouses') {
@@ -103,7 +152,7 @@ export default function LocationsPage() {
     return rows;
   }, [locations, searchTerm, warehouseFilter, statusFilter, sortKey, sortDir]);
 
-  
+
   const stats = useMemo(() => {
     const total = locations.length;
     const active = locations.filter((l) => l.status === 'active').length;
@@ -113,7 +162,7 @@ export default function LocationsPage() {
     return { total, active, totalValue, totalStock, activePct };
   }, [locations]);
 
- 
+
   const totalPages = Math.max(1, Math.ceil(filteredLocations.length / perPage));
   const pageRows = filteredLocations.slice((page - 1) * perPage, page * perPage);
 
@@ -128,10 +177,9 @@ export default function LocationsPage() {
     }
   }
 
-  
   function openAddModal() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, warehouseId: warehouses[0]?.id ? String(warehouses[0].id) : '' });
     setFormErrors({});
     setModalOpen(true);
   }
@@ -142,8 +190,7 @@ export default function LocationsPage() {
       name: loc.name || '',
       code: loc.code || '',
       type: loc.type || '',
-      description: loc.description || '',
-      warehouse: loc.warehouse || '',
+      warehouseId: loc.warehouseId ? String(loc.warehouseId) : '',
     });
     setFormErrors({});
     setModalOpen(true);
@@ -156,9 +203,8 @@ export default function LocationsPage() {
   function validateForm() {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Location name is required';
-    if (!form.code.trim()) errs.code = 'Code is required';
     if (!form.type) errs.type = 'Select a type';
-    if (!form.warehouse.trim()) errs.warehouse = 'Warehouse is required';
+    if (!editingId && !form.warehouseId) errs.warehouseId = 'Select a warehouse';
     return errs;
   }
 
@@ -170,20 +216,31 @@ export default function LocationsPage() {
     setSaving(true);
     try {
       if (editingId) {
-        const updated = await locationsApi.update(editingId, form);
-        setLocations((prev) => prev.map((l) => (l.id === editingId ? updated : l)));
+        await locationsApi.update(editingId, {
+          name: form.name,
+          type: form.type,
+        });
         showToast('Location updated');
       } else {
-        const created = await locationsApi.create(form);
-        setLocations((prev) => [...prev, created]);
+        await warehousesApi.createLocation(form.warehouseId, {
+          name: form.name,
+          code: form.code,
+          type: form.type,
+          status: 'active',
+        });
         showToast('Location created');
       }
       setModalOpen(false);
+      await loadLocations();
     } catch (err) {
-      showToast(
-        err.message || "Couldn't save this location — the Locations service isn't connected yet.",
-        'error'
-      );
+      const fieldErrors = mapServerErrorsToForm(err.errors);
+
+      if (Object.keys(fieldErrors).length) {
+        setFormErrors((prev) => ({ ...prev, ...fieldErrors }));
+        showToast(Object.values(fieldErrors)[0], 'error');
+      } else {
+        showToast(err.message || "Couldn't save this location.", 'error');
+      }
     } finally {
       setSaving(false);
     }
@@ -196,10 +253,18 @@ export default function LocationsPage() {
       setLocations((prev) => prev.filter((l) => l.id !== loc.id));
       showToast('Location deleted');
     } catch (err) {
-      showToast(
-        err.message || "Couldn't delete this location — the Locations service isn't connected yet.",
-        'error'
-      );
+      showToast(err.message || "Couldn't delete this location.", 'error');
+    }
+  }
+
+  async function handleToggleStatus(loc) {
+    const nextStatus = loc.status === 'active' ? 'inactive' : 'active';
+    try {
+      await locationsApi.toggleStatus(loc.id, nextStatus);
+      setLocations((prev) => prev.map((l) => (l.id === loc.id ? { ...l, status: nextStatus } : l)));
+      showToast(`Location marked ${nextStatus}`);
+    } catch (err) {
+      showToast(err.message || "Couldn't update this location's status.", 'error');
     }
   }
 
@@ -214,16 +279,23 @@ export default function LocationsPage() {
           <p className="page-sub">Manage all locations within your warehouse.</p>
           <div className="crumbs">Warehouse<span className="sep">&rsaquo;</span><span className="current">Locations</span></div>
         </div>
-        <button className="btn-primary" onClick={openAddModal}>
+        <button className="btn-primary" onClick={openAddModal} disabled={loading || warehouses.length === 0}>
           <Plus size={16} strokeWidth={2.5} />
           Add Location
         </button>
       </div>
 
-      {!loading && !connected && (
+      {!loading && error && (
+        <div className="api-note error">
+          <AlertTriangle size={15} />
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && warehouses.length === 0 && (
         <div className="api-note">
-          <PlugZap size={15} />
-          Not connected to the Locations API yet — this page will populate automatically once it's available.
+          <Info size={15} />
+          No warehouses yet - create a warehouse first, then locations can be added to it.
         </div>
       )}
 
@@ -325,7 +397,7 @@ export default function LocationsPage() {
                 <th onClick={() => toggleSort('name')}>Location Name <span className="sort"><ChevronsUpDown size={12} /></span></th>
                 <th onClick={() => toggleSort('code')}>Code <span className="sort"><ChevronsUpDown size={12} /></span></th>
                 <th onClick={() => toggleSort('type')}>Type <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th>Description</th>
+                <th onClick={() => toggleSort('warehouse')}>Warehouse <span className="sort"><ChevronsUpDown size={12} /></span></th>
                 <th onClick={() => toggleSort('currentStock')}>Current Stock <span className="sort"><ChevronsUpDown size={12} /></span></th>
                 <th onClick={() => toggleSort('stockValue')}>Stock Value <span className="sort"><ChevronsUpDown size={12} /></span></th>
                 <th onClick={() => toggleSort('status')}>Status <span className="sort"><ChevronsUpDown size={12} /></span></th>
@@ -344,7 +416,7 @@ export default function LocationsPage() {
                       <PackageSearch size={32} />
                       <div>
                         {locations.length === 0
-                          ? (connected ? 'No locations yet. Add one to get started.' : 'No locations to show yet.')
+                          ? 'No locations yet. Add one to get started.'
                           : 'No locations match your filters.'}
                       </div>
                     </div>
@@ -353,7 +425,7 @@ export default function LocationsPage() {
               )}
 
               {!loading && pageRows.map((loc) => {
-                const meta = TYPE_META[loc.type] || TYPE_META.Storage;
+                const meta = TYPE_META[loc.type] || TYPE_META.storage_area;
                 const Icon = meta.icon;
                 return (
                   <tr key={loc.id}>
@@ -364,11 +436,19 @@ export default function LocationsPage() {
                       </div>
                     </td>
                     <td><span className={`pill ${meta.codeClass}`}>{loc.code}</span></td>
-                    <td><span className={`pill ${meta.typeClass}`}>{loc.type}</span></td>
-                    <td>{loc.description}</td>
+                    <td><span className={`pill ${meta.typeClass}`}>{meta.label}</span></td>
+                    <td>{loc.warehouse}</td>
                     <td className="num">{(loc.currentStock || 0).toLocaleString()}</td>
                     <td className="money">{currency(loc.stockValue)}</td>
-                    <td><span className={`pill status-${loc.status}`}>{loc.status === 'active' ? 'Active' : 'Inactive'}</span></td>
+                    <td>
+                      <button
+                        className={`pill status-${loc.status} pill-btn`}
+                        onClick={() => handleToggleStatus(loc)}
+                        title="Click to toggle status"
+                      >
+                        {loc.status === 'active' ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
                     <td>
                       <div className="actions">
                         <button className="action edit" aria-label={`Edit ${loc.name}`} onClick={() => openEditModal(loc)}>
@@ -443,15 +523,23 @@ export default function LocationsPage() {
 
             <div className="field-row">
               <div className="field">
-                <label className="field-label" htmlFor="locCode">Code <span className="req">*</span></label>
+                <label className="field-label" htmlFor="locCode">Code</label>
                 <input
                   type="text"
                   id="locCode"
-                  placeholder="e.g. STR"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  readOnly
+                  disabled
+                  value={
+                    editingId
+                      ? form.code
+                      : form.code || 'Select warehouse & type first'
+                  }
+                  style={{ background: '#f4f6fb', color: form.code ? '#1e2740' : '#9aa1b4', cursor: 'not-allowed' }}
                 />
                 {formErrors.code && <div className="field-error">{formErrors.code}</div>}
+                <div style={{ fontSize: 11, color: '#9aa1b4', marginTop: 4 }}>
+                  {editingId ? "Codes can't be changed after a location is created." : 'Auto-generated from warehouse and type.'}
+                </div>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="locType">Type <span className="req">*</span></label>
@@ -461,36 +549,25 @@ export default function LocationsPage() {
                   onChange={(e) => setForm({ ...form, type: e.target.value })}
                 >
                   <option value="">Select type</option>
-                  {LOCATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {LOCATION_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
                 {formErrors.type && <div className="field-error">{formErrors.type}</div>}
               </div>
             </div>
 
             <div className="field">
-              <label className="field-label" htmlFor="locDesc">Description</label>
-              <div className="textarea-wrap">
-                <textarea
-                  id="locDesc"
-                  maxLength={150}
-                  placeholder="e.g. Primary storage location for inventory items"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-                <span className="char-count">{form.description.length} / 150</span>
-              </div>
-            </div>
-
-            <div className="field">
               <label className="field-label" htmlFor="locWarehouse">Warehouse <span className="req">*</span></label>
-              <input
-                type="text"
+              <select
                 id="locWarehouse"
-                placeholder="e.g. Main Warehouse"
-                value={form.warehouse}
-                onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
-              />
-              {formErrors.warehouse && <div className="field-error">{formErrors.warehouse}</div>}
+                value={form.warehouseId}
+                onChange={(e) => setForm({ ...form, warehouseId: e.target.value })}
+                disabled={!!editingId}
+              >
+                <option value="">Select warehouse</option>
+                {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              {formErrors.warehouseId && <div className="field-error">{formErrors.warehouseId}</div>}
+              {editingId && <div className="field-error" style={{ color: '#6b7280' }}>Locations can't be moved to a different warehouse.</div>}
             </div>
 
             <div className="modal-note">

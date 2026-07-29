@@ -1,7 +1,7 @@
 import React from "react";
 import { MetricCard } from "./MetricCard.jsx";
 
-// The five summary cards at the top of the Transactions page.
+
 export const MetricsRow = ({ loading, totalTxns, totalReceipts, totalTransfers, totalAdj, pendingCount, onPendingClick }) => (
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14, marginBottom: 20 }}>
     <MetricCard iconBg="#eef2ff"

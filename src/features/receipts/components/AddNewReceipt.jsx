@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react';
-import AddItemPicker from './AddItem';
+import { useState, useEffect, useRef } from 'react';
 import AddNewItem from './AddNewItem';
-import { listSuppliers, listUsers } from '../../../lib/api.js';
+import { listSuppliers, listUsers, listWarehouses, listWarehouseLocations, listItems, listUnits, mapApiItem } from '../../../lib/api.js';
 
 function fmt(n) {
   return '₦' + Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function todayLabel() {
+
+function todayIso() {
   const d = new Date();
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 const chevron = (
@@ -19,46 +20,65 @@ const chevron = (
   </svg>
 );
 
-const emptyForm = { supplier: '', receivedBy: '', warehouse: '', date: '', poNumber: '', notes: '' };
+const emptyForm = { supplier: '', receivedBy: '', warehouseId: '', locationId: '', date: '', poNumber: '', notes: '' };
 
-export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '—' }) {
+export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null, receiptNumber = '-' }) {
   const [receiptItems, setReceiptItems] = useState([]);
-  const [showPicker, setShowPicker]     = useState(false);
   const [showNewItem, setShowNewItem]   = useState(false);
   const [noteLen, setNoteLen]           = useState(0);
   const [errors, setErrors]             = useState({});
+  const [isMaximized, setIsMaximized]   = useState(false);
 
-  // Form fields
+  /* ── inline "Add Item" row (search item by name/SKU/barcode, then unit + qty + cost) ── */
+  const [catalogItems, setCatalogItems]   = useState([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [catalogError, setCatalogError]   = useState('');
+  const [unitOptions, setUnitOptions]     = useState([]);
+
+  const [itemQuery, setItemQuery]         = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedItem, setSelectedItem]   = useState(null);
+  const [rowUnit, setRowUnit]             = useState('');
+  const [rowQty, setRowQty]               = useState('');
+  const [rowCost, setRowCost]             = useState('');
+  const [rowError, setRowError]           = useState('');
+  const searchWrapRef = useRef(null);
+
+  
   const [supplierId, setSupplierId] = useState('');
   const [receivedById, setReceivedById] = useState('');
-  const [warehouse, setWarehouse] = useState('');
-  const [date, setDate]           = useState(todayLabel());
+  const [warehouseId, setWarehouseId] = useState('');
+  const [locationId, setLocationId] = useState('');
+  const [date, setDate]           = useState(todayIso());
   const [poNumber, setPoNumber]   = useState('');
   const [notes, setNotes]         = useState('');
 
-  // Live lookups
   const [suppliers, setSuppliers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loadingLookups, setLoadingLookups] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
   const isEditing = !!editData;
 
-  // Load suppliers + users from the API whenever the modal opens
+  
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     setLoadingLookups(true);
     setLookupError('');
-    Promise.all([listSuppliers(), listUsers()])
-      .then(([sups, usrs]) => {
+    Promise.all([listSuppliers(), listUsers(), listWarehouses()])
+      .then(([sups, usrs, whs]) => {
         if (cancelled) return;
         setSuppliers(sups || []);
         setUsers(usrs || []);
+        setWarehouses(whs || []);
       })
       .catch((err) => {
         if (cancelled) return;
-        setLookupError(err.message || 'Failed to load suppliers and users.');
+        setLookupError(err.message || 'Failed to load suppliers, users, and warehouses.');
       })
       .finally(() => {
         if (!cancelled) setLoadingLookups(false);
@@ -66,29 +86,77 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     return () => { cancelled = true; };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !warehouseId) { setLocations([]); return; }
+    let cancelled = false;
+    setLoadingLocations(true);
+    listWarehouseLocations(warehouseId)
+      .then((locs) => { if (!cancelled) setLocations(locs || []); })
+      .catch(() => { if (!cancelled) setLocations([]); })
+      .finally(() => { if (!cancelled) setLoadingLocations(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, warehouseId]);
+
+  // Load the item catalog (for search-by name/SKU/barcode) and units of measure
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoadingCatalog(true);
+    setCatalogError('');
+    Promise.all([listItems(), listUnits()])
+      .then(([items, units]) => {
+        if (cancelled) return;
+        setCatalogItems((items || []).map(mapApiItem));
+        setUnitOptions(units || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setCatalogError(err.message || 'Failed to load items.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCatalog(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  // Close the search suggestions dropdown when clicking elsewhere
+  useEffect(() => {
+    const close = (e) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
+
   // Seed (or reset) the form whenever the modal opens
   useEffect(() => {
     if (!isOpen) return;
     if (editData) {
       setSupplierId(editData.supplierId || '');
       setReceivedById(editData.receivedById || '');
-      setWarehouse(editData.warehouse || '');
-      setDate(editData.date || todayLabel());
-      setPoNumber(editData.ref || editData.poNumber || '');
+      setWarehouseId(editData.warehouseId || '');
+      setLocationId(editData.receivingLocationId || '');
+      setDate(editData.date || todayIso());
+      setPoNumber(editData.poNumber || (editData.ref !== '-' ? editData.ref : '') || '');
       setNotes(editData.notes || '');
       setNoteLen((editData.notes || '').length);
       setReceiptItems((editData.items || []).map(it => ({ ...it })));
     } else {
       setSupplierId(emptyForm.supplier);
       setReceivedById(emptyForm.receivedBy);
-      setWarehouse(emptyForm.warehouse);
-      setDate(todayLabel());
+      setWarehouseId(emptyForm.warehouseId);
+      setLocationId(emptyForm.locationId);
+      setDate(todayIso());
       setPoNumber(emptyForm.poNumber);
       setNotes(emptyForm.notes);
       setNoteLen(0);
       setReceiptItems([]);
     }
     setErrors({});
+    setItemQuery(''); setSelectedItem(null); setRowUnit(''); setRowQty(''); setRowCost(''); setRowError('');
+    setShowSuggestions(false); setIsMaximized(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editData]);
 
@@ -98,22 +166,54 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
   const totQty   = receiptItems.reduce((a, r) => a + Number(r.qty || 0), 0);
   const totCost  = receiptItems.reduce((a, r) => a + (Number(r.qty || 0) * Number(r.cost || 0)), 0);
 
-  /* ── item picker handlers ── */
-  const handleAddFromPicker = (item) => {
-    if (receiptItems.some(r => r.id === item.id)) return;
-    setReceiptItems(prev => [...prev, { ...item, qty: 1, cost: item.cost || 0 }]);
+  /* ── search-as-you-type suggestions (name, SKU, or barcode) ── */
+  const addedIds = receiptItems.map(r => r.id);
+  const suggestions = itemQuery.trim()
+    ? catalogItems.filter(it => {
+        const q = itemQuery.trim().toLowerCase();
+        return (
+          it.name.toLowerCase().includes(q) ||
+          (it.sku || '').toLowerCase().includes(q) ||
+          (it.barcode || '').toLowerCase().includes(q)
+        );
+      }).slice(0, 8)
+    : [];
+
+  const selectSuggestion = (item) => {
+    setSelectedItem(item);
+    setItemQuery(item.name);
+    setRowUnit(item.unit || '');
+    setRowCost(item.cost != null ? String(item.cost) : '');
+    setRowQty(q => q || '1');
+    setShowSuggestions(false);
+    setRowError('');
   };
 
   /* ── new item handler ── */
   const handleSaveNewItem = (newItem) => {
-    setReceiptItems(prev => [...prev, { ...newItem, qty: 1, cost: newItem.cost || 0 }]);
+    setCatalogItems(prev => [...prev, newItem]);
+    selectSuggestion(newItem);
     setShowNewItem(false);
   };
 
-  /* ── open new-item from picker ── */
-  const handleCreateFromPicker = () => {
-    setShowPicker(false);
-    setShowNewItem(true);
+  /* ── add the currently-selected item (with its unit/qty/cost) to the receipt ── */
+  const handleAddItemRow = () => {
+    if (!selectedItem) { setRowError('Search for and select an item first.'); return; }
+    if (!rowUnit) { setRowError('Choose a unit of measure.'); return; }
+    const qtyNum = Number(rowQty);
+    if (!qtyNum || qtyNum <= 0) { setRowError('Enter a quantity greater than 0.'); return; }
+
+    setReceiptItems(prev => {
+      const existing = prev.find(r => r.id === selectedItem.id);
+      if (existing) {
+        return prev.map(r => r.id === selectedItem.id
+          ? { ...r, qty: Number(r.qty || 0) + qtyNum, cost: Number(rowCost) || r.cost, unit: rowUnit }
+          : r);
+      }
+      return [...prev, { ...selectedItem, unit: rowUnit, qty: qtyNum, cost: Number(rowCost) || 0 }];
+    });
+
+    setItemQuery(''); setSelectedItem(null); setRowUnit(''); setRowQty(''); setRowCost(''); setRowError('');
   };
 
   /* ── inline edits ── */
@@ -127,12 +227,15 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     const e = {};
     if (!supplierId)   e.supplier = true;
     if (!receivedById) e.receivedBy = true;
-    if (!warehouse.trim()) e.warehouse = true;
+    if (!warehouseId)  e.warehouse = true;
+    if (!locationId)   e.location = true;
     if (receiptItems.length === 0) e.items = true;
     if (Object.keys(e).length > 0) { setErrors(e); return; }
 
     const supplierObj = suppliers.find(s => String(s.id) === String(supplierId));
     const userObj = users.find(u => String(u.id) === String(receivedById));
+    const warehouseObj = warehouses.find(w => String(w.id) === String(warehouseId));
+    const locationObj = locations.find(l => String(l.id) === String(locationId));
 
     if (onSave) {
       onSave({
@@ -142,7 +245,10 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         supplierId,
         receivedBy: userObj?.name || '',
         receivedById,
-        warehouse: warehouse.trim(),
+        warehouse: warehouseObj?.name || '',
+        warehouseId,
+        receivingLocation: locationObj?.name || '',
+        receivingLocationId: locationId,
         date, poNumber, notes,
         items: receiptItems,
       });
@@ -152,10 +258,11 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
 
   const handleClose = () => {
     setReceiptItems([]);
-    setShowPicker(false);
     setShowNewItem(false);
     setErrors({});
-    setSupplierId(''); setReceivedById(''); setWarehouse('');
+    setItemQuery(''); setSelectedItem(null); setRowUnit(''); setRowQty(''); setRowCost(''); setRowError('');
+    setShowSuggestions(false); setIsMaximized(false);
+    setSupplierId(''); setReceivedById(''); setWarehouseId(''); setLocationId('');
     setPoNumber(''); setNotes(''); setNoteLen(0);
     onClose();
   };
@@ -164,8 +271,8 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
     <>
       <style>{`
         .anr-overlay {
-          position: absolute; inset: 0; z-index: 9999;
-          
+          position: fixed; inset: 0; z-index: 9999;
+          background: rgba(15,20,40,0.5);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 20px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;
@@ -174,6 +281,16 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
           background: #fff; border-radius: 14px; width: 100%; max-width: 1020px;
           box-shadow: 0 8px 40px rgba(0,0,0,0.13); border: 1px solid #e4e7ef; overflow: hidden;
         }
+        .anr-card.anr-maximized { max-width: 1400px; }
+        .anr-card.anr-maximized .anr-left { max-height: 82vh; }
+        .anr-header-btns { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .anr-expand-btn {
+          width: 32px; height: 32px; display: flex; align-items: center;
+          justify-content: center; cursor: pointer; border-radius: 8px;
+          border: 1px solid #e4e7ef; background: #fff; flex-shrink: 0;
+          transition: background 0.15s;
+        }
+        .anr-expand-btn:hover { background: #f4f6fb; }
         .anr-header {
           display: flex; align-items: flex-start; justify-content: space-between;
           padding: 22px 24px 18px;
@@ -195,6 +312,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         }
         .anr-section-title { font-size: 14px; font-weight: 700; color: #1e2740; margin-bottom: 16px; }
         .anr-row-3   { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 14px; margin-bottom: 14px; }
+        .anr-row-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
         .anr-field   { display: flex; flex-direction: column; }
         .anr-label   { font-size: 11.5px; color: #6b7591; font-weight: 500; display: block; margin-bottom: 5px; }
         .anr-req     { color: #f25c54; }
@@ -234,6 +352,44 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         .anr-add-row {
           display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
         }
+        .anr-quickadd-row {
+          display: grid; grid-template-columns: 1.6fr 1fr 0.8fr 1fr auto;
+          gap: 10px; align-items: end; margin-bottom: 8px;
+        }
+        .anr-quickadd-field { display: flex; flex-direction: column; min-width: 0; }
+        .anr-search-wrap { position: relative; }
+        .anr-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+        .anr-search-input { padding-left: 32px !important; }
+        .anr-suggest-dropdown {
+          position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40;
+          background: #fff; border: 1px solid #e4e7ef; border-radius: 9px;
+          box-shadow: 0 10px 28px rgba(20,25,50,0.14); max-height: 240px; overflow-y: auto; padding: 4px;
+        }
+        .anr-suggest-item {
+          display: flex; align-items: center; justify-content: space-between; gap: 8px;
+          padding: 8px 10px; border-radius: 6px; cursor: pointer;
+        }
+        .anr-suggest-item:hover { background: #f4f6fb; }
+        .anr-suggest-name { font-size: 12.5px; font-weight: 600; color: #1e2740; }
+        .anr-suggest-sku  { font-size: 11px; color: #9aa1b4; margin-top: 1px; }
+        .anr-suggest-added { font-size: 11px; color: #22c27e; font-weight: 600; white-space: nowrap; }
+        .anr-suggest-empty {
+          padding: 14px 10px; text-align: center;
+        }
+        .anr-suggest-empty-text { font-size: 12px; color: #9aa1b4; margin-bottom: 8px; }
+        .anr-suggest-create {
+          font-size: 12.5px; color: #4f6ef7; font-weight: 600; cursor: pointer; display: inline-flex;
+          align-items: center; gap: 5px;
+        }
+        .anr-quickadd-add-btn {
+          display: flex; align-items: center; gap: 6px; white-space: nowrap;
+          padding: 9px 16px; background: #4f6ef7; border-radius: 8px;
+          color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;
+          border: none; font-family: inherit; transition: background 0.15s;
+        }
+        .anr-quickadd-add-btn:hover { background: #3a5be0; }
+        .anr-quickadd-add-btn:disabled { background: #c5cedf; cursor: not-allowed; }
+        .anr-create-link-row { margin-bottom: 14px; }
         .anr-add-btn {
           display: flex; align-items: center; gap: 6px;
           padding: 9px 16px; background: #4f6ef7; border-radius: 8px;
@@ -312,6 +468,17 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         }
         .anr-impact-title { font-size: 12px; font-weight: 600; color: #4f6ef7; margin-bottom: 3px; }
         .anr-impact-sub   { font-size: 11.5px; color: #3d4a7a; line-height: 1.5; }
+        .anr-attach-box {
+          border: 1.5px dashed #d7dbe8; border-radius: 10px; padding: 20px 12px;
+          text-align: center; background: #fafbfd;
+        }
+        .anr-attach-text { font-size: 12px; color: #6b7591; margin: 8px 0 10px; }
+        .anr-attach-btn {
+          padding: 7px 16px; border: 1px solid #e4e7ef; border-radius: 7px;
+          font-size: 12px; font-weight: 500; color: #b0b8cc; background: #f4f6fb;
+          cursor: not-allowed; font-family: inherit;
+        }
+        .anr-attach-sub { font-size: 10.5px; color: #b0b8cc; margin-top: 10px; line-height: 1.4; }
         /* Footer */
         .anr-footer {
           display: flex; align-items: center; justify-content: flex-end;
@@ -337,7 +504,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
       `}</style>
 
       <div className="anr-overlay">
-        <div className="anr-card">
+        <div className={`anr-card${isMaximized ? ' anr-maximized' : ''}`}>
 
           {/* Header */}
           <div className="anr-header">
@@ -349,11 +516,24 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                   : 'Record a new inventory receipt for items received into your inventory.'}
               </div>
             </div>
-            <button className="anr-close-btn" onClick={handleClose}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+            <div className="anr-header-btns">
+              <button className="anr-expand-btn" onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Restore' : 'Expand'}>
+                {isMaximized ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2.5">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2.5">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
+                  </svg>
+                )}
+              </button>
+              <button className="anr-close-btn" onClick={handleClose}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Body */}
@@ -375,19 +555,12 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Receipt Date <span className="anr-req">*</span></label>
-                  <div className="anr-date-wrap">
-                    <input
-                      className="anr-input"
-                      style={{ paddingRight: 34 }}
-                      value={date}
-                      onChange={e => setDate(e.target.value)}
-                    />
-                    <svg className="anr-date-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7591" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2"/>
-                      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-                      <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                  </div>
+                  <input
+                    type="date"
+                    className="anr-input"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                  />
                 </div>
                 <div className="anr-field">
                   <label className="anr-label">Reference / PO Number</label>
@@ -401,7 +574,7 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
               </div>
 
               {/* Row 2 */}
-              <div className="anr-row-3">
+              <div className="anr-row-2">
                 <div className="anr-field">
                   <label className="anr-label">Supplier <span className="anr-req">*</span></label>
                   <div className="anr-sel-wrap">
@@ -437,15 +610,53 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                   </div>
                   {errors.receivedBy && <span className="anr-err-msg">Required</span>}
                 </div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="anr-row-2">
                 <div className="anr-field">
-                  <label className="anr-label">Warehouse / Location <span className="anr-req">*</span></label>
-                  <input
-                    className={`anr-input${errors.warehouse ? ' anr-err' : ''}`}
-                    placeholder="e.g. Main Warehouse"
-                    value={warehouse}
-                    onChange={e => { setWarehouse(e.target.value); setErrors(p => ({ ...p, warehouse: false })); }}
-                  />
+                  <label className="anr-label">Warehouse <span className="anr-req">*</span></label>
+                  <div className="anr-sel-wrap">
+                    <select
+                      className={`anr-select${errors.warehouse ? ' anr-err' : ''}${warehouseId ? ' anr-has-val' : ''}`}
+                      value={warehouseId}
+                      onChange={e => {
+                        setWarehouseId(e.target.value);
+                        setLocationId('');
+                        setErrors(p => ({ ...p, warehouse: false }));
+                      }}
+                      disabled={loadingLookups}
+                    >
+                      <option value="">{loadingLookups ? 'Loading warehouses…' : 'Select warehouse'}</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    <span className="anr-sel-arrow">{chevron}</span>
+                  </div>
                   {errors.warehouse && <span className="anr-err-msg">Required</span>}
+                  {!loadingLookups && warehouses.length === 0 && !errors.warehouse && (
+                    <span className="anr-err-msg" style={{ color: '#9aa1b4' }}>No warehouses found. Add one in Warehouses first.</span>
+                  )}
+                </div>
+                <div className="anr-field">
+                  <label className="anr-label">Receiving Location <span className="anr-req">*</span></label>
+                  <div className="anr-sel-wrap">
+                    <select
+                      className={`anr-select${errors.location ? ' anr-err' : ''}${locationId ? ' anr-has-val' : ''}`}
+                      value={locationId}
+                      onChange={e => { setLocationId(e.target.value); setErrors(p => ({ ...p, location: false })); }}
+                      disabled={!warehouseId || loadingLocations}
+                    >
+                      <option value="">
+                        {!warehouseId ? 'Select a warehouse first' : loadingLocations ? 'Loading locations…' : 'Select location'}
+                      </option>
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                    <span className="anr-sel-arrow">{chevron}</span>
+                  </div>
+                  {errors.location && <span className="anr-err-msg">Required</span>}
+                  {warehouseId && !loadingLocations && locations.length === 0 && !errors.location && (
+                    <span className="anr-err-msg" style={{ color: '#9aa1b4' }}>No locations found for this warehouse.</span>
+                  )}
                 </div>
               </div>
 
@@ -465,21 +676,111 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
               {/* Receipt Items heading */}
               <div className="anr-section-title">Receipt Items</div>
 
-              {/* Add Item buttons */}
-              <div className="anr-add-row">
-                <button className="anr-add-btn" onClick={() => setShowPicker(true)}>
+              {/* Add Item row */}
+              <div className="anr-quickadd-row">
+                <div className="anr-quickadd-field anr-search-wrap" ref={searchWrapRef}>
+                  <label className="anr-label">Add Item</label>
+                  <div style={{ position: 'relative' }}>
+                    <svg className="anr-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input
+                      className="anr-input anr-search-input"
+                      placeholder="Search item by name, SKU or barcode"
+                      value={itemQuery}
+                      onChange={e => { setItemQuery(e.target.value); setSelectedItem(null); setShowSuggestions(true); }}
+                      onFocus={() => setShowSuggestions(true)}
+                    />
+                  </div>
+                  {showSuggestions && itemQuery.trim() && (
+                    <div className="anr-suggest-dropdown">
+                      {loadingCatalog ? (
+                        <div className="anr-suggest-empty"><span className="anr-suggest-empty-text">Loading items…</span></div>
+                      ) : suggestions.length > 0 ? (
+                        suggestions.map(it => {
+                          const already = addedIds.includes(it.id);
+                          return (
+                            <div key={it.id} className="anr-suggest-item" onClick={() => selectSuggestion(it)}>
+                              <div>
+                                <div className="anr-suggest-name">{it.name}</div>
+                                <div className="anr-suggest-sku">{it.sku}{it.cat ? ` · ${it.cat}` : ''}</div>
+                              </div>
+                              {already && <span className="anr-suggest-added">Already added</span>}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="anr-suggest-empty">
+                          <div className="anr-suggest-empty-text">No items match "{itemQuery}".</div>
+                          <span className="anr-suggest-create" onClick={() => { setShowSuggestions(false); setShowNewItem(true); }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2.5">
+                              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            Create New Item
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="anr-quickadd-field">
+                  <label className="anr-label">Unit of Measure</label>
+                  <div className="anr-sel-wrap">
+                    <select
+                      className={`anr-select ${rowUnit ? 'anr-has-val' : ''}`}
+                      value={rowUnit}
+                      onChange={e => setRowUnit(e.target.value)}
+                    >
+                      <option value="">Select unit</option>
+                      {unitOptions.map(u => <option key={u.id ?? u.name} value={u.name}>{u.name}</option>)}
+                      {rowUnit && !unitOptions.some(u => u.name === rowUnit) && <option value={rowUnit}>{rowUnit}</option>}
+                    </select>
+                    <span className="anr-sel-arrow">{chevron}</span>
+                  </div>
+                </div>
+
+                <div className="anr-quickadd-field">
+                  <label className="anr-label">Quantity <span className="anr-req">*</span></label>
+                  <input
+                    type="number" min="1"
+                    className="anr-input"
+                    placeholder="Enter quantity"
+                    value={rowQty}
+                    onChange={e => setRowQty(e.target.value)}
+                  />
+                </div>
+
+                <div className="anr-quickadd-field">
+                  <label className="anr-label">Unit Cost (₦) <span className="anr-req">*</span></label>
+                  <input
+                    type="number" min="0"
+                    className="anr-input"
+                    placeholder="Enter unit cost"
+                    value={rowCost}
+                    onChange={e => setRowCost(e.target.value)}
+                  />
+                </div>
+
+                <button className="anr-quickadd-add-btn" onClick={handleAddItemRow}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  Search &amp; Add Item
-                </button>
-                <button className="anr-add-btn-sec" onClick={() => setShowNewItem(true)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1e2740" strokeWidth="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
-                  Create New Item
+                  Add Item
                 </button>
               </div>
+
+              <div className="anr-create-link-row">
+                <span className="anr-suggest-create" onClick={() => setShowNewItem(true)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  Item not in your catalog? Create New Item
+                </span>
+              </div>
+
+              {catalogError && <div className="anr-banner-err">{catalogError}</div>}
+              {rowError && <div className="anr-err-msg" style={{ marginBottom: 10 }}>{rowError}</div>}
 
               {/* Error: no items */}
               {errors.items && (
@@ -603,6 +904,18 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
                   </div>
                 </div>
               </div>
+
+              <div className="anr-summary-card">
+                <div className="anr-summary-title">Attachments (optional)</div>
+                <div className="anr-attach-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.8">
+                    <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L9.64 17.62a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                  <div className="anr-attach-text">Drag and drop files here, or</div>
+                  <button type="button" className="anr-attach-btn" disabled title="Receipt attachments aren't wired up yet">Choose Files</button>
+                  <div className="anr-attach-sub">Not available yet — no backend endpoint for receipt attachments.</div>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -616,19 +929,12 @@ export default function AddNewReceipt({ isOpen, onClose, onSave, editData = null
         </div>
       </div>
 
-      {/* Sub-modals */}
-      <AddItemPicker
-        isOpen={showPicker}
-        onClose={() => setShowPicker(false)}
-        onAddItem={handleAddFromPicker}
-        onCreateNew={handleCreateFromPicker}
-        addedItemIds={receiptItems.map(r => r.id)}
-      />
-
+      {/* Sub-modal: create a brand-new item, then drop it straight into this receipt */}
       <AddNewItem
         isOpen={showNewItem}
         onClose={() => setShowNewItem(false)}
         onSave={handleSaveNewItem}
+        existingSkus={catalogItems.map(it => it.sku).filter(Boolean)}
       />
     </>
   );

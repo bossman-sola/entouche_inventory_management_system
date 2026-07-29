@@ -1,9 +1,6 @@
 import { normalizeHeader, normalizeName } from "./parsers";
 
-// Required columns per import type. Category / Unit of Measure are resolved
-// against real records fetched from the API, not hardcoded IDs. Role is not
-// cross-checked: the API exposes no roles endpoint, so there's nothing to
-// validate it against — it's just required to be present.
+
 export const REQUIRED_COLUMNS = {
   Items: ["Item Name", "SKU", "Category", "Unit of Measure", "Reorder Level"],
   Users: ["Name", "Email", "Role"],
@@ -11,9 +8,7 @@ export const REQUIRED_COLUMNS = {
 
 export const IMPORT_TYPES = ["Items", "Users", "Inventory"];
 
-// Import types that actually have a create endpoint in the API client.
-// Users has list/get only (no create), and Inventory has no import endpoint
-// at all — both are disabled in the UI rather than faking a working import.
+
 export const CREATABLE_TYPES = ["Items"];
 
 export function genPassword() {
@@ -23,10 +18,6 @@ export function genPassword() {
   return out;
 }
 
-// Row-level validation against the columns required for the selected import
-// type, cross-checked against real Categories / Units / Roles pulled from
-// the API so a row referencing "Electronics" only passes if that category
-// actually exists in the system.
 export function validateData(headers, rows, importType, refData) {
   const required = REQUIRED_COLUMNS[importType] || [];
   const normalizedHeaders = headers.map(normalizeHeader);
@@ -34,11 +25,11 @@ export function validateData(headers, rows, importType, refData) {
 
   const missingColumns = required.filter(rc => !normalizedHeaders.includes(normalizeHeader(rc)));
   if (missingColumns.length === required.length && required.length > 0) {
-    errs.push({ row: "—", column: "(all columns)", error: "File does not match Import Type", errorColor: "text-red-600", value: headers.length ? headers.join(", ") : "(no headers found)" });
+    errs.push({ row: "-", column: "(all columns)", error: "File does not match Import Type", errorColor: "text-red-600", value: headers.length ? headers.join(", ") : "(no headers found)" });
     return errs;
   }
   missingColumns.forEach(col => {
-    errs.push({ row: "—", column: col, error: "Missing required column", errorColor: "text-red-500", value: "(column not found)" });
+    errs.push({ row: "-", column: col, error: "Missing required column", errorColor: "text-red-500", value: "(column not found)" });
   });
 
   const colIndex = {};
@@ -80,7 +71,7 @@ export function validateData(headers, rows, importType, refData) {
         }
         seenEmails.add(value);
       }
-      // Role is intentionally not cross-checked here — see REQUIRED_COLUMNS
+      // Role is intentionally not cross-checked here - see REQUIRED_COLUMNS
       // comment above.
     });
   });

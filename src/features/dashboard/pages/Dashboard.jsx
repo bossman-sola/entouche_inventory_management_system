@@ -12,7 +12,6 @@ import Stock from "../../../assets/icons/stock.svg?react";
 import Recent from "../../../assets/icons/tran.svg?react";
 import Type from "../../../assets/icons/type.svg?react";
 
-// ---------- date helpers ----------
 const toISO = (d) => {
   const yr = d.getFullYear();
   const mo = String(d.getMonth() + 1).padStart(2, '0');
@@ -43,7 +42,69 @@ const buildPresets = () => {
   ];
 };
 
-// ---------- DateRangePicker ----------
+async function fetchAllTransactions(params) {
+  let page = 1;
+  let all = [];
+  while (page <= 20) { 
+    const res = await apiClient.get('/transactions', { params: { ...params, page } });
+    const chunk = res.data?.data || [];
+    all = all.concat(chunk);
+    const meta = res.data?.meta;
+    if (!meta || page >= meta.last_page) break;
+    page += 1;
+  }
+  return all;
+}
+
+const TYPE_FAMILY = {
+  receipt: 'Receipt',
+  transfer_in: 'Transfer',
+  transfer_out: 'Transfer',
+  adjustment_in: 'Adjustment',
+  adjustment_out: 'Adjustment',
+};
+const TYPE_COLORS = { Receipt: '#16A369', Transfer: '#4F6EF7', Adjustment: '#C27A0A' };
+const TYPE_ROUTES = { Receipt: '/receipts', Transfer: '/transfers', Adjustment: '/adjustments' };
+
+function baseType(rawType) {
+  const key = String(rawType || '').toLowerCase().trim();
+  if (TYPE_FAMILY[key]) return TYPE_FAMILY[key];
+  return key ? key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Other';
+}
+
+function buildDailyValueTrend(transactions, start, end) {
+  const buckets = new Map();
+  for (let d = startOfDay(start); d <= end; d = addDays(d, 1)) {
+    buckets.set(toISO(d), 0);
+  }
+  transactions.forEach((t) => {
+    const rawDate = t.created_at || t.transaction_date || t.date;
+    if (!rawDate) return;
+    const key = toISO(startOfDay(new Date(rawDate)));
+    if (!buckets.has(key)) return; 
+    const qty = Number(t.quantity ?? t.qty ?? 0) || 0;
+    const unitCost = Number(t.unit_cost ?? t.item?.unit_cost ?? 0) || 0;
+    buckets.set(key, buckets.get(key) + qty * unitCost);
+  });
+  return Array.from(buckets.entries()).map(([iso, val]) => ({
+    name: new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    val: Math.round(val),
+  }));
+}
+
+function buildTypeBreakdown(transactions) {
+  const counts = new Map();
+  transactions.forEach((t) => {
+    const type = baseType(t.transaction_type || t.type);
+    counts.set(type, (counts.get(type) || 0) + 1);
+  });
+  return Array.from(counts.entries()).map(([name, value]) => ({
+    name,
+    value,
+    color: TYPE_COLORS[name] || '#94A3B8',
+  }));
+}
+
 const DateRangePicker = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('preset'); // 'preset' | 'custom'
@@ -186,7 +247,6 @@ const DateRangePicker = ({ value, onChange }) => {
   );
 };
 
-// ---------- StatCard ----------
 const StatCard = ({ title, val, trend, icon, isDown }) => {
   return (
     <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
@@ -204,7 +264,6 @@ const StatCard = ({ title, val, trend, icon, isDown }) => {
   );
 };
 
-// ---------- TableContainer ----------
 const TableContainer = ({ title, icon, onViewAll, children }) => {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -229,13 +288,12 @@ const TableContainer = ({ title, icon, onViewAll, children }) => {
   );
 };
 
-// ---------- Dashboard ----------
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [dateRange, setDateRange] = useState(() => {
-    const preset = buildPresets()[3]; // Last 30 Days
+    const preset = buildPresets()[3]; 
     return { label: preset.label, start: preset.start, end: preset.end };
   });
   const [stats, setStats] = useState({
@@ -243,7 +301,9 @@ const Dashboard = () => {
     totalValue: 0,
     lowStockCount: 0,
     lowStockItems: [],
+    totalTxns: 0,
     trend: [],
+    byType: [],
   });
 
   useEffect(() => {
@@ -252,15 +312,16 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const response = await apiClient.get("/items", {
-          params: {
-            start_date: toISO(dateRange.start),
-            end_date: toISO(dateRange.end),
-          },
-        });
+        const [itemsResponse, transactions] = await Promise.all([
+          apiClient.get("/items"),
+          fetchAllTransactions({
+            date_from: toISO(dateRange.start),
+            date_to: toISO(dateRange.end),
+          }),
+        ]);
         if (cancelled) return;
 
-        const allItems = response.data.data || [];
+        const allItems = itemsResponse.data.data || [];
 
         let valueSum = 0;
         let lowCount = 0;
@@ -270,8 +331,8 @@ const Dashboard = () => {
           const cost = parseFloat(item.unit_cost) || 0;
           const reorder = parseFloat(item.reorder_level) || 0;
 
-          valueSum += cost; // Note: In a real app, multiply by current balance
-          if (reorder > 0) { // Example logic for low stock
+          valueSum += cost; 
+          if (reorder > 0) { 
             lowCount++;
             lowItems.push(item);
           }
@@ -279,11 +340,13 @@ const Dashboard = () => {
 
         setItems(allItems);
         setStats({
-          totalItems: response.data.meta?.total || allItems.length,
+          totalItems: itemsResponse.data.meta?.total || allItems.length,
           totalValue: valueSum,
           lowStockCount: lowCount,
           lowStockItems: lowItems.slice(0, 5),
-          trend: response.data.trend || [],
+          totalTxns: transactions.length,
+          trend: buildDailyValueTrend(transactions, dateRange.start, dateRange.end),
+          byType: buildTypeBreakdown(transactions),
         });
       } catch (error) {
         console.error("Dashboard API Error:", error);
@@ -316,30 +379,66 @@ const Dashboard = () => {
         <StatCard title="Total Items" val={stats.totalItems.toLocaleString()} trend="Live" icon={<Total/>} />
         <StatCard title="Inventory Value" val={`₦${stats.totalValue.toLocaleString()}`} trend="Estimate" icon={<Dollar/>} />
         <StatCard title="Low Stock Items" val={stats.lowStockCount} trend="Review" icon={<File/>} isDown />
-        <StatCard title="Total Transactions" val="---" trend="0%" icon={<Transaction/>} />
+        <StatCard title="Total Transactions" val={stats.totalTxns.toLocaleString()} trend={dateRange.label} icon={<Transaction/>} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white p-6 rounded-xl border border-gray-100 shadow-sm h-[380px]">
-          <h3 className="text-[14px] font-extrabold flex items-center gap-2 text-[#1E2740] mb-8"><Trend /> Inventory Value Trend</h3>
-          <ResponsiveContainer width="100%" height="80%">
+          <h3 className="text-[14px] font-extrabold flex items-center gap-2 text-[#1E2740]"><Trend /> Inventory Value Trend</h3>
+          <p className="text-[11px] text-gray-400 mt-1 mb-4">Value of stock received, transferred, or adjusted per day - not a running total on hand.</p>
+          <ResponsiveContainer width="100%" height="72%">
             <LineChart data={stats.trend}>
               <CartesianGrid strokeDasharray="0" vertical={false} stroke="#F1F5F9" />
               <XAxis dataKey="name" hide />
               <YAxis hide />
-              <Tooltip />
-              <Line type="monotone" dataKey="val" stroke="#4F46E5" strokeWidth={2.5} />
+              <Tooltip formatter={(v) => `₦${Number(v).toLocaleString()}`} />
+              <Line type="monotone" dataKey="val" stroke="#4F46E5" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
-          {stats.trend.length === 0 && (
-            <p className="text-xs text-gray-400 text-center -mt-32">No trend data for this range yet.</p>
+          {stats.trend.every(p => p.val === 0) && (
+            <p className="text-xs text-gray-400 text-center -mt-20">No transactions in this range yet.</p>
           )}
         </div>
 
-        {/* Type Chart stays as UI placeholder until global /transactions API is available */}
         <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm h-[380px]">
-          <h3 className="text-[14px] font-extrabold flex items-center gap-2 mb-8 text-[#1E2740]"><Type /> Transactions by Type</h3>
-          <p className="text-xs text-gray-400 text-center mt-10">Transaction data will appear here.</p>
+          <h3 className="text-[14px] font-extrabold flex items-center gap-2 mb-4 text-[#1E2740]"><Type /> Transactions by Type</h3>
+          {stats.byType.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center mt-10">No transactions in this range yet.</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height="78%">
+                <PieChart>
+                  <Pie
+                    data={stats.byType}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    onClick={(entry) => navigate(TYPE_ROUTES[entry.name] || '/transactions')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {stats.byType.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex items-center justify-center gap-4 flex-wrap">
+                {stats.byType.map((entry) => (
+                  <div
+                    key={entry.name}
+                    onClick={() => navigate(TYPE_ROUTES[entry.name] || '/transactions')}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6B7591] cursor-pointer hover:text-[#1E2740]"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: entry.color }} />
+                    {entry.name} ({entry.value})
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -372,6 +471,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
 
 export default Dashboard;

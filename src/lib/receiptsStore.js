@@ -15,7 +15,7 @@ function writeAll(rows) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
   } catch {
-    /* ignore quota errors */
+    
   }
 }
 

@@ -15,6 +15,7 @@ import { UNIT_TYPES, UNIT_REFERENCE_DATA, findUnitReference, getUnitType } from 
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const REQUIRED_FIELDS = ['name', 'category', 'unit', 'unitType'];
+const ITEM_STATUSES = ['Active', 'Inactive'];
 
 const FIELD_LABELS = {
   name: 'Item Name',
@@ -41,6 +42,7 @@ const HEADER_ALIASES = {
   'unit cost': 'unitCost',
   'selling price': 'sellingPrice',
   'reorder level': 'reorderLevel',
+  'status': 'itemStatus',
 };
 
 const STATUS_STYLES = {
@@ -125,6 +127,11 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
     if (r.unitType && !UNIT_TYPES.some(t => t.toLowerCase() === r.unitType.toLowerCase())) {
       hardErrors.push(`Unit type must be one of: ${UNIT_TYPES.join(', ')}.`);
     }
+    // Status is optional — blank means Active — but if something was
+    // entered, it must be one of the known values.
+    if (r.itemStatus && !ITEM_STATUSES.some(s => s.toLowerCase() === r.itemStatus.toLowerCase())) {
+      hardErrors.push(`Status must be one of: ${ITEM_STATUSES.join(', ')}.`);
+    }
     if (r.category && categories.length && !categoryNames.has(r.category.toLowerCase())) {
       hardErrors.push(`Category "${r.category}" does not exist.`);
     }
@@ -134,7 +141,7 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
     // Cross-check: does the given Unit actually belong to the given Unit
     // Type per the reference table (e.g. "Piece" really is a Count unit)?
     if (r.unit && r.unitType) {
-      // The Unit column may be "Piece (PCS)" or just "Piece" — try the
+      // The Unit column may be "Piece (PCS)" or just "Piece" - try the
       // name portion before any parenthesis first, then the raw value.
       const unitNamePart = r.unit.replace(/\s*\(.*\)\s*$/, '').trim();
       const resolvedType = getUnitType(unitNamePart) || getUnitType(r.unit);
@@ -156,7 +163,13 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
     const errors = [...hardErrors, ...duplicateErrors];
     const status = hardErrors.length ? 'Invalid' : duplicateErrors.length ? 'Duplicate' : 'Valid';
 
-    return { id: rowNum, ...r, status, errors };
+    // Normalize to canonical casing now that we know it's one of the
+    // allowed values (or blank, which defaults to Active).
+    const normalizedItemStatus = r.itemStatus
+      ? ITEM_STATUSES.find(s => s.toLowerCase() === r.itemStatus.toLowerCase()) || r.itemStatus
+      : 'Active';
+
+    return { id: rowNum, ...r, itemStatus: normalizedItemStatus, status, errors };
   });
 
   return {
@@ -171,33 +184,34 @@ const validateRows = (rawRows, { categories, units, existingBarcodes, existingSk
 
 // Builds the downloadable import template as a real .xlsx workbook (not
 // CSV) so we can have bold header text and actual dropdown menus on the
-// Category, Unit, and Unit Type columns — neither is possible in plain
+// Category, Unit, and Unit Type columns - neither is possible in plain
 // CSV. Category/Unit dropdown options come from whatever the account
 // already has; Unit Type always comes from the fixed reference table.
 const downloadTemplate = async (categories = [], units = []) => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Items');
-  // Hidden sheet holding the dropdown source lists — data validation
+  // Hidden sheet holding the dropdown source lists - data validation
   // "list" formulae need cell ranges, not just inline literals, once the
   // options get long (30 units across 5 types).
   const listSheet = workbook.addWorksheet('Lists');
   listSheet.state = 'veryHidden';
 
-  const headers = ['Item Name', 'Category', 'Unit', 'Unit Type', 'Barcode', 'SKU', 'Brand', 'Unit Cost', 'Selling Price', 'Reorder Level'];
+  const headers = ['Item Name', 'Category', 'Unit', 'Unit Type', 'Barcode', 'SKU', 'Brand', 'Unit Cost', 'Selling Price', 'Reorder Level', 'Status'];
   sheet.addRow(headers);
   sheet.getRow(1).font = { bold: true };
   sheet.columns = [
     { width: 22 }, { width: 22 }, { width: 20 }, { width: 14 },
     { width: 18 }, { width: 14 }, { width: 16 }, { width: 12 }, { width: 14 }, { width: 14 },
+    { width: 12 },
   ];
 
   // One example row per Unit Type, matching the reference table.
   const sampleRows = [
-    ['Wireless Mouse', 'Computer Accessories', 'Piece (PCS)', 'Count', '8901234567890', '', 'Logitech', 10.00, 15.00, 10],
-    ['Printer Paper', 'Office Supplies', 'Ream (RM)', 'Count', '', '', 'Double A', 3.50, 5.00, 20],
-    ['Diesel', 'Fuel', 'Liter (L)', 'Volume', '', '', '', 0.90, 1.20, 100],
-    ['Electrical Cable', 'Electrical Supplies', 'Meter (m)', 'Length', '', '', '', 1.20, 1.80, 50],
-    ['Steel Rod', 'Construction Materials', 'Kilogram (kg)', 'Weight', '', '', '', 2.00, 3.00, 200],
+    ['Wireless Mouse', 'Computer Accessories', 'Piece (PCS)', 'Count', '8901234567890', '', 'Logitech', 10.00, 15.00, 10, 'Active'],
+    ['Printer Paper', 'Office Supplies', 'Ream (RM)', 'Count', '', '', 'Double A', 3.50, 5.00, 20, 'Active'],
+    ['Diesel', 'Fuel', 'Liter (L)', 'Volume', '', '', '', 0.90, 1.20, 100, 'Active'],
+    ['Electrical Cable', 'Electrical Supplies', 'Meter (m)', 'Length', '', '', '', 1.20, 1.80, 50, 'Active'],
+    ['Steel Rod', 'Construction Materials', 'Kilogram (kg)', 'Weight', '', '', '', 2.00, 3.00, 200, 'Active'],
   ];
   sampleRows.forEach((row) => sheet.addRow(row));
 
@@ -247,7 +261,7 @@ const downloadTemplate = async (categories = [], units = []) => {
 const ImportItems = ({
   isOpen,
   onClose,
-  onImportComplete, // async (validRows) => void — do the actual bulk-create API call here
+  onImportComplete, // async (validRows) => void - do the actual bulk-create API call here
   categories = [],
   units = [],
   existingBarcodes = [],
@@ -368,6 +382,12 @@ const ImportItems = ({
           unitCost: r.unitCost || null,
           sellingPrice: r.sellingPrice || null,
           reorderLevel: r.reorderLevel || null,
+          // 'Active' or 'Inactive', already validated/normalized above.
+          // Every item is created Active by the API regardless of this
+          // value — whatever implements onImportComplete is responsible
+          // for calling itemsApi.toggleItemStatus(id) right after
+          // creation for any row where itemStatus === 'Inactive'.
+          itemStatus: r.itemStatus,
         }));
 
       if (onImportComplete) await onImportComplete(validRows);
@@ -514,6 +534,7 @@ const ImportItems = ({
                             <th className="px-6 py-4">Unit Type <span className="text-rose-400">*</span></th>
                             <th className="px-6 py-4">Barcode</th>
                             <th className="px-6 py-4">SKU</th>
+                            <th className="px-6 py-4">Item Status</th>
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4">Errors</th>
                           </tr>
@@ -521,7 +542,7 @@ const ImportItems = ({
                         <tbody className="text-[12px] font-bold text-slate-600 divide-y divide-slate-50">
                           {filteredRows.length === 0 && (
                             <tr>
-                              <td colSpan={9} className="px-6 py-8 text-center text-slate-400 font-medium">
+                              <td colSpan={10} className="px-6 py-8 text-center text-slate-400 font-medium">
                                 No rows match this filter.
                               </td>
                             </tr>
@@ -529,19 +550,20 @@ const ImportItems = ({
                           {filteredRows.map((row) => (
                             <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
                               <td className="px-6 py-5 text-slate-400 font-bold">{row.id}</td>
-                              <td className="px-6 py-5 text-[#1E2740]">{row.name || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.category || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unit || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unitType || '—'}</td>
-                              <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.barcode || '—'}</td>
+                              <td className="px-6 py-5 text-[#1E2740]">{row.name || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.category || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unit || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.unitType || '-'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.barcode || '-'}</td>
                               <td className="px-6 py-5 text-slate-400 font-medium tracking-tighter">{row.sku || 'Auto-generated'}</td>
+                              <td className="px-6 py-5 text-slate-400 font-medium">{row.itemStatus || 'Active'}</td>
                               <td className="px-6 py-5">
                                 <span className={`px-2 py-0.5 rounded-md border text-[10px] ${STATUS_STYLES[row.status]}`}>
                                   {row.status}
                                 </span>
                               </td>
                               <td className="px-6 py-5 text-slate-400 font-medium max-w-[220px]">
-                                {row.errors.length ? row.errors.join(' ') : '—'}
+                                {row.errors.length ? row.errors.join(' ') : '-'}
                               </td>
                             </tr>
                           ))}
@@ -607,6 +629,7 @@ const ImportItems = ({
                     <NoteItem text="Duplicate SKUs or barcodes will be skipped." />
                     <NoteItem text="Category and Unit must match existing values exactly." />
                     <NoteItem text="Unit Type must match the unit chosen (e.g. Piece is Count)." />
+                    <NoteItem text="Status is optional (defaults to Active). Items marked Inactive are still created, then set to Inactive right after." />
                   </ul>
                 </div>
 

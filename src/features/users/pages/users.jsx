@@ -31,7 +31,7 @@ const icons = {
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z",
 };
 
-// Presentation metadata for known role slugs — the API doesn't return icons/colors,
+// Presentation metadata for known role slugs - the API doesn't return icons/colors,
 // so this maps a role's real `name` (slug) to how it should look. Unknown roles
 // fall back to DEFAULT_ROLE_META below.
 const ROLE_META = {
@@ -51,7 +51,7 @@ function humanize(slug) {
 function formatPermission(name) {
   const [group, action] = String(name).split(".");
   if (!action) return humanize(group);
-  return `${humanize(group)} — ${humanize(action)}`;
+  return `${humanize(group)} - ${humanize(action)}`;
 }
 
 function initialsOf(name) {
@@ -65,9 +65,9 @@ function colorFor(id) {
 }
 
 function fmtDateTime(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
+  if (isNaN(d.getTime())) return "-";
   return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 }
 
@@ -267,7 +267,7 @@ export default function UsersRolesPage() {
   };
 
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
+    <div className=" bg-gray-50 min-h-screen" onClick={() => setOpenMenu(null)}>
       {toast && (
         <div className="fixed bottom-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium z-[9999] shadow-lg whitespace-nowrap">{toast}</div>
       )}
@@ -305,7 +305,7 @@ export default function UsersRolesPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 truncate">{s.label}</p>
-                <p className="text-3xl font-bold text-gray-900">{loading ? "—" : s.value}</p>
+                <p className="text-3xl font-bold text-gray-900">{loading ? "-" : s.value}</p>
                 <button onClick={s.onClick} className="text-xs text-blue-500 font-medium hover:text-blue-700 mt-0.5 whitespace-nowrap">{s.link}</button>
               </div>
             </div>
@@ -381,12 +381,12 @@ export default function UsersRolesPage() {
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{u.email}</td>
                           <td className="py-3 px-4">
-                            <span className={`text-sm font-medium whitespace-nowrap ${meta?.color || "text-gray-600"}`}>{roleSlug ? roleLabelFor(roleSlug) : "—"}</span>
+                            <span className={`text-sm font-medium whitespace-nowrap ${meta?.color || "text-gray-600"}`}>{roleSlug ? roleLabelFor(roleSlug) : "-"}</span>
                           </td>
                           <td className="py-3 px-4">
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap capitalize ${u.status === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{u.status}</span>
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-400 whitespace-nowrap" title="Login history isn't exposed by the API yet">—</td>
+                          <td className="py-3 px-4 text-sm text-gray-400 whitespace-nowrap" title="Login history isn't exposed by the API yet">-</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <button onClick={() => setEditUser(u)} className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500">
@@ -575,7 +575,7 @@ export default function UsersRolesPage() {
         </div>
       </Modal>
 
-      {/* View Role Modal (read-only — no update-role endpoint exists yet) */}
+      {/* View Role Modal (read-only - no update-role endpoint exists yet) */}
       <Modal open={!!viewRole} onClose={() => setViewRole(null)} title={viewRole?.label || "Role"}>
         {viewRole && (
           <div className="space-y-4">
@@ -590,7 +590,7 @@ export default function UsersRolesPage() {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-gray-400">Editing permissions isn't supported by the API yet — this view is read-only.</p>
+            <p className="text-xs text-gray-400">Editing permissions isn't supported by the API yet - this view is read-only.</p>
             <button onClick={() => setViewRole(null)} className="w-full py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Close</button>
           </div>
         )}
