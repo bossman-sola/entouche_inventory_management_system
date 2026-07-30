@@ -1,16 +1,19 @@
 import { useState, useRef } from "react";
-import { createItem } from "./api";
+import { createItem, createReceipt, receiveReceipt } from "./api";
 import { parseCSV, parseXLSX, normalizeHeader, normalizeName } from "./parsers";
 import { validateData, CREATABLE_TYPES } from "./validation";
 
-export function useImportFlow({ currentUser, refData, importType, loadReferenceData }) {
+export function useImportFlow({
+  currentUser, refData, importType, loadReferenceData,
+  selectedWarehouseId, selectedLocationId,          // ← NEW: needed for Inventory receipts
+}) {
   const [file, setFile] = useState(null);
   const [validated, setValidated] = useState(false);
   const [validating, setValidating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importDone, setImportDone] = useState(false);
-  const [history, setHistory] = useState([]); 
+  const [history, setHistory] = useState([]);
   const [parsedData, setParsedData] = useState(null);
   const [errors, setErrors] = useState([]);
   const [parseError, setParseError] = useState("");
@@ -62,6 +65,16 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
 
   const handleImport = async () => {
     if (!file || !validated || !CREATABLE_TYPES.includes(importType)) return;
+    // Inventory imports post a goods receipt, which needs a destination:
+    if (importType === "Inventory" && (!selectedWarehouseId || !selectedLocationId)) {
+      setErrors(prev => [...prev, {
+        row: "-", column: "(setup)",
+        error: "Select a warehouse and receiving location before importing inventory",
+        errorColor: "text-red-500", value: "-",
+      }]);
+      return;
+    }
+
     setImporting(true);
     setImportDone(false);
     const { headers, rows, total } = parsedData;
@@ -71,28 +84,60 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
     let ok = 0;
     const apiErrors = [];
 
-    for (let n = 0; n < okRows.length; n++) {
-      const rowI = okRows[n];
-      const row = rows[rowI];
-      setImportProgress({ current: n + 1, total: okRows.length });
+    if (importType === "Inventory") {
+      // ── Inventory: one goods receipt containing all clean rows ──
       try {
-        if (importType === "Items") {
-          const catName = row[colIdx("Category")];
-          const unitName = row[colIdx("Unit of Measure")];
-          const cat = refData.categories.get(normalizeName(catName));
-          const unit = refData.units.get(normalizeName(unitName));
-          await createItem({
-            name: row[colIdx("Item Name")],
-            category_id: cat?.id,
-            unit_of_measure_id: unit?.id,
-            reorder_level: Number(row[colIdx("Reorder Level")]) || 0,
-            item_type: "product",
-            status: "active",
-          });
-        }
-        ok++;
+        setImportProgress({ current: 1, total: 2 });
+        const lines = okRows.map(rowI => {
+          const row = rows[rowI];
+          const item = refData.itemsBySku.get(normalizeName(row[colIdx("SKU")]));
+          return {
+            item_id: item.id,
+            quantity: Number(row[colIdx("Quantity")]) || 0,
+            unit_cost: Number(row[colIdx("Unit Cost")]) || item.unit_cost || 0,
+            warehouse_location_id: selectedLocationId,
+          };
+        });
+
+        const receipt = await createReceipt({
+          warehouse_id: selectedWarehouseId,
+          receiving_location_id: selectedLocationId,
+          receipt_date: new Date().toISOString().slice(0, 10),
+          notes: `Imported from ${file.name}`,
+          items: lines,
+        });
+
+        setImportProgress({ current: 2, total: 2 });
+        await receiveReceipt(receipt.id);
+        ok = lines.length;
       } catch (err) {
-        apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
+        apiErrors.push({ row: "-", column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
+      }
+    } else {
+      // ── Items (and future per-row types): one API call per row ──
+      for (let n = 0; n < okRows.length; n++) {
+        const rowI = okRows[n];
+        const row = rows[rowI];
+        setImportProgress({ current: n + 1, total: okRows.length });
+        try {
+          if (importType === "Items") {
+            const catName = row[colIdx("Category")];
+            const unitName = row[colIdx("Unit of Measure")];
+            const cat = refData.categories.get(normalizeName(catName));
+            const unit = refData.units.get(normalizeName(unitName));
+            await createItem({
+              name: row[colIdx("Item Name")],
+              category_id: cat?.id,
+              unit_of_measure_id: unit?.id,
+              reorder_level: Number(row[colIdx("Reorder Level")]) || 0,
+              item_type: "product",
+              status: "active",
+            });
+          }
+          ok++;
+        } catch (err) {
+          apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
+        }
       }
     }
 
@@ -120,7 +165,7 @@ export function useImportFlow({ currentUser, refData, importType, loadReferenceD
     setParsedData(null);
     setValidated(false);
     setErrors([]);
-    loadReferenceData(); // refresh live counts (items/users totals) after real writes
+    loadReferenceData(); // refresh live counts after real writes
   };
 
   const handleCancel = () => {

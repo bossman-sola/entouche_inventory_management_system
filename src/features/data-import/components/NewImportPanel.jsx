@@ -7,7 +7,9 @@ import { DataPreviewTable } from "./DataPreviewTable";
 import { ImportConfiguration } from "./ImportConfiguration";
 
 export function NewImportPanel({
-  isAuthed, importType, setImportType, location, setLocation,
+  isAuthed, importType, setImportType,
+  warehouses, selectedWarehouseId, setSelectedWarehouseId,
+  selectedLocationId, setSelectedLocationId,
   fileFormat, setFileFormat, encoding, setEncoding,
   flow,
 }) {
@@ -18,6 +20,8 @@ export function NewImportPanel({
   } = flow;
 
   const notCreatable = !CREATABLE_TYPES.includes(importType);
+  const inventoryNeedsDestination =
+    importType === "Inventory" && (!selectedWarehouseId || !selectedLocationId);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
@@ -32,9 +36,16 @@ export function NewImportPanel({
             <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
               <Icon d={icons.info} size={16} className="text-blue-500 shrink-0" />
               <p className="text-sm text-blue-700">
-                {importType === "Users"
-                  ? "Users import isn't wired up yet - the API only supports listing users, not creating them."
-                  : "Inventory import isn't wired up yet - the API doesn't expose an endpoint for it."}
+                Users import isn't wired up yet — the API only supports listing users, not creating them.
+              </p>
+            </div>
+          )}
+
+          {inventoryNeedsDestination && file && (
+            <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+              <Icon d={icons.info} size={16} className="text-amber-500 shrink-0" />
+              <p className="text-sm text-amber-700">
+                Select a warehouse and receiving location (right panel) to import inventory.
               </p>
             </div>
           )}
@@ -60,7 +71,11 @@ export function NewImportPanel({
                   ) : "Validate File"}
                 </button>
               ) : (
-                <button onClick={handleImport} disabled={importing || notCreatable || errors.length >= (parsedData?.total || 0)} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors">
+                <button
+                  onClick={handleImport}
+                  disabled={importing || notCreatable || inventoryNeedsDestination || errors.length >= (parsedData?.total || 0)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
                   {importing ? (
                     <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2" strokeDasharray="40 20" /></svg> Importing {importProgress ? `${importProgress.current}/${importProgress.total}` : "..."}</>
                   ) : "Import Valid Data"}
@@ -79,7 +94,9 @@ export function NewImportPanel({
 
         <ImportConfiguration
           importType={importType} setImportType={setImportType}
-          location={location} setLocation={setLocation}
+          warehouses={warehouses}
+          selectedWarehouseId={selectedWarehouseId} setSelectedWarehouseId={setSelectedWarehouseId}
+          selectedLocationId={selectedLocationId} setSelectedLocationId={setSelectedLocationId}
           fileFormat={fileFormat} setFileFormat={setFileFormat}
           encoding={encoding} setEncoding={setEncoding}
           onFieldChange={handleCancel}
