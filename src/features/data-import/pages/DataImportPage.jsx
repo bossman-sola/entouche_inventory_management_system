@@ -18,14 +18,13 @@ export default function DataImportPage() {
 
   const [importType, setImportType] = useState("Items");
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
-  const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [fileFormat, setFileFormat] = useState("CSV");
   const [encoding, setEncoding] = useState("UTF-8");
   const [guidelinesOpen, setGuidelinesOpen] = useState(false);
 
   const flow = useImportFlow({
     currentUser, refData, importType, loadReferenceData,
-    selectedWarehouseId, selectedLocationId,
+    selectedWarehouseId,
   });
   const { history, fileRef } = flow;
 
@@ -67,7 +66,6 @@ export default function DataImportPage() {
             importType={importType} setImportType={setImportType}
             warehouses={warehouses}
             selectedWarehouseId={selectedWarehouseId} setSelectedWarehouseId={setSelectedWarehouseId}
-            selectedLocationId={selectedLocationId} setSelectedLocationId={setSelectedLocationId}
             fileFormat={fileFormat} setFileFormat={setFileFormat}
             encoding={encoding} setEncoding={setEncoding}
             flow={flow}
