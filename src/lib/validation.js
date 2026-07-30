@@ -15,8 +15,14 @@ export const IMPORT_COLUMNS = {
   },
   
   Inventory: {
-    required: ["Item", "Quantity"],
-    optional: ["Location", "Cost"],
+    required: ["Asset Tag No", "Asset Description"],
+    optional: [
+      "S/N", "Equipment Serial Number", "Cost", "Asset Life", "Date Acquired",
+      "Manufacturer", "Model Number", "Api Number", "Field Location",
+      "Vendor Name", "Delivery Date To Location/Yard", "Status",
+      "Invoice Number From Vendor", "Po Number From Vendor",
+      "Po Number Issued By Api", "Payment Date", "Notes",
+    ],
   },
 };
 
