@@ -4,12 +4,13 @@ import { normalizeHeader, normalizeName } from "./parsers";
 export const REQUIRED_COLUMNS = {
   Items: ["Item Name", "SKU", "Category", "Unit of Measure", "Reorder Level"],
   Users: ["Name", "Email", "Role"],
+  Inventory: ["SKU", "Quantity"],
 };
 
 export const IMPORT_TYPES = ["Items", "Users", "Inventory"];
 
 
-export const CREATABLE_TYPES = ["Items"];
+export const CREATABLE_TYPES = ["Items", "Inventory"];
 
 export function genPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#";
@@ -48,7 +49,15 @@ export function validateData(headers, rows, importType, refData) {
         errs.push({ row: rowNum, column: col, error: `Missing ${col}`, errorColor: "text-orange-500", value: "(empty)" });
         return;
       }
-      if (col === "SKU") {
+      if (col === "Quantity" && isNaN(Number(value))) {
+        errs.push({ row: rowNum, column: col, error: "Quantity must be a number", errorColor: "text-orange-500", value });
+      }
+      // For Inventory, the SKU must ALREADY exist (inverse of the Items rule)
+      if (col === "SKU" && importType === "Inventory" &&
+        refData.itemsBySku && !refData.itemsBySku.has(normalizeName(value))) {
+        errs.push({ row: rowNum, column: col, error: "SKU not found in system", errorColor: "text-red-500", value });
+      }
+      if (col === "SKU" && importType === "Items") {
         if (seenSKUs.has(value)) errs.push({ row: rowNum, column: col, error: "Duplicate SKU in file", errorColor: "text-orange-500", value });
         seenSKUs.add(value);
       }
