@@ -7,6 +7,8 @@ import {
   listCategories,
   listUnits,
   listUsers,
+  listWarehouses,
+  fetchAllPages,
   requestRaw,
 } from "./api";
 import { normalizeName } from "./parsers";
@@ -22,9 +24,38 @@ export function useInventoryApi() {
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
   const [existingUsers, setExistingUsers] = useState([]);
+  const [items, setItems] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [itemsTotal, setItemsTotal] = useState(null);
   const [usersTotal, setUsersTotal] = useState(null);
   const [refLoading, setRefLoading] = useState(false);
+
+  // Loads all reference data. Callers invoke this only after auth succeeds,
+  // so no authStatus guard is needed and the callback has no reactive deps.
+  const loadReferenceData = useCallback(async () => {
+    setRefLoading(true);
+    try {
+      const [cats, uns, usersList, usersMeta, itemsList, whs] = await Promise.all([
+        listCategories(),
+        listUnits(),
+        listUsers(),
+        requestRaw("/users", { params: { per_page: 1 } }),
+        fetchAllPages("/items"),
+        listWarehouses(),
+      ]);
+      setCategories(cats || []);
+      setUnits(uns || []);
+      setExistingUsers(usersList || []);
+      setItems(itemsList || []);
+      setWarehouses(whs || []);
+      setItemsTotal(itemsList ? itemsList.length : null);
+      setUsersTotal(usersMeta?.meta?.total ?? (usersList ? usersList.length : null));
+    } catch (err) {
+      setAuthError(err.message || "Failed to load reference data");
+    } finally {
+      setRefLoading(false);
+    }
+  }, []);
 
   const login = useCallback(async (email, password) => {
     setAuthStatus("connecting");
@@ -34,12 +65,14 @@ export function useInventoryApi() {
       setAccessToken(data.access_token);
       setCurrentUser(data.user);
       setAuthStatus("ok");
+      loadReferenceData(); // chained directly after successful auth
     } catch (err) {
       setAuthStatus("error");
       setAuthError(err.message || "Could not reach the API");
     }
-  }, []);
+  }, [loadReferenceData]);
 
+  // Mount: validate stored token, or fall back to default login.
   useEffect(() => {
     (async () => {
       const existingToken = getAccessToken();
@@ -48,6 +81,7 @@ export function useInventoryApi() {
           const user = await getCurrentUser();
           setCurrentUser(user);
           setAuthStatus("ok");
+          loadReferenceData(); // chained here too
           return;
         } catch {
           setAccessToken(null);
@@ -55,43 +89,21 @@ export function useInventoryApi() {
       }
       login(DEFAULT_EMAIL, DEFAULT_PASSWORD);
     })();
-    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const loadReferenceData = useCallback(async () => {
-    if (authStatus !== "ok") return;
-    setRefLoading(true);
-    try {
-      const [cats, uns, usersList, itemsMeta, usersMeta] = await Promise.all([
-        listCategories(),
-        listUnits(),
-        listUsers(),
-        requestRaw("/items", { params: { per_page: 1 } }),
-        requestRaw("/users", { params: { per_page: 1 } }),
-      ]);
-      setCategories(cats || []);
-      setUnits(uns || []);
-      setExistingUsers(usersList || []);
-      setItemsTotal(itemsMeta?.meta?.total ?? null);
-      setUsersTotal(usersMeta?.meta?.total ?? (usersList ? usersList.length : null));
-    } catch (err) {
-      setAuthError(err.message || "Failed to load reference data");
-    } finally {
-      setRefLoading(false);
-    }
-  }, [authStatus]);
-
-  useEffect(() => { if (authStatus === "ok") loadReferenceData(); }, [authStatus, loadReferenceData]);
 
   const refData = {
     categories: new Map(categories.map(c => [normalizeName(c.name), c])),
     units: new Map(units.map(u => [normalizeName(u.name), u])),
     userEmails: new Set(existingUsers.map(u => u.email.toLowerCase())),
+    itemsBySku: new Map(
+      items.filter(it => it.sku).map(it => [normalizeName(it.sku), it])
+    ),
   };
 
   return {
     currentUser, authStatus, authError, login,
-    refData, itemsTotal, usersTotal, refLoading, loadReferenceData,
+    refData, warehouses, itemsTotal, usersTotal, refLoading, loadReferenceData,
   };
 }
 

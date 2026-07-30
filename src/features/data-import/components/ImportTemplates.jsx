@@ -2,7 +2,7 @@ import { Icon, icons } from "../../../lib/icons";
 
 function downloadTemplate(name) {
   const csvContent = name === "Items Template"
-    ? "Item Name,Category,Unit,Unit Type,Barcode,SKU,Brand,Unit Cost,Selling Price,Reorder Level,Status\nWireless Mouse,Computer Accessories,Piece (PCS),Count,8901234567890,,Logitech,10,15,10,Active"
+    ? "Item Name,Category,Unit of Measure,Barcode,SKU,Brand,Unit Cost,Selling Price,Reorder Level,Status\nWireless Mouse,Computer Accessories,Piece (PCS),8901234567890,,Logitech,10,15,10,Active"
     : name === "Users Template"
       ? "Name,Email,Role\nJohn Doe,john@example.com,Inventory Officer"
       : "Item,Quantity,Location,Cost\nSample Item,100,Storage Area,5000";

@@ -11,15 +11,22 @@ import { ImportHistoryTable } from "../components/ImportHistoryTable";
 import { GuidelinesModal } from "../components/GuidelinesModal";
 
 export default function DataImportPage() {
-  const { currentUser, authStatus, authError, login, refData, itemsTotal, usersTotal, refLoading, loadReferenceData } = useInventoryApi();
+  const {
+    currentUser, authStatus, authError, login, refData,
+    warehouses, itemsTotal, usersTotal, refLoading, loadReferenceData,
+  } = useInventoryApi();
 
   const [importType, setImportType] = useState("Items");
-  const [location, setLocation] = useState("Storage Area");
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+  const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [fileFormat, setFileFormat] = useState("CSV");
   const [encoding, setEncoding] = useState("UTF-8");
   const [guidelinesOpen, setGuidelinesOpen] = useState(false);
 
-  const flow = useImportFlow({ currentUser, refData, importType, loadReferenceData });
+  const flow = useImportFlow({
+    currentUser, refData, importType, loadReferenceData,
+    selectedWarehouseId, selectedLocationId,
+  });
   const { history, fileRef } = flow;
 
   const isAuthed = authStatus === "ok" && !!currentUser;
@@ -27,8 +34,8 @@ export default function DataImportPage() {
   const failedCount = history.filter(h => h.status === "Failed").length;
 
   return (
-    <div className=" bg-gray-50 min-h-screen">
-      {/* Header */}
+    <div className="bg-gray-50 min-h-screen">
+      
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-2 gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Data Import</h1>
@@ -52,20 +59,22 @@ export default function DataImportPage() {
       <StatsGrid history={history} successCount={successCount} failedCount={failedCount} itemsTotal={itemsTotal} usersTotal={usersTotal} />
 
       <div className="flex flex-col lg:flex-row gap-5">
-        {/* Left column */}
+        
         <div className="w-full lg:w-[560px] shrink-0 space-y-4">
           <ImportTemplates />
           <NewImportPanel
             isAuthed={isAuthed}
             importType={importType} setImportType={setImportType}
-            location={location} setLocation={setLocation}
+            warehouses={warehouses}
+            selectedWarehouseId={selectedWarehouseId} setSelectedWarehouseId={setSelectedWarehouseId}
+            selectedLocationId={selectedLocationId} setSelectedLocationId={setSelectedLocationId}
             fileFormat={fileFormat} setFileFormat={setFileFormat}
             encoding={encoding} setEncoding={setEncoding}
             flow={flow}
           />
         </div>
 
-        {/* Right column */}
+       
         <div className="flex-1 min-w-0 space-y-4">
           <ImportCategories
             itemsTotal={itemsTotal}
