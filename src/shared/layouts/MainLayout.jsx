@@ -13,7 +13,7 @@ import WarehouseIcon from "../../assets/icons/Warehouse.svg?react";
 import AuditIcon from "../../assets/icons/Audit.svg?react";
 import SettingsIcon from "../../assets/icons/Settings.svg?react";
 import Notifications from "./Notifications";
-import AlertDialog from "./dialogs/AlertDialog";
+import AlertDialog from "./dialogs/Alertdialog";
 import ReceiptCompletedDialog from "./dialogs/ReceiptCompletedDialog";
 import TransferApprovedDialog from "./dialogs/TransferApprovedDialog";
 import TransferCompletedDialog from "./dialogs/TransferCompletedDialog";
