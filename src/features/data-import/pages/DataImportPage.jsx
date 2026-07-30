@@ -35,7 +35,7 @@ export default function DataImportPage() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      {/* Header */}
+      
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-2 gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Data Import</h1>
@@ -59,7 +59,7 @@ export default function DataImportPage() {
       <StatsGrid history={history} successCount={successCount} failedCount={failedCount} itemsTotal={itemsTotal} usersTotal={usersTotal} />
 
       <div className="flex flex-col lg:flex-row gap-5">
-        {/* Left column */}
+        
         <div className="w-full lg:w-[560px] shrink-0 space-y-4">
           <ImportTemplates />
           <NewImportPanel
@@ -74,7 +74,7 @@ export default function DataImportPage() {
           />
         </div>
 
-        {/* Right column */}
+       
         <div className="flex-1 min-w-0 space-y-4">
           <ImportCategories
             itemsTotal={itemsTotal}

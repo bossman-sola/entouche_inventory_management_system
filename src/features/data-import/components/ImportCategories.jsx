@@ -10,7 +10,7 @@ export function ImportCategories({ itemsTotal, usersTotal, history, onNewImportC
   const categories = [
     { title: "Items Import", type: "Items", icon: icons.fileGreen, iconColor: "text-green-500", iconBg: "bg-green-50", fields: REQUIRED_COLUMNS.Items, count: itemsTotal, countLabel: "items in system" },
     { title: "Users Import", type: "Users", icon: icons.file, iconColor: "text-purple-500", iconBg: "bg-purple-50", fields: REQUIRED_COLUMNS.Users, count: usersTotal, countLabel: "users in system", noEndpointLabel: "List only, no create" },
-    { title: "Inventory Import", type: "Inventory", icon: icons.file, iconColor: "text-blue-500", iconBg: "bg-blue-50", fields: ["Item", "Quantity", "Location", "Cost"], count: null, countLabel: "" },
+    { title: "Inventory Import", type: "Inventory", icon: icons.file, iconColor: "text-blue-500", iconBg: "bg-blue-50", fields: REQUIRED_COLUMNS.Inventory, count: null, countLabel: "" },
   ].map(c => ({ ...c, ready: CREATABLE_TYPES.includes(c.type) }));
 
   return (

@@ -1,11 +1,55 @@
-import { useState, useRef } from "react";
-import { createItem, createReceipt, receiveReceipt } from "./api";
+import { useState, useRef, useEffect } from "react";
+import { createItem, createUser, createImport, listImports } from "./api";
 import { parseCSV, parseXLSX, normalizeHeader, normalizeName } from "./parsers";
-import { validateData, CREATABLE_TYPES } from "./validation";
+import { validateData, CREATABLE_TYPES, genPassword } from "./validation";
+
+const HISTORY_STORAGE_KEY = "entouche_import_history";
+
+function loadStoredHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredHistory(history) {
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+  } catch {
+    
+  }
+}
+
+
+function mapApiImportToHistoryEntry(imp) {
+  if (!imp) return null;
+  const total = imp.total_rows ?? 0;
+  const ok = imp.successful_rows ?? 0;
+  const fail = imp.failed_rows ?? Math.max(0, total - ok);
+  const createdAt = imp.created_at ? new Date(imp.created_at) : null;
+  const type = imp.import_type
+    ? imp.import_type.charAt(0).toUpperCase() + imp.import_type.slice(1)
+    : "Import";
+  return {
+    id: `api-${imp.id}`,
+    date: createdAt ? createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
+    time: createdAt ? createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "",
+    type,
+    file: imp.file_name || imp.original_filename || "-",
+    rec: total,
+    ok,
+    fail,
+    status: ok > 0 ? "Completed" : "Failed",
+    by: imp.creator?.name || imp.user?.name || "Unknown",
+  };
+}
 
 export function useImportFlow({
   currentUser, refData, importType, loadReferenceData,
-  selectedWarehouseId, selectedLocationId,          // ← NEW: needed for Inventory receipts
+  selectedWarehouseId, selectedLocationId,
 }) {
   const [file, setFile] = useState(null);
   const [validated, setValidated] = useState(false);
@@ -13,11 +57,36 @@ export function useImportFlow({
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importDone, setImportDone] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(loadStoredHistory);
   const [parsedData, setParsedData] = useState(null);
   const [errors, setErrors] = useState([]);
   const [parseError, setParseError] = useState("");
   const fileRef = useRef(null);
+
+  
+  useEffect(() => {
+    saveStoredHistory(history);
+  }, [history]);
+
+  
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    listImports()
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : data?.data || [];
+        const apiEntries = list.map(mapApiImportToHistoryEntry).filter(Boolean);
+        setHistory((prev) => {
+          const existingIds = new Set(prev.map((h) => h.id));
+          const merged = [...prev, ...apiEntries.filter((e) => !existingIds.has(e.id))];
+          merged.sort((a, b) => (b.id > a.id ? 1 : -1));
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentUser]);
 
   const handleFile = async (f) => {
     if (!f) return;
@@ -65,11 +134,11 @@ export function useImportFlow({
 
   const handleImport = async () => {
     if (!file || !validated || !CREATABLE_TYPES.includes(importType)) return;
-    // Inventory imports post a goods receipt, which needs a destination:
-    if (importType === "Inventory" && (!selectedWarehouseId || !selectedLocationId)) {
+    // Inventory imports upload straight to the Asset importer, which only needs a warehouse:
+    if (importType === "Inventory" && !selectedWarehouseId) {
       setErrors(prev => [...prev, {
         row: "-", column: "(setup)",
-        error: "Select a warehouse and receiving location before importing inventory",
+        error: "Select a warehouse before importing inventory",
         errorColor: "text-red-500", value: "-",
       }]);
       return;
@@ -82,39 +151,34 @@ export function useImportFlow({
     const colIdx = (name) => normalizedHeaders.indexOf(normalizeHeader(name));
     const okRows = cleanRowIndexes();
     let ok = 0;
+    let importTotal = total;
     const apiErrors = [];
 
     if (importType === "Inventory") {
-      // ── Inventory: one goods receipt containing all clean rows ──
+      
       try {
-        setImportProgress({ current: 1, total: 2 });
-        const lines = okRows.map(rowI => {
-          const row = rows[rowI];
-          const item = refData.itemsBySku.get(normalizeName(row[colIdx("SKU")]));
-          return {
-            item_id: item.id,
-            quantity: Number(row[colIdx("Quantity")]) || 0,
-            unit_cost: Number(row[colIdx("Unit Cost")]) || item.unit_cost || 0,
-            warehouse_location_id: selectedLocationId,
-          };
+        setImportProgress({ current: 1, total: 1 });
+        const result = await createImport({
+          file,
+          importType: "inventory",
+          warehouseId: selectedWarehouseId,
         });
-
-        const receipt = await createReceipt({
-          warehouse_id: selectedWarehouseId,
-          receiving_location_id: selectedLocationId,
-          receipt_date: new Date().toISOString().slice(0, 10),
-          notes: `Imported from ${file.name}`,
-          items: lines,
+        ok = result.successful_rows || 0;
+        importTotal = result.total_rows ?? total;
+        (result.errors || []).forEach(e => {
+          apiErrors.push({
+            row: e.row_number ?? "-",
+            column: e.field || "(server)",
+            error: e.error_message || "Import failed",
+            errorColor: "text-red-500",
+            value: "-",
+          });
         });
-
-        setImportProgress({ current: 2, total: 2 });
-        await receiveReceipt(receipt.id);
-        ok = lines.length;
       } catch (err) {
         apiErrors.push({ row: "-", column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
       }
     } else {
-      // ── Items (and future per-row types): one API call per row ──
+      // ── Items and Users: one API call per row ──
       for (let n = 0; n < okRows.length; n++) {
         const rowI = okRows[n];
         const row = rows[rowI];
@@ -133,6 +197,15 @@ export function useImportFlow({
               item_type: "product",
               status: "active",
             });
+          } else if (importType === "Users") {
+            const role = row[colIdx("Role")];
+            await createUser({
+              name: row[colIdx("Name")],
+              email: row[colIdx("Email")],
+              password: genPassword(),
+              status: "active",
+              roles: role ? [role] : [],
+            });
           }
           ok++;
         } catch (err) {
@@ -147,14 +220,14 @@ export function useImportFlow({
     setImporting(false);
     setImportDone(true);
 
-    const fail = total - ok;
+    const fail = importTotal - ok;
     const newEntry = {
       id: Date.now(),
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       type: importType,
       file: file.name,
-      rec: total,
+      rec: importTotal,
       ok,
       fail,
       status: ok > 0 ? "Completed" : "Failed",
@@ -165,7 +238,7 @@ export function useImportFlow({
     setParsedData(null);
     setValidated(false);
     setErrors([]);
-    loadReferenceData(); // refresh live counts after real writes
+    loadReferenceData(); 
   };
 
   const handleCancel = () => {

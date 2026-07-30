@@ -27,9 +27,7 @@ export function ImportConfiguration({
   const [locations, setLocations] = useState([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
 
-  // Effect: ONLY the external fetch — no synchronous setState.
-  // The synchronous resets (clearing options, starting the spinner)
-  // happen in the warehouse onChange handler, where the change originates.
+  
   useEffect(() => {
     if (!selectedWarehouseId) return;
     let cancelled = false;
@@ -40,7 +38,7 @@ export function ImportConfiguration({
     return () => { cancelled = true; };
   }, [selectedWarehouseId]);
 
-  // Static selects keep the declarative pattern
+  
   const fields = [
     { label: "Import Type", value: importType, setter: setImportType, options: IMPORT_TYPES, resetsFlow: true },
     { label: "File Format", value: fileFormat, setter: setFileFormat, options: ["CSV", "XLSX"] },
@@ -67,7 +65,7 @@ export function ImportConfiguration({
           </div>
         ))}
 
-        {/* Warehouse + Receiving Location — Inventory only, ID-backed, cascading */}
+        
         {importType === "Inventory" && (
           <>
             <div>
@@ -78,9 +76,9 @@ export function ImportConfiguration({
                   onChange={e => {
                     const id = e.target.value || null;
                     setSelectedWarehouseId(id);
-                    setSelectedLocationId(null);  // reset dependent select
-                    setLocations([]);             // clear stale options immediately
-                    setLocationsLoading(!!id);    // spinner only if a fetch will run
+                    setSelectedLocationId(null);  
+                    setLocations([]);             
+                    setLocationsLoading(!!id);    
                   }}
                   className={selectCls}
                 >

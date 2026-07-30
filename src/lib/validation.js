@@ -1,16 +1,39 @@
 import { normalizeHeader, normalizeName } from "./parsers";
-
-
-export const REQUIRED_COLUMNS = {
-  Items: ["Item Name", "SKU", "Category", "Unit of Measure", "Reorder Level"],
-  Users: ["Name", "Email", "Role"],
-  Inventory: ["SKU", "Quantity"],
+export const IMPORT_COLUMNS = {
+  
+  Items: {
+    required: ["Item Name"],
+    optional: [
+      "Category", "Unit of Measure", "Item Type", "Barcode", "Reorder Level",
+      "Unit Cost", "Description", "Brand", "Supplier",
+    ],
+  },
+  
+  Users: {
+    required: ["Name", "Email", "Role"],
+    optional: [],
+  },
+  
+  Inventory: {
+    required: ["Item", "Quantity"],
+    optional: ["Location", "Cost"],
+  },
 };
+
+
+export const REQUIRED_COLUMNS = Object.fromEntries(
+  Object.entries(IMPORT_COLUMNS).map(([k, v]) => [k, v.required])
+);
+
+
+export const ALL_COLUMNS = Object.fromEntries(
+  Object.entries(IMPORT_COLUMNS).map(([k, v]) => [k, [...v.required, ...v.optional]])
+);
 
 export const IMPORT_TYPES = ["Items", "Users", "Inventory"];
 
 
-export const CREATABLE_TYPES = ["Items", "Inventory"];
+export const CREATABLE_TYPES = ["Items", "Inventory", "Users"];
 
 export function genPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#";
@@ -18,6 +41,7 @@ export function genPassword() {
   for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
+
 
 export function validateData(headers, rows, importType, refData) {
   const required = REQUIRED_COLUMNS[importType] || [];
@@ -38,37 +62,36 @@ export function validateData(headers, rows, importType, refData) {
     const idx = normalizedHeaders.indexOf(normalizeHeader(rc));
     if (idx !== -1) colIndex[rc] = idx;
   });
+ 
+  ["Cost", "Unit Cost", "Reorder Level", "Email"].forEach(oc => {
+    const idx = normalizedHeaders.indexOf(normalizeHeader(oc));
+    if (idx !== -1 && !(oc in colIndex)) colIndex[oc] = idx;
+  });
 
-  const seenSKUs = new Set();
+  const seenAssetTags = new Set();
   const seenEmails = new Set();
   rows.forEach((row, i) => {
     const rowNum = i + 2;
     Object.entries(colIndex).forEach(([col, idx]) => {
       const value = (row[idx] ?? "").toString().trim();
+      const isRequired = required.includes(col);
       if (!value) {
-        errs.push({ row: rowNum, column: col, error: `Missing ${col}`, errorColor: "text-orange-500", value: "(empty)" });
+        if (isRequired) {
+          errs.push({ row: rowNum, column: col, error: `Missing ${col}`, errorColor: "text-orange-500", value: "(empty)" });
+        }
         return;
       }
-      if (col === "Quantity" && isNaN(Number(value))) {
-        errs.push({ row: rowNum, column: col, error: "Quantity must be a number", errorColor: "text-orange-500", value });
-      }
-      // For Inventory, the SKU must ALREADY exist (inverse of the Items rule)
-      if (col === "SKU" && importType === "Inventory" &&
-        refData.itemsBySku && !refData.itemsBySku.has(normalizeName(value))) {
-        errs.push({ row: rowNum, column: col, error: "SKU not found in system", errorColor: "text-red-500", value });
-      }
-      if (col === "SKU" && importType === "Items") {
-        if (seenSKUs.has(value)) errs.push({ row: rowNum, column: col, error: "Duplicate SKU in file", errorColor: "text-orange-500", value });
-        seenSKUs.add(value);
+      if ((col === "Cost" || col === "Unit Cost") && isNaN(Number(value))) {
+        errs.push({ row: rowNum, column: col, error: `${col} must be a number`, errorColor: "text-orange-500", value });
       }
       if (col === "Reorder Level" && isNaN(Number(value))) {
         errs.push({ row: rowNum, column: col, error: "Reorder Level must be a number", errorColor: "text-orange-500", value });
       }
-      if (col === "Category" && refData.categories && !refData.categories.has(normalizeName(value))) {
-        errs.push({ row: rowNum, column: col, error: "Category not found in system", errorColor: "text-red-500", value });
-      }
-      if (col === "Unit of Measure" && refData.units && !refData.units.has(normalizeName(value))) {
-        errs.push({ row: rowNum, column: col, error: "Unit not found in system", errorColor: "text-red-500", value });
+      
+      if (col === "Asset Tag No" && importType === "Inventory") {
+        const key = normalizeName(value);
+        if (seenAssetTags.has(key)) errs.push({ row: rowNum, column: col, error: "Duplicate Asset Tag No in file", errorColor: "text-orange-500", value });
+        seenAssetTags.add(key);
       }
       if (col === "Email") {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
@@ -80,8 +103,7 @@ export function validateData(headers, rows, importType, refData) {
         }
         seenEmails.add(value);
       }
-      // Role is intentionally not cross-checked here - see REQUIRED_COLUMNS
-      // comment above.
+      
     });
   });
 

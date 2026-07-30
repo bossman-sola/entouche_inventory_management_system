@@ -21,7 +21,7 @@ export function NewImportPanel({
 
   const notCreatable = !CREATABLE_TYPES.includes(importType);
   const inventoryNeedsDestination =
-    importType === "Inventory" && (!selectedWarehouseId || !selectedLocationId);
+    importType === "Inventory" && !selectedWarehouseId;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
@@ -45,7 +45,7 @@ export function NewImportPanel({
             <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
               <Icon d={icons.info} size={16} className="text-amber-500 shrink-0" />
               <p className="text-sm text-amber-700">
-                Select a warehouse and receiving location (right panel) to import inventory.
+                Select a warehouse (right panel) to import inventory.
               </p>
             </div>
           )}

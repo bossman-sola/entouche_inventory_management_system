@@ -108,6 +108,7 @@ export const createUnit = (payload) => request('/units', { method: 'POST', body:
 
 export const listUsers = () => request('/users');
 export const getUser = (id) => request(`/users/${id}`);
+export const createUser = (payload) => request('/users', { method: 'POST', body: payload });
 
 
 export const listWarehouses = (params) => request('/warehouses', { params });
@@ -133,6 +134,55 @@ export const deleteReceipt = (id) => request(`/receipts/${id}`, { method: 'DELET
 export const receiveReceipt = (id) => request(`/receipts/${id}/receive`, { method: 'POST' });
 export const cancelReceipt = (id) => request(`/receipts/${id}/cancel`, { method: 'POST' });
 
+
+
+export const IMPORTABLE_TYPES = ['items', 'inventory'];
+
+export function createImport({ file, importType, warehouseId }) {
+  const type = String(importType).toLowerCase();
+  if (type === 'inventory' && !warehouseId) {
+    throw new ApiError('A warehouse must be selected before uploading an inventory import.', 422, null);
+  }
+  const form = new FormData();
+  form.append('file', file);
+  form.append('import_type', type);
+  if (warehouseId) form.append('warehouse_id', warehouseId);
+  return request('/imports', { method: 'POST', body: form, isForm: true });
+}
+
+export const listImports = (params) => request('/imports', { params });
+export const getImport = (id) => request(`/imports/${id}`);
+
+
+export async function downloadImportTemplate(importType) {
+  const type = String(importType).toLowerCase();
+  const url = `${BASE_URL}/imports/templates/${type}`;
+  const headers = {};
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetch(url, { method: 'GET', headers });
+  } catch {
+    throw new ApiError('Network error - could not reach the API. Please check your connection.', 0, null);
+  }
+  if (!res.ok) throw new ApiError(`Request failed (${res.status})`, res.status, null);
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^"]+)"?/.exec(disposition);
+  const filename = match ? match[1] : `${type}_template.csv`;
+
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
 
 export async function fetchAllPages(path, params = {}) {
   let page = 1;
@@ -317,6 +367,7 @@ export default {
   createUnit,
   listUsers,
   getUser,
+  createUser,
   listWarehouses,
   getWarehouse,
   createWarehouse,
@@ -334,6 +385,11 @@ export default {
   deleteReceipt,
   receiveReceipt,
   cancelReceipt,
+  createImport,
+  listImports,
+  getImport,
+  downloadImportTemplate,
+  IMPORTABLE_TYPES,
   fetchAllPages,
   requestRaw,
   mapApiItem,
