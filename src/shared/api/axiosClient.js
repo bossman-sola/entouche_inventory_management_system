@@ -1,7 +1,11 @@
 import axios from "axios"
 
 // Base URL for the Entouche staging API
-export const BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com"
+// export const BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com"
+// React will automatically use the URL of the active staging or production deploy
+export const BASE_URL = import.meta.env.DEV 
+  ? 'https://entouche-production-api-8db0aeb1236f.herokuapp.com' 
+  : import.meta.env.VITE_PRODUCTION_API_URL;
 
 const STORAGE_KEY = "inventorypro_access_token"
 
