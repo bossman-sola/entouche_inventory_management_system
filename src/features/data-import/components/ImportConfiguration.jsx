@@ -17,74 +17,119 @@ function Chevron() {
 }
 
 export function ImportConfiguration({
-  importType, setImportType,
+  importType,
+  setImportType,
   warehouses = [],
-  selectedWarehouseId, setSelectedWarehouseId,
-  selectedLocationId, setSelectedLocationId,
-  fileFormat, setFileFormat, encoding, setEncoding,
+  selectedWarehouseId,
+  setSelectedWarehouseId,
+  selectedLocationId,
+  setSelectedLocationId,
+  fileFormat,
+  setFileFormat,
+  encoding,
+  setEncoding,
   onFieldChange,
 }) {
   const [locations, setLocations] = useState([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
 
-  
   useEffect(() => {
-    if (!selectedWarehouseId) return;
+    if (!selectedWarehouseId) {
+      setLocations([]);
+      setLocationsLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLocationsLoading(true);
     listWarehouseLocations(selectedWarehouseId)
-      .then(l => { if (!cancelled) setLocations(l || []); })
-      .catch(() => { if (!cancelled) setLocations([]); })
-      .finally(() => { if (!cancelled) setLocationsLoading(false); });
-    return () => { cancelled = true; };
+      .then((l) => {
+        if (!cancelled) setLocations(l || []);
+      })
+      .catch(() => {
+        if (!cancelled) setLocations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLocationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedWarehouseId]);
 
-  
   const fields = [
-    { label: "Import Type", value: importType, setter: setImportType, options: IMPORT_TYPES, resetsFlow: true },
-    { label: "File Format", value: fileFormat, setter: setFileFormat, options: ["CSV", "XLSX"] },
-    { label: "Character Encoding", value: encoding, setter: setEncoding, options: ["UTF-8", "UTF-16", "ASCII", "ISO-8859-1"] },
+    {
+      label: "Import Type",
+      value: importType,
+      setter: setImportType,
+      options: IMPORT_TYPES,
+      resetsFlow: true,
+    },
+    {
+      label: "File Format",
+      value: fileFormat,
+      setter: setFileFormat,
+      options: ["CSV", "XLSX"],
+    },
+    {
+      label: "Character Encoding",
+      value: encoding,
+      setter: setEncoding,
+      options: ["UTF-8", "UTF-16", "ASCII", "ISO-8859-1"],
+    },
   ];
 
   return (
     <div className="w-full sm:w-56 shrink-0">
-      <p className="text-sm font-semibold text-gray-800 mb-3">Import Configuration</p>
+      <p className="text-sm font-semibold text-gray-800 mb-3">
+        Import Configuration
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-1 gap-3">
-        {fields.map(f => (
+        {fields.map((f) => (
           <div key={f.label}>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {f.label}
+            </label>
             <div className="relative">
               <select
                 value={f.value}
-                onChange={e => { f.setter(e.target.value); if (f.resetsFlow) onFieldChange(); }}
+                onChange={(e) => {
+                  f.setter(e.target.value);
+                  if (f.resetsFlow) onFieldChange();
+                }}
                 className={selectCls}
               >
-                {f.options.map(o => <option key={o}>{o}</option>)}
+                {f.options.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
               </select>
               <Chevron />
             </div>
           </div>
         ))}
 
-        
         {importType === "Inventory" && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Warehouse
+              </label>
               <div className="relative">
                 <select
                   value={selectedWarehouseId ?? ""}
-                  onChange={e => {
+                  onChange={(e) => {
                     const id = e.target.value || null;
                     setSelectedWarehouseId(id);
-                    setSelectedLocationId(null);  
-                    setLocations([]);             
-                    setLocationsLoading(!!id);    
+                    setSelectedLocationId(null);
+                    setLocations([]);
+                    setLocationsLoading(!!id);
                   }}
                   className={selectCls}
                 >
                   <option value="">Select warehouse…</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
                   ))}
                 </select>
                 <Chevron />
@@ -92,12 +137,19 @@ export function ImportConfiguration({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Receiving Location</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Receiving Location
+              </label>
               <div className="relative">
                 <select
                   value={selectedLocationId ?? ""}
                   disabled={!selectedWarehouseId || locationsLoading}
-                  onChange={e => setSelectedLocationId(e.target.value || null)}
+                  onChange={(e) => {
+                    console.log("Selected Warehouse ID:", selectedWarehouseId);
+                    console.log("Locations:", locations);
+                    console.log("Selected Location ID:", e.target.value);
+                    setSelectedLocationId(e.target.value || null);
+                  }}
                   className={selectCls}
                 >
                   <option value="">
@@ -107,8 +159,10 @@ export function ImportConfiguration({
                         ? "Loading…"
                         : "Select location…"}
                   </option>
-                  {locations.map(l => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
                   ))}
                 </select>
                 <Chevron />
