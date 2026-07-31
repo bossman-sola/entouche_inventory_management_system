@@ -33,15 +33,8 @@ const TYPE_BADGE_STYLES = {
 };
 
 const Items = () => {
-  const {
-    items,
-    isLoading: isLoadingItems,
-    error: itemsError,
-    createItem,
-    updateItem,
-    deleteItem,
-    toggleItemStatus,
-  } = useItems();
+  // items hook is called after local state declarations below so the
+  // query object can reference the current filter/pagination state.
 
  
   const { categories, createCategory } = useCategories();
@@ -65,8 +58,26 @@ const Items = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const {
+    items,
+    meta,
+    isLoading: isLoadingItems,
+    error: itemsError,
+    createItem,
+    updateItem,
+    deleteItem,
+    toggleItemStatus,
+  } = useItems({
+    page: currentPage,
+    per_page: itemsPerPage,
+    search: searchQuery || undefined,
+    category: filterCategory !== 'All Categories' ? filterCategory : undefined,
+    status: filterStatus !== 'All Statuses' ? filterStatus : undefined,
+    type: filterType !== 'All Types' ? filterType : undefined,
+  });
 
-  const categoryNames = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
+
+  const categoryNames = ['All Categories', ...Array.from(new Set(categories.map(c => c.name))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
   const types = ['All Types', ...UNIT_TYPES];
 
@@ -75,27 +86,8 @@ const Items = () => {
   const existingSkus = useMemo(() => items.map(i => i.sku).filter(Boolean), [items]);
 
 
-  const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q) ||
-        item.barcode.toLowerCase().includes(q);
-      const matchesCategory = filterCategory === 'All Categories' || item.category === filterCategory;
-      const matchesStatus = filterStatus === 'All Statuses' || item.status === filterStatus;
-      const matchesType = filterType === 'All Types' || item.type === filterType;
-      return matchesSearch && matchesCategory && matchesStatus && matchesType;
-    });
-  }, [items, searchQuery, filterCategory, filterStatus, filterType]);
-
-
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = filteredItems.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil((meta?.total ?? 0) / itemsPerPage));
+  const paginatedItems = items; // server provides the current page
 
 
   const handleFilterChange = (setter) => (val) => {
@@ -153,7 +145,7 @@ const Items = () => {
   };
 
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredItems);
+    const ws = XLSX.utils.json_to_sheet(items);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inventory_Items");
     XLSX.writeFile(wb, "Inventory_Export.xlsx");
@@ -297,10 +289,10 @@ const Items = () => {
 
       {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Items" val={items.length.toLocaleString()} sub="Active items" icon={<Num size={20}/>} />
-        <StatCard title="Item Categories" val={Array.from(new Set(items.map(i => i.category))).length.toString()} sub="Categories" icon={<Card size={20}/>} />
-        <StatCard title="Total SKUs" val={items.length.toLocaleString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
-        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of total items` : '0% of total items'} icon={<Book size={20}/>} />
+        <StatCard title="Total Items" val={(meta?.total ?? items.length).toLocaleString()} sub="Active items" icon={<Num size={20}/>} />
+        <StatCard title="Item Categories" val={Array.from(new Set(categories.map(c => c.name))).length.toString()} sub="Categories" icon={<Card size={20}/>} />
+        <StatCard title="Total SKUs" val={(meta?.total ?? items.length).toLocaleString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
+        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of current page` : '0% of current page'} icon={<Book size={20}/>} />
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -412,20 +404,27 @@ const Items = () => {
                     Loading items...
                   </td>
                 </tr>
-              ) : paginatedItems.length === 0 ? (
+              ) : (meta?.total ?? 0) === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
                     <div className="flex flex-col items-center gap-2">
                       <Search size={32} className="text-gray-200"/>
-                      <p>{items.length === 0 ? "No items yet. Add your first one to get started." : "No items match your filters."}</p>
-                      {items.length > 0 && (
-                        <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
-                      )}
+                      <p>No items yet. Add your first one to get started.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
+                    <div className="flex flex-col items-center gap-2">
+                      <Search size={32} className="text-gray-200"/>
+                      <p>No items match your filters.</p>
+                      <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
                     </div>
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((item) => (
+                items.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600"/></td>
                     <td className="px-6 py-4">
@@ -489,7 +488,12 @@ const Items = () => {
         {/* PAGINATION FOOTER */}
         <div className="px-6 py-4 border-t border-[#F1F5F9] flex flex-wrap items-center justify-between gap-4">
           <p className="text-[12px] font-semibold text-[#6B7591]">
-            Showing {filteredItems.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length.toLocaleString()} items
+            {(() => {
+              const total = meta?.total ?? 0;
+              const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+              const end = Math.min(currentPage * itemsPerPage, total || items.length);
+              return `Showing ${start} to ${end} of ${total.toLocaleString()} items`;
+            })()}
           </p>
 
           <div className="flex items-center gap-2">
