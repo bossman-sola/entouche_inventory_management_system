@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
-const BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com";
+const BASE_URL = "https://entouche-production-api-8db0aeb1236f.herokuapp.com";
 const DEFAULT_EMAIL = "admin@inventory.local";
 const DEFAULT_PASSWORD = "Admin@1234";
 

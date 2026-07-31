@@ -1,4 +1,4 @@
-const BASE_URL = 'https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1';
+const BASE_URL = 'https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1';
 const ACCESS_TOKEN_KEY = 'entouche_access_token';
 
 export function getAccessToken() {
