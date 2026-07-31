@@ -4,8 +4,8 @@ import axios from "axios"
 export const BASE_URL =
   import.meta.env.VITE_API_URL ??
   (import.meta.env.DEV
-    ? "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1"
-    : "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1");
+    ? "https://entouche-staging-api-16910c236bc5.herokuapp.com"
+    : "https://entouche-production-api-8db0aeb1236f.herokuapp.com");
 
 const STORAGE_KEY = "inventorypro_access_token"
 
