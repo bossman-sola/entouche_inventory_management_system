@@ -10,7 +10,7 @@ export function NewImportPanel({
   isAuthed, importType, setImportType,
   warehouses, selectedWarehouseId, setSelectedWarehouseId,
   selectedLocationId, setSelectedLocationId,
-  fileFormat, setFileFormat, encoding, setEncoding,
+  fileFormat, setFileFormat, encoding, setEncoding, showConfig,
   flow,
 }) {
   const {
@@ -91,7 +91,7 @@ export function NewImportPanel({
             </div>
           )}
         </div>
-
+        {showConfig &&
         <ImportConfiguration
           importType={importType} setImportType={setImportType}
           warehouses={warehouses}
@@ -101,7 +101,7 @@ export function NewImportPanel({
           encoding={encoding} setEncoding={setEncoding}
           onFieldChange={handleCancel}
         />
-      </div>
+}      </div>
     </div>
   );
 }

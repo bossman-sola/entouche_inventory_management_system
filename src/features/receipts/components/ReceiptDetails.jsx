@@ -171,7 +171,7 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               </div>
             </div>
             <div><div className="rcd-stat-label">Supplier</div><div className="rcd-stat-val">{receipt.supplier}</div></div>
-            <div><div className="rcd-stat-label">Reference / PO No.</div><div className="rcd-stat-val">{receipt.ref}</div></div>
+            <div><div className="rcd-stat-label">PO Number from Vendor.</div><div className="rcd-stat-val">{receipt.vendor_po_number}</div></div>
             <div><div className="rcd-stat-label">Total Items</div><div className="rcd-stat-val">{totItems}</div></div>
             <div><div className="rcd-stat-label">Total Quantity</div><div className="rcd-stat-val">{totQty}</div></div>
             <div><div className="rcd-stat-label">Total Value</div><div className="rcd-stat-val">{fmtNaira(totCost)}</div></div>
@@ -189,9 +189,10 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               <div className="rcd-field-grid">
                 <div><div className="rcd-flabel">Receipt Number</div><div className="rcd-fval">{receipt.no}</div></div>
                 <div><div className="rcd-flabel">Receipt Date</div><div className="rcd-fval">{fmtDateTime(receipt.date)}</div></div>
-                <div><div className="rcd-flabel">Reference / PO No.</div><div className="rcd-fval">{receipt.ref}</div></div>
+                <div><div className="rcd-flabel">PO Number from Vendor</div><div className="rcd-fval">{receipt.vendor_po_number}</div></div>
+                <div><div className="rcd-flabel">API PO Number </div><div className="rcd-fval">{receipt.api_po_number}</div></div>
                 <div><div className="rcd-flabel">Supplier</div><div className="rcd-fval link">{receipt.supplier}</div></div>
-                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.by}</div></div>
+                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.received_by}</div></div>
                 <div><div className="rcd-flabel">Delivery Note No.</div><div className="rcd-fval">{receipt.deliveryNoteNo}</div></div>
               </div>
               <div className="rcd-notes-block">

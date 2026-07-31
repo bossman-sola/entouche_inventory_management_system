@@ -396,7 +396,7 @@ const Items = () => {
                 <th className="px-6 py-4 w-10 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600"/></th>
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">SKU</th>
-                <th className="px-6 py-4">Barcode</th>
+                {/* <th className="px-6 py-4">Barcode</th> */}
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Unit of Measure</th>
                 <th className="px-6 py-4">Item Type</th>
@@ -441,7 +441,6 @@ const Items = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-[#6B7591] uppercase text-[12px]">{item.sku}</td>
-                    <td className="px-6 py-4 text-[#6B7591] font-medium text-[12px]">{item.barcode}</td>
                     <td className="px-6 py-4 text-[#6B7591] font-medium">{item.category}</td>
                     <td className="px-6 py-4 text-[#6B7591] font-medium">{item.uom}</td>
                     <td className="px-6 py-4">
