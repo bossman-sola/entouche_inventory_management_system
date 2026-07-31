@@ -102,6 +102,7 @@ export default function DataImportPage() {
             fileFormat={fileFormat}
             setFileFormat={setFileFormat}
             encoding={encoding}
+            showConfig={true}
             setEncoding={setEncoding}
             flow={flow}
           />
