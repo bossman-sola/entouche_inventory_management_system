@@ -306,13 +306,16 @@ export function mapApiReceipt(r) {
 
   return {
     id: r.id,
-    no: r.receipt_number || (r.id ? `RCPT-${String(r.id).padStart(6, '0')}` : '-'),
+    no: r.receipt_number || '',
     status: RECEIPT_STATUS_LABEL[r.status] || r.status || 'Draft',
     apiStatus: r.status,
+    api_po_number: r.api_po_number || '',
+    vendor_po_number: r.vendor_po_number || '',
     date: r.receipt_date || '',
     supplier: r.supplier?.name || '',
     supplierId: r.supplier_id ?? r.supplier?.id ?? null,
     by: r.creator?.name || '',
+    received_by: r.received_by || '',
     receivedById: r.created_by ?? null,
     warehouse: r.warehouse?.name || '',
     warehouseId: r.warehouse_id ?? r.warehouse?.id ?? null,

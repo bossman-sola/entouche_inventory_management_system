@@ -154,13 +154,13 @@ export function useImportFlow({
     let importTotal = total;
     const apiErrors = [];
 
-    if (importType === "Inventory") {
+    // if (importType === "Inventory") {
       
       try {
         setImportProgress({ current: 1, total: 1 });
         const result = await createImport({
           file,
-          importType: "inventory",
+          importType,
           warehouseId: selectedWarehouseId,
         });
         ok = result.successful_rows || 0;
@@ -177,42 +177,42 @@ export function useImportFlow({
       } catch (err) {
         apiErrors.push({ row: "-", column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
       }
-    } else {
-      // ── Items and Users: one API call per row ──
-      for (let n = 0; n < okRows.length; n++) {
-        const rowI = okRows[n];
-        const row = rows[rowI];
-        setImportProgress({ current: n + 1, total: okRows.length });
-        try {
-          if (importType === "Items") {
-            const catName = row[colIdx("Category")];
-            const unitName = row[colIdx("Unit of Measure")];
-            const cat = refData.categories.get(normalizeName(catName));
-            const unit = refData.units.get(normalizeName(unitName));
-            await createItem({
-              name: row[colIdx("Item Name")],
-              category_id: cat?.id,
-              unit_of_measure_id: unit?.id,
-              reorder_level: Number(row[colIdx("Reorder Level")]) || 0,
-              item_type: "product",
-              status: "active",
-            });
-          } else if (importType === "Users") {
-            const role = row[colIdx("Role")];
-            await createUser({
-              name: row[colIdx("Name")],
-              email: row[colIdx("Email")],
-              password: genPassword(),
-              status: "active",
-              roles: role ? [role] : [],
-            });
-          }
-          ok++;
-        } catch (err) {
-          apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
-        }
-      }
-    }
+    // } else {
+    //   // ── Items and Users: one API call per row ──
+    //   for (let n = 0; n < okRows.length; n++) {
+    //     const rowI = okRows[n];
+    //     const row = rows[rowI];
+    //     setImportProgress({ current: n + 1, total: okRows.length });
+    //     try {
+    //       if (importType === "Items") {
+    //         const catName = row[colIdx("Category")];
+    //         const unitName = row[colIdx("Unit of Measure")];
+    //         const cat = refData.categories.get(normalizeName(catName));
+    //         const unit = refData.units.get(normalizeName(unitName));
+    //         await createItem({
+    //           name: row[colIdx("Item Name")],
+    //           category_id: cat?.id,
+    //           unit_of_measure_id: unit?.id,
+    //           reorder_level: Number(row[colIdx("Reorder Level")]) || 0,
+    //           item_type: "product",
+    //           status: "active",
+    //         });
+    //       } else if (importType === "Users") {
+    //         const role = row[colIdx("Role")];
+    //         await createUser({
+    //           name: row[colIdx("Name")],
+    //           email: row[colIdx("Email")],
+    //           password: genPassword(),
+    //           status: "active",
+    //           roles: role ? [role] : [],
+    //         });
+    //       }
+    //       ok++;
+    //     } catch (err) {
+    //       apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
+    //     }
+    //   }
+    // }
 
     const combinedErrors = [...errors, ...apiErrors];
     setErrors(combinedErrors);
