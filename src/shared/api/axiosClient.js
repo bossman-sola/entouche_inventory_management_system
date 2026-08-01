@@ -8,8 +8,8 @@ const staging = "https://entouche-staging-api-16910c236bc5.herokuapp.com";
 const production = "https://entouche-production-api-8db0aeb1236f.herokuapp.com";
 
 export const BASE_URL =
-  import.meta.env.VITE_API_URL ??          // ← wins when set
-  (import.meta.env.DEV ? staging : production);  // ← safety net when not
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? staging : production);
 
 const STORAGE_KEY = "inventorypro_access_token"
 
