@@ -44,6 +44,7 @@ import {
   cancelStockCount,
 } from "../api/StockCountApi.js";
 import apiClient from "../../../shared/api/axiosClient.js";
+import { warehousesApi } from "../../warehouse/api/warehousesApi.js";
 
 /* ============================================================================
    DATA LAYER
@@ -175,9 +176,35 @@ async function apiFetchStockCountDetails(id) {
 
 // GET /api/warehouses, /api/locations, /api/users
 async function apiFetchLookups() {
-  // If lookup endpoints exist replace this with real calls. Returning
-  // empty arrays keeps UI stable while integrating API.
-  return { warehouses: [], locations: [], users: [] };
+  try {
+    // Fetch all warehouses
+    const allWarehouses = await warehousesApi.listAll();
+    const warehouses = allWarehouses.map((w) => ({
+      value: w.id,
+      label: w.name || w.warehouse_name || `Warehouse ${w.id}`,
+    }));
+
+    // Fetch locations for all warehouses
+    const locationsByWarehouse = await Promise.all(
+      allWarehouses.map((w) =>
+        warehousesApi
+          .listLocations(w.id)
+          .then((locs) =>
+            (locs || []).map((loc) => ({
+              value: loc.id,
+              label: loc.name || loc.location_name || `Location ${loc.id}`,
+              warehouseId: w.id,
+            }))
+          )
+          .catch(() => [])
+      )
+    );
+    const locations = locationsByWarehouse.flat();
+
+    return { warehouses, locations, users: [] };
+  } catch (err) {
+    return { warehouses: [], locations: [], users: [] };
+  }
 }
 
 // POST /api/stock-counts
@@ -1931,8 +1958,8 @@ function StockCountsList({ onOpenDetails }) {
                     >
                       <option value="">All Warehouses</option>
                       {(lookups?.warehouses || []).map((w) => (
-                        <option key={w} value={w}>
-                          {w}
+                        <option key={w.value} value={w.value}>
+                          {w.label}
                         </option>
                       ))}
                     </select>
@@ -1957,8 +1984,8 @@ function StockCountsList({ onOpenDetails }) {
                     >
                       <option value="">All Locations</option>
                       {(lookups?.locations || []).map((l) => (
-                        <option key={l} value={l}>
-                          {l}
+                        <option key={l.value} value={l.value}>
+                          {l.label}
                         </option>
                       ))}
                     </select>

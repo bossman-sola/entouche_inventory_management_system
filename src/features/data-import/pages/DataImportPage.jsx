@@ -42,7 +42,19 @@ export default function DataImportPage() {
     loadReferenceData,
     selectedWarehouseId,
   });
-  const { history, fileRef } = flow;
+  const {
+    history,
+    historyMeta,
+    historyLoading,
+    historyError,
+    historyPage,
+    setHistoryPage,
+    historyPerPage,
+    setHistoryPerPage,
+    historyFilter,
+    setHistoryFilter,
+    fileRef,
+  } = flow;
 
   const isAuthed = authStatus === "ok" && !!currentUser;
   const successCount = history.filter((h) => h.status === "Completed").length;
@@ -115,7 +127,21 @@ export default function DataImportPage() {
             history={history}
             onNewImportClick={() => fileRef.current?.click()}
           />
-          <ImportHistoryTable history={history} />
+          <ImportHistoryTable
+            history={history}
+            meta={historyMeta}
+            loading={historyLoading}
+            error={historyError}
+            page={historyPage}
+            onPageChange={setHistoryPage}
+            perPage={historyPerPage}
+            onPerPageChange={setHistoryPerPage}
+            filter={historyFilter}
+            onFilterChange={(value) => {
+              setHistoryFilter(value);
+              setHistoryPage(1);
+            }}
+          />
         </div>
       </div>
 
