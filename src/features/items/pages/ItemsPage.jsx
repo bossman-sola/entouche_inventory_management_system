@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Plus, Download, Upload, Search, ChevronDown, Filter,
   MoreVertical, Eye, Trash2, SlidersHorizontal
 } from 'lucide-react';
+import useClickOutside from '../../../lib/useClickOutside.js';
 import ItemDetailsModal from '../components/ItemDetailsModal';
 import AddNewItems from '../components/addNewItems';
 import ImportItems from '../components/importItems';
@@ -42,11 +43,14 @@ const Items = () => {
   const { units, createUnit } = useUnits();
 
   const [activeMenu, setActiveMenu] = useState(null);
+  const activeMenuRef = useRef(null);
+  useClickOutside(activeMenuRef, () => setActiveMenu(null));
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +67,7 @@ const Items = () => {
     meta,
     isLoading: isLoadingItems,
     error: itemsError,
+    refetch,
     createItem,
     updateItem,
     deleteItem,
@@ -152,14 +157,21 @@ const Items = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
     setActionError(null);
+    setDeletingId(id);
     try {
       await deleteItem(id);
+      setActiveMenu(null);
+
+      // If we just deleted the only item on a page beyond the first,
+      // step back a page so the table doesn't render empty.
+      if (items.length === 1 && currentPage > 1) {
+        setCurrentPage((p) => p - 1);
+      }
     } catch (err) {
       setActionError(err.response?.data?.message || "Couldn't delete this item.");
     } finally {
-      setActiveMenu(null);
+      setDeletingId(null);
     }
   };
 
@@ -169,7 +181,7 @@ const Items = () => {
     setActiveMenu(null);
   };
 
-  
+
   const handleCreateCategory = async (data) => {
     return createCategory({
       name: data.name,
@@ -237,11 +249,11 @@ const Items = () => {
       setActionError(message);
       throw new Error(message);
     }
-  };
 
-  const hasActiveFilters =
-    searchQuery || filterCategory !== 'All Categories' ||
-    filterStatus !== 'All Statuses' || filterType !== 'All Types';
+    if (typeof refetch === 'function') {
+      await refetch();
+    }
+  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -250,6 +262,12 @@ const Items = () => {
     setFilterType('All Types');
     setCurrentPage(1);
   };
+
+  const hasActiveFilters =
+    searchQuery ||
+    filterCategory !== 'All Categories' ||
+    filterStatus !== 'All Statuses' ||
+    filterType !== 'All Types';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 min-w-0 font-['Inter'] pb-10">
@@ -289,10 +307,10 @@ const Items = () => {
 
       {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Items" val={(meta?.total ?? items.length).toLocaleString()} sub="Active items" icon={<Num size={20}/>} />
-        <StatCard title="Item Categories" val={Array.from(new Set(categories.map(c => c.name))).length.toString()} sub="Categories" icon={<Card size={20}/>} />
-        <StatCard title="Total SKUs" val={(meta?.total ?? items.length).toLocaleString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
-        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of current page` : '0% of current page'} icon={<Book size={20}/>} />
+        <StatCard title="Total Items" val={(meta?.total ?? items.length).toLocaleString()} sub="Total items in inventory" icon={<Num size={20}/>} />
+        <StatCard title="Item Categories" val={categories.length.toString()} sub="Active categories" icon={<Card size={20}/>} />
+        <StatCard title="Total SKUs" val={Array.from(new Set(items.map(i => i.sku).filter(Boolean))).length.toString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
+        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of items` : '0% of items'} icon={<Book size={20}/>} />
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -425,8 +443,15 @@ const Items = () => {
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600"/></td>
+                  <tr 
+                    key={item.id} 
+                    className={`transition-colors ${
+                      deletingId === item.id
+                        ? 'bg-red-50 opacity-60 pointer-events-none'
+                        : 'hover:bg-gray-50/50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600" disabled={deletingId === item.id}/></td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-[#F1F5F9] rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-100">
@@ -461,22 +486,53 @@ const Items = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 relative text-center">
-                      <button
-                        onClick={() => setActiveMenu(activeMenu === item.id ? null : item.id)}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                      {/*
+                        FIX: the ref used to be attached unconditionally on every
+                        row, so after render it only pointed at the LAST row's
+                        menu container — causing useClickOutside to treat clicks
+                        inside any other row's open menu as "outside clicks" and
+                        close the menu before the click handler (Delete/View) could
+                        fire. Now the ref is only attached to the row whose menu
+                        is actually open.
+                      */}
+                      <div
+                        ref={activeMenu === item.id ? activeMenuRef : null}
+                        className="relative inline-block"
                       >
-                        <MoreVertical size={18}/>
-                      </button>
-                      {activeMenu === item.id && (
-                        <div className="absolute right-12 top-2 w-36 bg-white border border-[#F1F5F9] shadow-2xl rounded-xl z-50 py-1 overflow-hidden">
-                          <button onClick={() => handleOpenModal(item)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors">
-                            <Eye size={15} className="text-indigo-500"/> View Details
-                          </button>
-                          <button onClick={() => handleDelete(item.id)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
-                            <Trash2 size={15}/> Delete Item
-                          </button>
-                        </div>
-                      )}
+                        <button
+                          onClick={() => setActiveMenu(activeMenu === item.id ? null : item.id)}
+                          className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                        >
+                          <MoreVertical size={18}/>
+                        </button>
+                        {activeMenu === item.id && (
+                          <div className="absolute right-12 top-2 w-36 bg-white border border-[#F1F5F9] shadow-2xl rounded-xl z-50 py-1 overflow-hidden">
+                            <button onClick={() => handleOpenModal(item)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                              <Eye size={15} className="text-indigo-500"/> View Details
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              disabled={deletingId === item.id}
+                              className={`w-full text-left px-4 py-2.5 text-[12px] font-bold flex items-center gap-3 transition-colors ${
+                                deletingId === item.id
+                                  ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                                  : 'text-red-600 hover:bg-red-50'
+                              }`}
+                            >
+                              {deletingId === item.id ? (
+                                <>
+                                  <div className="w-[15px] h-[15px] border-2 border-red-200 border-t-red-600 rounded-full animate-spin"/>
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 size={15}/> Delete Item
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

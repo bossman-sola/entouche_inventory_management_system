@@ -54,3 +54,4 @@ export const removeItemImage = async (id) => {
   const { data } = await apiClient.delete(`/items/${id}/image`);
   return data?.data;
 };
+  
