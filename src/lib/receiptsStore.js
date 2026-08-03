@@ -1,22 +1,14 @@
 
 
-const STORAGE_KEY = 'entouche_receipts_v1';
+const rows = [];
 
 function readAll() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return [...rows];
 }
 
-function writeAll(rows) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-  } catch {
-    
-  }
+function writeAll(nextRows) {
+  rows.length = 0;
+  rows.push(...nextRows);
 }
 
 export async function listReceipts() {

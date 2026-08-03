@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useClickOutside from "../../../lib/useClickOutside.js";
 import {
   FileText,
   Clock,
@@ -43,6 +44,7 @@ import {
   approveStockCount,
   cancelStockCount,
 } from "../api/StockCountApi.js";
+import { listUsers } from "../../../lib/api.js";
 import apiClient from "../../../shared/api/axiosClient.js";
 import { warehousesApi } from "../../warehouse/api/warehousesApi.js";
 
@@ -201,7 +203,13 @@ async function apiFetchLookups() {
     );
     const locations = locationsByWarehouse.flat();
 
-    return { warehouses, locations, users: [] };
+    const usersRaw = await listUsers();
+    const users = (usersRaw || []).map((u) => ({
+      value: u.id,
+      label: u.name || u.email || `User ${u.id}`,
+    }));
+
+    return { warehouses, locations, users };
   } catch (err) {
     return { warehouses: [], locations: [], users: [] };
   }
@@ -254,6 +262,12 @@ async function apiTransitionStockCount(id, action) {
 async function apiExportStockCounts(options = {}) {
   const params = { format: options.format || "xlsx", scope: options.scope || "current" };
   if (options.id) params.id = options.id;
+  if (options.page != null) params.page = options.page;
+  if (options.per_page != null) params.per_page = options.per_page;
+  if (options.search != null) params.search = options.search;
+  if (options.warehouse != null) params.warehouse = options.warehouse;
+  if (options.location != null) params.location = options.location;
+  if (options.status != null) params.status = options.status;
   const res = await apiClient.get("/stock-counts/export", { params, responseType: "blob" });
   return res.data;
 }
@@ -264,16 +278,6 @@ async function apiExportStockCounts(options = {}) {
 
 function cx(...parts) {
   return parts.filter(Boolean).join(" ");
-}
-
-function useClickOutside(ref, onOutside) {
-  useEffect(() => {
-    function handle(e) {
-      if (ref.current && !ref.current.contains(e.target)) onOutside();
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [ref, onOutside]);
 }
 
 const STATUS_STYLES = {
@@ -586,6 +590,8 @@ function StockCountOverview({ overview, loading, onOpenCalendar }) {
 ============================================================================ */
 function ExportDropdown({ onExport }) {
   const [open, setOpen] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState("xlsx");
+  const [selectedScope, setSelectedScope] = useState("current");
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false));
 
@@ -622,11 +628,12 @@ function ExportDropdown({ onExport }) {
           {formats.map((f) => (
             <button
               key={f.id}
-              onClick={() => {
-                onExport({ format: f.id, scope: "current" });
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              type="button"
+              onClick={() => setSelectedFormat(f.id)}
+              className={cx(
+                "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-gray-50",
+                selectedFormat === f.id ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-700"
+              )}
             >
               <f.icon size={16} className={f.color} />
               {f.label}
@@ -639,11 +646,16 @@ function ExportDropdown({ onExport }) {
           {scopes.map((s) => (
             <button
               key={s.id}
+              type="button"
               onClick={() => {
-                onExport({ format: "xlsx", scope: s.id });
+                setSelectedScope(s.id);
+                onExport({ format: selectedFormat, scope: s.id });
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              className={cx(
+                "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-gray-50",
+                selectedScope === s.id ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-700"
+              )}
             >
               <s.icon size={16} className="text-gray-400" />
               {s.label}
@@ -1236,13 +1248,14 @@ function StockCountCalendarModal({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4"
+      className="absolute inset-0 z-40 overflow-auto- bg-black/30 p-4"
       onClick={onClose}
     >
-      <div
-        className="w-[920px] max-w-full rounded-2xl bg-white p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="mx-auto flex min-h-full w-full max-w-[920px] items-start justify-center">
+        <div
+          className="w-full rounded-2xl bg-white p-6 shadow-xl sm:max-h-[calc(100vh-4rem)] sm:overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
@@ -1390,6 +1403,7 @@ function StockCountCalendarModal({
         </div>
       </div>
     </div>
+  </div>
   );
 }
 
@@ -1854,7 +1868,29 @@ function StockCountsList({ onOpenDetails }) {
   };
 
   const handleExport = async (options) => {
-    await apiExportStockCounts(options);
+    const params = {
+      ...options,
+      search,
+      warehouse,
+      location,
+      status,
+    };
+    if (options.scope === "current") {
+      params.page = page;
+      params.per_page = pageSize;
+    }
+
+    const blob = await apiExportStockCounts(params);
+    const ext = options.format === "pdf" ? "pdf" : options.format === "csv" ? "csv" : "xlsx";
+    const filename = `stock_counts_${options.scope || "current"}.${ext}`;
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   };
 
   const rowAction = (fn) => async (row) => {
@@ -1864,7 +1900,7 @@ function StockCountsList({ onOpenDetails }) {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px] px-8 py-6">
+    <div className="relative mx-auto max-w-[1500px] px-8 py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Stock Counts</h1>

@@ -56,6 +56,8 @@ export default function DataImportPage() {
     fileRef,
   } = flow;
 
+  console.log('History: ', history)
+
   const isAuthed = authStatus === "ok" && !!currentUser;
   const successCount = history.filter((h) => h.status === "Completed").length;
   const failedCount = history.filter((h) => h.status === "Failed").length;

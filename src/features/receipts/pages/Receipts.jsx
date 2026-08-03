@@ -284,6 +284,20 @@ export default function Receipts() {
   const [detailsReceipt, setDetailsReceipt] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPos, setMenuPos] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!openMenuId) return;
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+        setMenuPos(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMenuId]);
 
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
@@ -1311,6 +1325,7 @@ export default function Receipts() {
 
                         {openMenuId === r.id && menuPos && (
                           <div
+                            ref={menuRef}
                             onClick={(e) => e.stopPropagation()}
                             style={{
                               position: "fixed",
