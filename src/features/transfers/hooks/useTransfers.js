@@ -2,14 +2,14 @@ import { useState, useCallback, useEffect } from "react";
 import { apiRequest, fetchAllPages } from "../api/Client.js";
 export function useTransfers(token) {
   const [transfers, setTransfers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError("");
-    try {
+    try { 
       const data = await fetchAllPages("/transfers", token);
       setTransfers(data);
     } catch (err) {

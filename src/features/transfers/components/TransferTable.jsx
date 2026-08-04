@@ -125,7 +125,19 @@ export default function TransferTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400"><Spinner size={16} className="inline mr-2" /> Loading transfers…</td></tr>
+              <>{Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse">
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-28" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-14" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-6 bg-gray-200 rounded w-16" /></td>
+                  </tr>
+                ))}</>
             ) : visible.length === 0 ? (
               <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400">No transfers yet - create one to see it here.</td></tr>
             ) : visible.map(t => {
