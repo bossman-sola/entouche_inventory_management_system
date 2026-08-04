@@ -16,16 +16,16 @@ function mapApiImportToHistoryEntry(imp) {
     id: `api-${imp.id}`,
     date: createdAt
       ? createdAt.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
       : "",
     time: createdAt
       ? createdAt.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+        hour: "2-digit",
+        minute: "2-digit",
+      })
       : "",
     type,
     file: imp.file_name || imp.original_filename || "-",
@@ -141,7 +141,8 @@ export function useImportFlow({
       const { headers, rows, total } = parsedData;
       const errs = validateData(headers, rows, importType, refData);
       setErrors(errs);
-      setParsedData((p) => ({ ...p, valid: Math.max(0, total - errs.length), errors: errs.length }));
+      const invalidRows = new Set(errs.filter((error) => typeof error.row === "number").map((error) => error.row));
+      setParsedData((p) => ({ ...p, valid: Math.max(0, total - invalidRows.size), errors: errs.length }));
     }, 400);
   };
 
@@ -178,12 +179,12 @@ export function useImportFlow({
 
     try {
       setImportProgress({ current: 1, total: 1 });
-      const result = await createImport({
+      const result = (await createImport({
         file,
         importType,
         warehouseId: selectedWarehouseId,
-      });
-      ok = result.successful_rows || 0;
+      })) || {};
+      ok = result.successful_rows ?? okRows.length;
       importTotal = result.total_rows ?? total;
       (result.errors || []).forEach((e) => {
         apiErrors.push({
@@ -210,7 +211,6 @@ export function useImportFlow({
     setImporting(false);
     setImportDone(true);
 
-    const fail = importTotal - ok;
     setFile(null);
     setParsedData(null);
     setValidated(false);

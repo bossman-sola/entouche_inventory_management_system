@@ -147,7 +147,7 @@ export function NewImportPanel({
                     importing ||
                     notCreatable ||
                     inventoryNeedsDestination ||
-                    errors.length >= (parsedData?.total || 0)
+                    (parsedData?.valid ?? 0) === 0
                   }
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
                 >
@@ -173,7 +173,7 @@ export function NewImportPanel({
                         : "..."}
                     </>
                   ) : (
-                    "Import Valid Data"
+                    `Import ${parsedData?.valid ?? 0} Valid Row${(parsedData?.valid ?? 0) === 1 ? "" : "s"}`
                   )}
                 </button>
               )}

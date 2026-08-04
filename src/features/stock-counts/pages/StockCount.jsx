@@ -957,6 +957,11 @@ function LabeledSelect({
   placeholder,
   hint,
 }) {
+  const uniqueOptions = Array.from(
+    new Map((options || []).map((option) => [String(option?.value ?? option), option])).values(),
+  );
+  const optionLabel = (option) => String(option?.label ?? option ?? "").replace(/\s*--\s*/g, " ").trim();
+
   return (
     <div>
       <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -969,9 +974,9 @@ function LabeledSelect({
           className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="">{placeholder}</option>
-          {options.map((o) => (
+          {uniqueOptions.map((o) => (
             <option key={o.value || o} value={o.value || o}>
-              {o.label || o}
+              {optionLabel(o)}
             </option>
           ))}
         </select>
@@ -985,7 +990,7 @@ function LabeledSelect({
   );
 }
 
-function NewStockCountModal({ open, onClose, lookups, onCreate }) {
+function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
   const [form, setForm] = useState({
     warehouse: "",
     location: "",
@@ -1001,21 +1006,23 @@ function NewStockCountModal({ open, onClose, lookups, onCreate }) {
     if (open)
       setForm({
         warehouse: "",
-        location: "",
-        countType: "",
+        location: initialForm?.location || "",
+        countType: initialForm?.countType || "",
         priority: "Medium",
-        scheduledDate: "",
+        scheduledDate: initialForm?.scheduledDate || "",
         startTime: "",
         assignedCounter: "",
         notes: "",
       });
-  }, [open]);
+  }, [open, initialForm]);
 
   if (!open) return null;
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
   const warehouses = lookups?.warehouses || [];
-  const locations = lookups?.locations || [];
+  const locations = (lookups?.locations || []).filter(
+    (option) => !form.warehouse || String(option.warehouseId) === String(form.warehouse),
+  );
   const users = lookups?.users || [];
 
   return (
@@ -1207,8 +1214,13 @@ function StockCountCalendarModal({
   onMonthChange,
   events,
   loading,
+  locations,
   onNewCount,
 }) {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+
   if (!open) return null;
 
   const year = monthDate.getFullYear();
@@ -1242,8 +1254,15 @@ function StockCountCalendarModal({
   const eventsForDay = (date) => {
     if (!date || !events) return [];
     return events.filter(
-      (ev) => new Date(ev.date).toDateString() === date.toDateString(),
+      (ev) =>
+        new Date(ev.date).toDateString() === date.toDateString() &&
+        (!selectedLocation || String(ev.location_id ?? ev.locationId ?? ev.location) === selectedLocation) &&
+        (!selectedType || ev.type === selectedType),
     );
+  };
+  const toDateInputValue = (date) => {
+    const offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
   };
 
   return (
@@ -1300,8 +1319,9 @@ function StockCountCalendarModal({
 
           <div className="flex items-center gap-2">
             <div className="relative">
-              <select className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
-                <option>All Locations</option>
+              <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
+                <option value="">All Locations</option>
+                {(locations || []).map((location) => <option key={location.value} value={location.value}>{String(location.label).replace(/\s*--\s*/g, " ")}</option>)}
               </select>
               <ChevronDown
                 size={14}
@@ -1309,8 +1329,9 @@ function StockCountCalendarModal({
               />
             </div>
             <div className="relative">
-              <select className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
-                <option>All Types</option>
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
+                <option value="">All Types</option>
+                {COUNT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
               <ChevronDown
                 size={14}
@@ -1318,7 +1339,11 @@ function StockCountCalendarModal({
               />
             </div>
             <button
-              onClick={onNewCount}
+              onClick={() => onNewCount({
+                scheduledDate: selectedDate ? toDateInputValue(selectedDate) : "",
+                location: selectedLocation,
+                countType: selectedType,
+              })}
               className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
             >
               <Plus size={15} /> New Count
@@ -1336,9 +1361,12 @@ function StockCountCalendarModal({
             </div>
           ))}
           {cells.map((c, i) => (
-            <div
+            <button
+              type="button"
               key={i}
-              className="min-h-[92px] border-b border-r border-gray-100 p-2 last:border-r-0 [&:nth-child(7n)]:border-r-0"
+              disabled={c.muted}
+              onClick={() => !c.muted && setSelectedDate(c.date)}
+              className={cx("min-h-[92px] border-b border-r border-gray-100 p-2 text-left last:border-r-0 [&:nth-child(7n)]:border-r-0", c.muted ? "cursor-default" : "cursor-pointer hover:bg-blue-50", selectedDate?.toDateString() === c.date?.toDateString() && "bg-blue-50 ring-2 ring-inset ring-blue-500")}
             >
               <span
                 className={cx(
@@ -1377,7 +1405,7 @@ function StockCountCalendarModal({
                   })
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -1807,6 +1835,7 @@ function StockCountsList({ onOpenDetails }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState({});
   const [newCountOpen, setNewCountOpen] = useState(false);
+  const [newCountInitialForm, setNewCountInitialForm] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -1863,6 +1892,7 @@ function StockCountsList({ onOpenDetails }) {
   const handleCreate = async (form) => {
     await apiCreateStockCount(form);
     setNewCountOpen(false);
+    setNewCountInitialForm(null);
     loadRows();
     loadOverview();
   };
@@ -1911,7 +1941,7 @@ function StockCountsList({ onOpenDetails }) {
         <div className="flex items-center gap-2">
           <ExportDropdown onExport={handleExport} />
           <button
-            onClick={() => setNewCountOpen(true)}
+            onClick={() => { setNewCountInitialForm(null); setNewCountOpen(true); }}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Plus size={15} /> New Stock Count
@@ -2277,8 +2307,9 @@ function StockCountsList({ onOpenDetails }) {
 
       <NewStockCountModal
         open={newCountOpen}
-        onClose={() => setNewCountOpen(false)}
+        onClose={() => { setNewCountOpen(false); setNewCountInitialForm(null); }}
         lookups={lookups}
+        initialForm={newCountInitialForm}
         onCreate={handleCreate}
       />
 
@@ -2289,8 +2320,10 @@ function StockCountsList({ onOpenDetails }) {
         onMonthChange={setCalendarMonth}
         events={calendarEvents}
         loading={calendarLoading}
-        onNewCount={() => {
+        locations={lookups?.locations || []}
+        onNewCount={(initialForm) => {
           setCalendarOpen(false);
+          setNewCountInitialForm(initialForm);
           setNewCountOpen(true);
         }}
       />

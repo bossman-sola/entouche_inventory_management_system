@@ -3,15 +3,35 @@ import { Icon, icons } from "../../../lib/icons";
 import { DEFAULT_EMAIL, DEFAULT_PASSWORD } from "../../../lib/useInventoryApi";
 
 export function ConnectionStatus({ authStatus, authError, currentUser, refLoading, onRetry }) {
+  const isLoading = authStatus === "connecting" || refLoading;
+
   return (
-    <div className="mb-6 flex items-center gap-2 flex-wrap">
-      {authStatus === "connecting" && (
-        <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-          <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="40 20" /></svg>
-          Connecting to API…
-        </span>
+    <div className="mb-6">
+      {isLoading && (
+        <div className="w-full border border-gray-200 rounded-lg overflow-hidden animate-pulse">
+          {/* header row */}
+          <div className="flex gap-4 bg-gray-50 px-4 py-3 border-b border-gray-200">
+            <div className="h-3 bg-gray-200 rounded w-1/4" />
+            <div className="h-3 bg-gray-200 rounded w-1/4" />
+            <div className="h-3 bg-gray-200 rounded w-1/4" />
+            <div className="h-3 bg-gray-200 rounded w-1/4" />
+          </div>
+          {/* body rows */}
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex gap-4 px-4 py-3 border-b border-gray-100 last:border-b-0"
+            >
+              <div className="h-3 bg-gray-100 rounded w-1/4" />
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+              <div className="h-3 bg-gray-100 rounded w-1/5" />
+              <div className="h-3 bg-gray-100 rounded w-1/6" />
+            </div>
+          ))}
+        </div>
       )}
-      {authStatus === "error" && (
+
+      {!isLoading && authStatus === "error" && (
         <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
           <Icon d={icons.alert} size={13} /> {authError || "Could not connect to the API."}
           <button onClick={onRetry} className="ml-1 underline">Retry</button>

@@ -156,9 +156,9 @@ export default function Settings() {
   const [auditLogCount, setAuditLogCount] = useState(null);
 
   /* ── General ── */
-  const [companyName,  setCompanyName]  = useState("Ross & Co. Global Resources");
-  const [companyEmail, setCompanyEmail] = useState("info@rossglobal.com");
-  const [companyPhone, setCompanyPhone] = useState("+234 803 123 4567");
+  const [companyName,  setCompanyName]  = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
   const [country,      setCountry]      = useState("Nigeria");
   const [timezone,     setTimezone]     = useState("(UTC+01:00) West Africa Time (WAT)");
   const [dateFormat,   setDateFormat]   = useState("May 27, 2025");
@@ -655,12 +655,12 @@ export default function Settings() {
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
                 </div>
                 <div style={{ textAlign:"center", marginBottom:16 }}>
-                  <div style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>{companyName}</div>
+                  <div style={{ fontWeight:700, fontSize:14, color:"#1e2740" }}>{companyName || "Not set"}</div>
                   <div style={{ fontSize:12, color:"#9aa1b4", marginTop:3 }}>Enterprise Inventory Management</div>
                 </div>
                 {[
-                  ["Email", companyEmail],
-                  ["Phone", companyPhone],
+                  ["Email", companyEmail || "Not set"],
+                  ["Phone", companyPhone || "Not set"],
                 ].map(([label,val])=>(
                   <div key={label} style={{ display:"flex", gap:8, padding:"8px 0", borderTop:"1px solid #f4f6fb" }}>
                     <span style={{ fontSize:12, color:"#9aa1b4", width:55, flexShrink:0 }}>{label}</span>

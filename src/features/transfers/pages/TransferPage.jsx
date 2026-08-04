@@ -1,11 +1,11 @@
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { useAccessToken } from "../api/Client.js";
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
 import { useTransfers } from "../hooks/useTransfers.js";
 import { Icon, icons } from "../components/icons.jsx";
 import { Spinner } from "../components/ui.jsx";
 import NewTransferModal from "../components/NewTransferModal.jsx";
-import TransferStatsCards from "../components/TransferStatsCards.jsx";
 import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
 import TransferTable from "../components/TransferTable.jsx";
 import TransferSidebar from "../components/TransferSidebar.jsx";
@@ -61,6 +61,21 @@ export default function TransfersPage() {
       await submitTransfer(created.id);
     }
   };
+  const handleExport = () => {
+    const exportRows = filtered.map((transfer) => ({
+      "Transfer ID": transfer.transfer_number ?? `TRF-${transfer.id}`,
+      Date: transfer.transfer_date || transfer.created_at || "",
+      "From Location": transfer.from_location?.name ?? "",
+      "To Location": transfer.to_location?.name ?? "",
+      Quantity: (transfer.items || []).reduce((total, item) => total + Number(item.quantity || 0), 0),
+      Status: transfer.status || "",
+      Notes: transfer.notes || "",
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Transfers");
+    XLSX.writeFile(workbook, "transfers.xlsx");
+  };
 
   return (
     <div className=" bg-gray-50 min-h-screen flex flex-col lg:flex-row gap-5">
@@ -71,14 +86,14 @@ export default function TransfersPage() {
             <p className="text-sm text-gray-500 mt-0.5">Move inventory items between different locations.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+            <button onClick={handleExport} className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
               <Icon d={icons.download} size={15} /> Export
             </button>
             <button
               onClick={() => setShowFilters(v => !v)}
               className="relative flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
             >
-              <Icon d={icons.filter} size={15} /> Filters
+              <Icon d={icons.eye} size={15} /> Filters
               {activeFilterCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {activeFilterCount}
@@ -110,7 +125,7 @@ export default function TransfersPage() {
           )}
         </div>
 
-        <TransferStatsCards transfers={transfers} />
+        {/* <TransferStatsCards transfers={transfers} /> */}
 
         {showFilters && (
           <TransferFiltersBar
