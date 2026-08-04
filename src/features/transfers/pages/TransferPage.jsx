@@ -9,6 +9,7 @@ import NewTransferModal from "../components/NewTransferModal.jsx";
 import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
 import TransferTable from "../components/TransferTable.jsx";
 import TransferSidebar from "../components/TransferSidebar.jsx";
+import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
 
 export default function TransfersPage() {
   const { token, user, status: authStatus, error: authError, retry: retryLogin } = useAccessToken();
@@ -20,6 +21,7 @@ export default function TransfersPage() {
   } = useTransfers(token);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedTransfer, setSelectedTransfer] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
@@ -61,6 +63,7 @@ export default function TransfersPage() {
       await submitTransfer(created.id);
     }
   };
+
   const handleExport = () => {
     const exportRows = filtered.map((transfer) => ({
       "Transfer ID": transfer.transfer_number ?? `TRF-${transfer.id}`,
@@ -76,6 +79,12 @@ export default function TransfersPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transfers");
     XLSX.writeFile(workbook, "transfers.xlsx");
   };
+
+  // Keep the modal's transfer in sync with the underlying list (e.g. after
+  // an action mutates status) by always looking it up fresh from `transfers`.
+  const activeTransfer = selectedTransfer
+    ? transfers.find(t => t.id === selectedTransfer.id) ?? selectedTransfer
+    : null;
 
   return (
     <div className=" bg-gray-50 min-h-screen flex flex-col lg:flex-row gap-5">
@@ -147,6 +156,7 @@ export default function TransfersPage() {
           setPage={setPage}
           setPerPage={setPerPage}
           loading={transfersLoading && transfers.length === 0}
+          onSelectTransfer={setSelectedTransfer}
           onSubmit={submitTransfer}
           onApprove={approveTransfer}
           onReject={rejectTransfer}
@@ -170,6 +180,18 @@ export default function TransfersPage() {
         locations={locations}
         locationsLoading={locationsLoading}
         locationsError={locationsError}
+      />
+
+      <TransferDetailsModal
+        open={!!selectedTransfer}
+        onClose={() => setSelectedTransfer(null)}
+        transfer={activeTransfer}
+        onSubmit={submitTransfer}
+        onApprove={approveTransfer}
+        onReject={rejectTransfer}
+        onComplete={completeTransfer}
+        onCancel={cancelTransfer}
+        onDelete={removeTransfer}
       />
     </div>
   );
