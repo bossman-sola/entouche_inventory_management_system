@@ -39,10 +39,18 @@ import {
   getStockCount,
   updateStockCount,
   deleteStockCount,
-  startStockCount,
-  completeStockCount,
+  addStockCountItem,
+  updateStockCountItem,
+  removeStockCountItem,
+  submitStockCount,
   approveStockCount,
+  rejectStockCount,
+  requestStockCountRecount,
   cancelStockCount,
+  getStockCountOverview,
+  getStockCountLookups,
+  getStockCountCalendar,
+  exportStockCounts,
 } from "../api/StockCountApi.js";
 import { listUsers } from "../../../lib/api.js";
 import apiClient from "../../../shared/api/axiosClient.js";
@@ -63,18 +71,43 @@ const STATUSES = [
 ];
 const COUNT_TYPES = ["Cycle Count", "Spot Check", "Full Physical", "Recount"];
 
-
-// GET /api/stock-counts/overview
+// GET /stock-counts/overview — this is a real, working endpoint; use it
+// instead of recomputing numbers client-side from a single page of results.
 async function apiFetchOverview() {
-  // No dedicated overview endpoint in the SDK; derive a lightweight
-  // summary from the first page of results so overview cards render.
+  try {
+    const ov = await getStockCountOverview();
+    if (ov) {
+      return {
+        totalStockCounts: ov.total_stock_counts ?? ov.totalStockCounts,
+        totalDelta: ov.total_delta ?? ov.totalDelta,
+        pendingReview:
+          ov.pending_review ?? ov.pendingReview ?? ov.awaiting_approval,
+        variancesFound: ov.variances_found ?? ov.variancesFound,
+        completedCounts: ov.completed_counts ?? ov.completedCounts,
+        completedDelta: ov.completed_delta ?? ov.completedDelta,
+        breakdown: ov.breakdown ?? ov.status_breakdown ?? [],
+        countTypes: ov.count_types ?? ov.countTypes ?? [],
+        recentActivity: ov.recent_activity ?? ov.recentActivity ?? [],
+      };
+    }
+  } catch (err) {
+    // fall through to the client-derived fallback below
+  }
+  // Fallback: derive a lightweight summary from a page of list results,
+  // in case the overview endpoint is unreachable for this user/permission set.
   try {
     const { stockCounts, meta } = await listStockCounts({ page: 1 });
     const total = meta?.total ?? stockCounts.length;
-    const completedCounts = stockCounts.filter((s) => s.status === "approved" || s.status === "completed").length;
+    const completedCounts = stockCounts.filter(
+      (s) => s.status === "approved" || s.status === "completed",
+    ).length;
     const variancesFound = stockCounts.reduce((acc, sc) => {
       const items = sc.items || [];
-      const v = items.reduce((a, it) => a + (Number(it.variance_quantity || it.variance || 0) !== 0 ? 1 : 0), 0);
+      const v = items.reduce(
+        (a, it) =>
+          a + (Number(it.variance_quantity || it.variance || 0) !== 0 ? 1 : 0),
+        0,
+      );
       return acc + v;
     }, 0);
     return {
@@ -97,25 +130,55 @@ async function apiFetchOverview() {
 async function apiFetchStockCounts(params = {}) {
   const { stockCounts, meta } = await listStockCounts(params);
   const rows = (stockCounts || []).map((sc) => {
-    const varianceVal = sc.total_variance ?? sc.totalVariance ?? (sc.items ? sc.items.reduce((a, it) => a + Number(it.variance_quantity || it.variance || 0), 0) : 0);
-    const countedBy = sc.counted_by_name || sc.counted_by || sc.countedBy || "-";
+    const varianceVal =
+      sc.total_variance ??
+      sc.totalVariance ??
+      (sc.items
+        ? sc.items.reduce(
+            (a, it) => a + Number(it.variance_quantity || it.variance || 0),
+            0,
+          )
+        : 0);
+    const countedBy =
+      sc.counted_by_name || sc.counted_by || sc.countedBy || "-";
     const date = sc.count_date || sc.countDate || sc.created_at || sc.createdAt;
     const d = date ? new Date(date) : null;
     return {
       id: sc.id,
       countNo: sc.count_number || sc.countNo || `#${sc.id}`,
-      warehouse: (sc.warehouse && (sc.warehouse.name || sc.warehouse)) || sc.warehouse_id || "-",
-      location: (sc.location && (sc.location.name || sc.location)) || sc.warehouse_location_id || "-",
+      warehouse:
+        (sc.warehouse && (sc.warehouse.name || sc.warehouse)) ||
+        sc.warehouse_id ||
+        "-",
+      location:
+        (sc.location && (sc.location.name || sc.location)) ||
+        sc.warehouse_location_id ||
+        "-",
       countType: sc.count_type || sc.countType || sc.type || "-",
-      items: sc.items ? sc.items.length : sc.items_count ?? 0,
+      items: sc.items ? sc.items.length : (sc.items_count ?? 0),
       variance: varianceVal,
-      status: (sc.status || "").replace(/_/g, " ").replace(/^./, (s) => s.toUpperCase()),
+      status: (sc.status || "")
+        .replace(/_/g, " ")
+        .replace(/^./, (s) => s.toUpperCase()),
+      // Raw backend values — needed for actions (duplicate, submit, cancel)
+      // since the humanized/display fields above can't be sent back to the API.
+      rawStatus: sc.status,
+      rawWarehouseId: sc.warehouse_id,
+      rawWarehouseLocationId: sc.warehouse_location_id,
+      rawCountDate: (sc.count_date || sc.created_at || "").slice(0, 10),
       countedBy,
       date: d ? d.toLocaleDateString() : "-",
-      time: d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+      time: d
+        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : "",
     };
   });
-  return { rows, total: meta?.total ?? rows.length, page: meta?.current_page ?? params.page ?? 1, pageSize: meta?.per_page ?? params.pageSize ?? 10 };
+  return {
+    rows,
+    total: meta?.total ?? rows.length,
+    page: meta?.current_page ?? params.page ?? 1,
+    pageSize: meta?.per_page ?? params.pageSize ?? 10,
+  };
 }
 
 // GET /api/stock-counts/:id
@@ -132,9 +195,13 @@ async function apiFetchStockCountDetails(id) {
     priority: sc.priority,
     scheduledDate: sc.count_date || sc.countDate,
     startedTime: sc.started_at || sc.startedAt,
-    assignedCounter: sc.assigned_counter_name || sc.assignedCounter || sc.counted_by,
+    assignedCounter:
+      sc.assigned_counter_name || sc.assignedCounter || sc.counted_by,
     notes: sc.notes || sc.description,
-    status: (sc.status || "").replace(/_/g, " ").replace(/^./, (s) => s.toUpperCase()),
+    status: (sc.status || "")
+      .replace(/_/g, " ")
+      .replace(/^./, (s) => s.toUpperCase()),
+    rawStatus: sc.status,
   };
 
   const items = (sc.items || []).map((it) => ({
@@ -144,23 +211,37 @@ async function apiFetchStockCountDetails(id) {
     barcode: it.item?.barcode || it.barcode || "-",
     location: it.location?.name || it.location || "-",
     shelf: it.shelf || "-",
-    systemQty: it.system_quantity ?? it.systemQty ?? it.system_quantity?.toString?.() ?? "-",
+    systemQty:
+      it.system_quantity ??
+      it.systemQty ??
+      it.system_quantity?.toString?.() ??
+      "-",
     countedQty: it.counted_quantity ?? it.countedQty ?? null,
     variance: Number(it.variance_quantity ?? it.variance ?? 0),
     remarks: it.remarks,
   }));
 
   const totalItems = items.length;
-  const countedItems = items.filter((i) => i.countedQty !== null && i.countedQty !== undefined && i.countedQty !== "").length;
+  const countedItems = items.filter(
+    (i) =>
+      i.countedQty !== null &&
+      i.countedQty !== undefined &&
+      i.countedQty !== "",
+  ).length;
   const uncountedItems = totalItems - countedItems;
-  const totalVariance = items.reduce((a, it) => a + (Number(it.variance) || 0), 0);
+  const totalVariance = items.reduce(
+    (a, it) => a + (Number(it.variance) || 0),
+    0,
+  );
 
   const stats = {
     totalItems,
     countedItems,
     uncountedItems,
     countedPct: totalItems ? Math.round((countedItems / totalItems) * 100) : 0,
-    uncountedPct: totalItems ? Math.round((uncountedItems / totalItems) * 100) : 0,
+    uncountedPct: totalItems
+      ? Math.round((uncountedItems / totalItems) * 100)
+      : 0,
     totalVariance,
     totalVariancePct: undefined,
     progressPct: totalItems ? Math.round((countedItems / totalItems) * 100) : 0,
@@ -176,8 +257,28 @@ async function apiFetchStockCountDetails(id) {
   return { header, stats, items, activity };
 }
 
-// GET /api/warehouses, /api/locations, /api/users
+// GET /stock-counts/lookups — real, dedicated endpoint. Falls back to
+// stitching together /warehouses, /locations, /users individually only
+// if the dedicated endpoint isn't available.
 async function apiFetchLookups() {
+  try {
+    const lk = await getStockCountLookups();
+    if (lk) {
+      const mapOpts = (arr, labelKeys) =>
+        (arr || []).map((o) => ({
+          value: o.id ?? o.value,
+          label: labelKeys.map((k) => o[k]).find(Boolean) || `#${o.id}`,
+          warehouseId: o.warehouse_id,
+        }));
+      return {
+        warehouses: mapOpts(lk.warehouses, ["name", "warehouse_name"]),
+        locations: mapOpts(lk.locations, ["name", "location_name"]),
+        users: mapOpts(lk.users, ["name", "email"]),
+      };
+    }
+  } catch (err) {
+    // fall through to the manual fallback below
+  }
   try {
     // Fetch all warehouses
     const allWarehouses = await warehousesApi.listAll();
@@ -196,10 +297,10 @@ async function apiFetchLookups() {
               value: loc.id,
               label: loc.name || loc.location_name || `Location ${loc.id}`,
               warehouseId: w.id,
-            }))
+            })),
           )
-          .catch(() => [])
-      )
+          .catch(() => []),
+      ),
     );
     const locations = locationsByWarehouse.flat();
 
@@ -215,61 +316,140 @@ async function apiFetchLookups() {
   }
 }
 
-// POST /api/stock-counts
+// POST /stock-counts
+// NOTE: the real backend does not accept `items` on create — items get
+// added afterward, one at a time, via POST /stock-counts/:id/items. Any
+// count_type/priority/assigned_counter fields the form collects aren't in
+// the documented payload either; sending them is harmless (Laravel will
+// just ignore unknown fields) but they won't be persisted unless the
+// backend is confirmed to accept them.
 async function apiCreateStockCount(payload) {
-  // Map UI form to backend shape
   const body = {
-    warehouse_id: payload.warehouse || payload.warehouse_id,
-    warehouse_location_id: payload.location || payload.warehouse_location_id || null,
+    warehouse_id: payload.warehouse_id || payload.warehouse,
+    warehouse_location_id:
+      payload.location || payload.warehouse_location_id || null,
     count_date: payload.scheduledDate || payload.count_date,
-    count_type: payload.countType,
-    priority: payload.priority,
-    assigned_counter: payload.assignedCounter,
     notes: payload.notes,
-    items: payload.items || [],
   };
-  return await createStockCount(body);
+  const stockCount = await createStockCount(body);
+
+  // If the form collected items up front, add them one by one now that
+  // the stock count exists (addItems takes item_id + optional location,
+  // no quantity — quantities are recorded later via updateStockCountItem).
+  const items = payload.items || [];
+  for (const it of items) {
+    await addStockCountItem(stockCount.id, {
+      item_id: it.item_id,
+      warehouse_location_id: it.warehouse_location_id ?? null,
+    });
+  }
+  return stockCount;
 }
 
-// PATCH /api/stock-counts/:id
+// PUT /stock-counts/:id
 async function apiUpdateStockCount(id, payload) {
   return await updateStockCount(id, payload);
 }
 
-// DELETE /api/stock-counts/:id
+// DELETE /stock-counts/:id
 async function apiDeleteStockCount(id) {
   return await deleteStockCount(id);
 }
 
-// POST /api/stock-counts/:id/approve | /reject | /request-recount
-async function apiTransitionStockCount(id, action) {
+// POST /stock-counts/:id/items
+async function apiAddStockCountItem(stockCountId, payload) {
+  return await addStockCountItem(stockCountId, payload);
+}
+
+// PATCH /stock-counts/:id/items/:itemId — records the counted quantity
+// for a single line item.
+async function apiUpdateStockCountItem(stockCountId, itemId, payload) {
+  return await updateStockCountItem(stockCountId, itemId, payload);
+}
+
+// DELETE /stock-counts/:id/items/:itemId
+async function apiRemoveStockCountItem(stockCountId, itemId) {
+  return await removeStockCountItem(stockCountId, itemId);
+}
+
+// POST /stock-counts/:id/submit | /approve | /reject | /request-recount | /cancel
+// There is no /start or /complete on the real backend — those were
+// hallucinated in the original StockCountApi.js and have been removed.
+async function apiTransitionStockCount(id, action, extra) {
   switch (action) {
+    case "submit":
+      return await submitStockCount(id);
     case "approve":
       return await approveStockCount(id);
-    case "start":
-      return await startStockCount(id);
-    case "complete":
-      return await completeStockCount(id);
-    case "cancel":
     case "reject":
+      return await rejectStockCount(id, extra?.reason || "");
+    case "request-recount":
+      return await requestStockCountRecount(id, extra?.reason);
+    case "cancel":
       return await cancelStockCount(id);
     default:
       throw new Error(`Unsupported transition action: ${action}`);
   }
 }
 
-// GET /api/stock-counts/export?format=&scope=
+// GET /stock-counts/export?format=xlsx|csv&ids[]=
 async function apiExportStockCounts(options = {}) {
-  const params = { format: options.format || "xlsx", scope: options.scope || "current" };
-  if (options.id) params.id = options.id;
-  if (options.page != null) params.page = options.page;
-  if (options.per_page != null) params.per_page = options.per_page;
-  if (options.search != null) params.search = options.search;
-  if (options.warehouse != null) params.warehouse = options.warehouse;
-  if (options.location != null) params.location = options.location;
-  if (options.status != null) params.status = options.status;
-  const res = await apiClient.get("/stock-counts/export", { params, responseType: "blob" });
-  return res.data;
+  // Backend only supports xlsx/csv (no pdf) and takes an `ids` array —
+  // there's no "scope"/"page"/"search" style export.
+  const format = options.format === "pdf" ? "xlsx" : options.format || "xlsx";
+  const ids = options.id != null ? [options.id] : options.ids;
+  return await exportStockCounts({ format, ids });
+}
+
+// No backend endpoint renders a "count sheet" — this builds a simple
+// printable HTML page client-side and hands it to the browser's print
+// dialog (so the user can print or "Save as PDF" from there).
+function printCountSheet(header, items) {
+  const rows = (items || [])
+    .map(
+      (it) => `<tr>
+        <td>${it.name ?? "-"}</td>
+        <td>${it.sku ?? "-"}</td>
+        <td>${it.location ?? "-"}</td>
+        <td style="text-align:right">${it.systemQty ?? "-"}</td>
+        <td style="text-align:right">${it.countedQty ?? ""}</td>
+        <td style="text-align:right">${it.variance ?? ""}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const html = `<!doctype html>
+    <html><head><title>${header?.countNo || "Stock Count"} — Count Sheet</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .meta { color: #555; font-size: 13px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+      th { background: #f5f5f5; }
+    </style></head>
+    <body>
+      <h1>${header?.countNo || "Stock Count"} — Count Sheet</h1>
+      <div class="meta">
+        Warehouse: ${header?.warehouse || "-"} &nbsp;•&nbsp;
+        Location: ${header?.location || "-"} &nbsp;•&nbsp;
+        Status: ${header?.status || "-"} &nbsp;•&nbsp;
+        Date: ${header?.scheduledDate || "-"}
+      </div>
+      <table>
+        <thead><tr>
+          <th>Item</th><th>SKU</th><th>Location</th>
+          <th>System Qty</th><th>Counted Qty</th><th>Variance</th>
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="6">No items</td></tr>`}</tbody>
+      </table>
+      <script>window.onload = () => { window.print(); };</script>
+    </body></html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return; // popup blocked — fail silently, nothing to recover
+  win.document.write(html);
+  win.document.close();
 }
 
 /* ============================================================================
@@ -603,7 +783,6 @@ function ExportDropdown({ onExport }) {
       color: "text-emerald-600",
     },
     { id: "csv", label: "CSV", icon: FileText, color: "text-emerald-600" },
-    { id: "pdf", label: "PDF Report", icon: FileDown, color: "text-red-500" },
   ];
   const scopes = [
     { id: "current", label: "Export Current Page", icon: FileText },
@@ -632,7 +811,9 @@ function ExportDropdown({ onExport }) {
               onClick={() => setSelectedFormat(f.id)}
               className={cx(
                 "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-gray-50",
-                selectedFormat === f.id ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-700"
+                selectedFormat === f.id
+                  ? "bg-gray-100 text-gray-900 font-semibold"
+                  : "text-gray-700",
               )}
             >
               <f.icon size={16} className={f.color} />
@@ -654,7 +835,9 @@ function ExportDropdown({ onExport }) {
               }}
               className={cx(
                 "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-gray-50",
-                selectedScope === s.id ? "bg-gray-100 text-gray-900 font-semibold" : "text-gray-700"
+                selectedScope === s.id
+                  ? "bg-gray-100 text-gray-900 font-semibold"
+                  : "text-gray-700",
               )}
             >
               <s.icon size={16} className="text-gray-400" />
@@ -678,6 +861,8 @@ function RowActionsMenu({
   onDelete,
   onPrint,
   onDuplicate,
+  onSubmit,
+  onCancel,
   onApprove,
   onReject,
   onRequestRecount,
@@ -706,48 +891,64 @@ function RowActionsMenu({
     </button>
   );
 
+  // Branch on the real backend status (draft / in_progress / completed /
+  // approved / cancelled), not the humanized display label — the display
+  // label never actually reads "Submitted" or "Pending Review", so those
+  // cases were unreachable before.
   let content;
-  switch (row.status) {
-    case "Draft":
+  switch (row.rawStatus) {
+    case "draft":
       content = (
         <>
           {item(Eye, "View", onView)}
           {item(Pencil, "Edit", onEdit)}
           {item(PlayCircle, "Continue Count", onContinue)}
+          {item(Check, "Submit for Review", onSubmit)}
           {item(Trash2, "Delete", onDelete, true)}
         </>
       );
       break;
-    case "Submitted":
+    case "in_progress":
       content = (
         <>
           {item(Eye, "View", onView)}
-          {item(Printer, "Print Count Sheet", onPrint)}
-          {item(Copy, "Duplicate", onDuplicate)}
+          {item(PlayCircle, "Continue Count", onContinue)}
+          {item(Check, "Submit for Review", onSubmit)}
+          {item(XCircle, "Cancel", onCancel, true)}
         </>
       );
       break;
-    case "Pending Review":
+    case "completed":
       content = (
         <>
           {item(Eye, "View", onView)}
           {item(Check, "Approve", onApprove)}
           {item(XCircle, "Reject", onReject, true)}
           {item(RotateCcw, "Request Recount", onRequestRecount)}
+          {item(Printer, "Print Count Sheet", onPrint)}
+          {item(XCircle, "Cancel", onCancel, true)}
         </>
       );
       break;
-    case "Completed":
+    case "approved":
       content = (
         <>
           {item(Eye, "View", onView)}
           {item(Printer, "Print", onPrint)}
           {item(Copy, "Duplicate", onDuplicate)}
-          {item(FileDown, "Export PDF", onExportPdf)}
+          {item(FileDown, "Export (xlsx)", onExportPdf)}
         </>
       );
       break;
-    default: // Approved and any other status
+    case "cancelled":
+      content = (
+        <>
+          {item(Eye, "View", onView)}
+          {item(Copy, "Duplicate", onDuplicate)}
+        </>
+      );
+      break;
+    default:
       content = (
         <>
           {item(Eye, "View", onView)}
@@ -958,9 +1159,17 @@ function LabeledSelect({
   hint,
 }) {
   const uniqueOptions = Array.from(
-    new Map((options || []).map((option) => [String(option?.value ?? option), option])).values(),
+    new Map(
+      (options || []).map((option) => [
+        String(option?.value ?? option),
+        option,
+      ]),
+    ).values(),
   );
-  const optionLabel = (option) => String(option?.label ?? option ?? "").replace(/\s*--\s*/g, " ").trim();
+  const optionLabel = (option) =>
+    String(option?.label ?? option ?? "")
+      .replace(/\s*--\s*/g, " ")
+      .trim();
 
   return (
     <div>
@@ -1017,11 +1226,14 @@ function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
   }, [open, initialForm]);
 
   if (!open) return null;
-  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
   const warehouses = lookups?.warehouses || [];
   const locations = (lookups?.locations || []).filter(
-    (option) => !form.warehouse || String(option.warehouseId) === String(form.warehouse),
+    (option) =>
+      !form.warehouse || String(option.warehouseId) === String(form.warehouse),
   );
   const users = lookups?.users || [];
 
@@ -1256,7 +1468,9 @@ function StockCountCalendarModal({
     return events.filter(
       (ev) =>
         new Date(ev.date).toDateString() === date.toDateString() &&
-        (!selectedLocation || String(ev.location_id ?? ev.locationId ?? ev.location) === selectedLocation) &&
+        (!selectedLocation ||
+          String(ev.location_id ?? ev.locationId ?? ev.location) ===
+            selectedLocation) &&
         (!selectedType || ev.type === selectedType),
     );
   };
@@ -1275,163 +1489,191 @@ function StockCountCalendarModal({
           className="w-full rounded-2xl bg-white p-6 shadow-xl sm:max-h-[calc(100vh-4rem)] sm:overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Stock Count Calendar
-            </h3>
-            <p className="text-sm text-gray-500">
-              View and manage all scheduled stock counts
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onMonthChange(new Date())}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => onMonthChange(new Date(year, month - 1, 1))}
-              className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={() => onMonthChange(new Date(year, month + 1, 1))}
-              className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50"
-            >
-              <ChevronRight size={16} />
-            </button>
-            <span className="ml-1 text-[15px] font-semibold text-gray-900">
-              {monthLabel}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
-                <option value="">All Locations</option>
-                {(locations || []).map((location) => <option key={location.value} value={location.value}>{String(location.label).replace(/\s*--\s*/g, " ")}</option>)}
-              </select>
-              <ChevronDown
-                size={14}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-            </div>
-            <div className="relative">
-              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
-                <option value="">All Types</option>
-                {COUNT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-              </select>
-              <ChevronDown
-                size={14}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-              />
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Stock Count Calendar
+              </h3>
+              <p className="text-sm text-gray-500">
+                View and manage all scheduled stock counts
+              </p>
             </div>
             <button
-              onClick={() => onNewCount({
-                scheduledDate: selectedDate ? toDateInputValue(selectedDate) : "",
-                location: selectedLocation,
-                countType: selectedType,
-              })}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
             >
-              <Plus size={15} /> New Count
+              <X size={18} />
             </button>
           </div>
-        </div>
 
-        <div className="mt-5 grid grid-cols-7 overflow-hidden rounded-xl border border-gray-100">
-          {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
-            <div
-              key={d}
-              className="border-b border-gray-100 bg-gray-50 py-2 text-center text-xs font-semibold tracking-wide text-gray-400"
-            >
-              {d}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onMonthChange(new Date())}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Today
+              </button>
+              <button
+                onClick={() => onMonthChange(new Date(year, month - 1, 1))}
+                className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => onMonthChange(new Date(year, month + 1, 1))}
+                className="rounded-lg border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <span className="ml-1 text-[15px] font-semibold text-gray-900">
+                {monthLabel}
+              </span>
             </div>
-          ))}
-          {cells.map((c, i) => (
-            <button
-              type="button"
-              key={i}
-              disabled={c.muted}
-              onClick={() => !c.muted && setSelectedDate(c.date)}
-              className={cx("min-h-[92px] border-b border-r border-gray-100 p-2 text-left last:border-r-0 [&:nth-child(7n)]:border-r-0", c.muted ? "cursor-default" : "cursor-pointer hover:bg-blue-50", selectedDate?.toDateString() === c.date?.toDateString() && "bg-blue-50 ring-2 ring-inset ring-blue-500")}
-            >
-              <span
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none"
+                >
+                  <option value="">All Locations</option>
+                  {(locations || []).map((location) => (
+                    <option key={location.value} value={location.value}>
+                      {String(location.label).replace(/\s*--\s*/g, " ")}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none"
+                >
+                  <option value="">All Types</option>
+                  {COUNT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+              </div>
+              <button
+                onClick={() =>
+                  onNewCount({
+                    scheduledDate: selectedDate
+                      ? toDateInputValue(selectedDate)
+                      : "",
+                    location: selectedLocation,
+                    countType: selectedType,
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <Plus size={15} /> New Count
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-7 overflow-hidden rounded-xl border border-gray-100">
+            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
+              <div
+                key={d}
+                className="border-b border-gray-100 bg-gray-50 py-2 text-center text-xs font-semibold tracking-wide text-gray-400"
+              >
+                {d}
+              </div>
+            ))}
+            {cells.map((c, i) => (
+              <button
+                type="button"
+                key={i}
+                disabled={c.muted}
+                onClick={() => !c.muted && setSelectedDate(c.date)}
                 className={cx(
-                  "flex h-6 w-6 items-center justify-center rounded-full text-sm",
+                  "min-h-[92px] border-b border-r border-gray-100 p-2 text-left last:border-r-0 [&:nth-child(7n)]:border-r-0",
                   c.muted
-                    ? "text-gray-300"
-                    : isToday(c.date)
-                      ? "bg-blue-600 text-white font-semibold"
-                      : "text-gray-700",
+                    ? "cursor-default"
+                    : "cursor-pointer hover:bg-blue-50",
+                  selectedDate?.toDateString() === c.date?.toDateString() &&
+                    "bg-blue-50 ring-2 ring-inset ring-blue-500",
                 )}
               >
-                {c.day}
-              </span>
-              <div className="mt-1 space-y-1">
-                {loading && !c.muted ? (
-                  <div className="h-8 w-full animate-pulse rounded bg-gray-50" />
-                ) : (
-                  eventsForDay(c.date).map((ev) => {
-                    const colors =
-                      CALENDAR_TYPE_COLORS[ev.type] ||
-                      CALENDAR_TYPE_COLORS["Cycle Count"];
-                    return (
-                      <div
-                        key={ev.id}
-                        className={cx(
-                          "rounded-md px-1.5 py-1 text-[11px] leading-tight",
-                          colors.bg,
-                          colors.text,
-                        )}
-                      >
-                        <p className="font-semibold">{ev.type}</p>
-                        <p>{ev.time}</p>
-                        <p className="opacity-80">{ev.location}</p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            {Object.entries(CALENDAR_TYPE_COLORS)
-              .filter(([k]) => k !== "Recount")
-              .map(([label, c]) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-2 text-sm text-gray-600"
+                <span
+                  className={cx(
+                    "flex h-6 w-6 items-center justify-center rounded-full text-sm",
+                    c.muted
+                      ? "text-gray-300"
+                      : isToday(c.date)
+                        ? "bg-blue-600 text-white font-semibold"
+                        : "text-gray-700",
+                  )}
                 >
-                  <span className={cx("h-2 w-2 rounded-full", c.dot)} /> {label}
+                  {c.day}
+                </span>
+                <div className="mt-1 space-y-1">
+                  {loading && !c.muted ? (
+                    <div className="h-8 w-full animate-pulse rounded bg-gray-50" />
+                  ) : (
+                    eventsForDay(c.date).map((ev) => {
+                      const colors =
+                        CALENDAR_TYPE_COLORS[ev.type] ||
+                        CALENDAR_TYPE_COLORS["Cycle Count"];
+                      return (
+                        <div
+                          key={ev.id}
+                          className={cx(
+                            "rounded-md px-1.5 py-1 text-[11px] leading-tight",
+                            colors.bg,
+                            colors.text,
+                          )}
+                        >
+                          <p className="font-semibold">{ev.type}</p>
+                          <p>{ev.time}</p>
+                          <p className="opacity-80">{ev.location}</p>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-              ))}
+              </button>
+            ))}
           </div>
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <X size={15} /> Close
-          </button>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              {Object.entries(CALENDAR_TYPE_COLORS)
+                .filter(([k]) => k !== "Recount")
+                .map(([label, c]) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-2 text-sm text-gray-600"
+                  >
+                    <span className={cx("h-2 w-2 rounded-full", c.dot)} />{" "}
+                    {label}
+                  </div>
+                ))}
+            </div>
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <X size={15} /> Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
   );
 }
 
@@ -1911,7 +2153,7 @@ function StockCountsList({ onOpenDetails }) {
     }
 
     const blob = await apiExportStockCounts(params);
-    const ext = options.format === "pdf" ? "pdf" : options.format === "csv" ? "csv" : "xlsx";
+    const ext = options.format === "csv" ? "csv" : "xlsx";
     const filename = `stock_counts_${options.scope || "current"}.${ext}`;
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1941,7 +2183,10 @@ function StockCountsList({ onOpenDetails }) {
         <div className="flex items-center gap-2">
           <ExportDropdown onExport={handleExport} />
           <button
-            onClick={() => { setNewCountInitialForm(null); setNewCountOpen(true); }}
+            onClick={() => {
+              setNewCountInitialForm(null);
+              setNewCountOpen(true);
+            }}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Plus size={15} /> New Stock Count
@@ -2189,6 +2434,18 @@ function StockCountsList({ onOpenDetails }) {
                               )}
                               onPrint={() => {}}
                               onDuplicate={() => {}}
+                              onSubmit={rowAction((r) =>
+                                apiTransitionStockCount(r.id, "submit"),
+                              )}
+                              onCancel={rowAction((r) => {
+                                if (
+                                  !window.confirm(
+                                    `Cancel stock count ${r.countNo}? This cannot be undone.`,
+                                  )
+                                )
+                                  return Promise.resolve();
+                                return apiTransitionStockCount(r.id, "cancel");
+                              })}
                               onApprove={rowAction((r) =>
                                 apiTransitionStockCount(r.id, "approve"),
                               )}
@@ -2307,7 +2564,10 @@ function StockCountsList({ onOpenDetails }) {
 
       <NewStockCountModal
         open={newCountOpen}
-        onClose={() => { setNewCountOpen(false); setNewCountInitialForm(null); }}
+        onClose={() => {
+          setNewCountOpen(false);
+          setNewCountInitialForm(null);
+        }}
         lookups={lookups}
         initialForm={newCountInitialForm}
         onCreate={handleCreate}

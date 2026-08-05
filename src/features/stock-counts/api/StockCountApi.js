@@ -62,18 +62,14 @@ import apiClient from "../../../shared/api/axiosClient.js";
  */
 
 /**
- * @typedef {Object} CreateStockCountItemPayload
- * @property {number} item_id
- * @property {number} system_quantity
- * @property {number} counted_quantity
- */
-
-/**
  * @typedef {Object} CreateStockCountPayload
  * @property {number} warehouse_id
  * @property {number|null} [warehouse_location_id]
  * @property {string} count_date                      - "YYYY-MM-DD"
- * @property {CreateStockCountItemPayload[]} items
+ *
+ * NOTE: unlike an earlier version of this file, `items` is NOT part of
+ * creation. The real backend adds items in a separate step — see
+ * addStockCountItem() below. A stock count can be created with zero items.
  */
 
 /**
@@ -83,8 +79,24 @@ import apiClient from "../../../shared/api/axiosClient.js";
  */
 
 /**
+ * @typedef {Object} AddStockCountItemPayload
+ * @property {number} item_id
+ * @property {number|null} [warehouse_location_id]
+ *
+ * NOTE: no quantity here — quantity is recorded afterward, per item,
+ * via updateStockCountItem().
+ */
+
+/**
+ * @typedef {Object} UpdateStockCountItemPayload
+ * @property {number} counted_quantity
+ * @property {string} [reason]                          - optional, explains a variance/edit
+ */
+
+/**
  * ─────────────────────────────────────────────────────────────
- * API CALLS
+ * API CALLS — these paths/verbs are taken directly from
+ * routes/api.php, not guessed from REST convention.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -99,7 +111,72 @@ export const listStockCounts = async (params = {}) => {
 };
 
 /**
- * Create a new stock count (status starts as "draft").
+ * Server-computed overview stats (GET /stock-counts/overview).
+ * Prefer this over deriving numbers client-side from a page of results.
+ * @returns {Promise<Object>}
+ */
+export const getStockCountOverview = async () => {
+  const { data } = await apiClient.get("/stock-counts/overview");
+  return data?.data;
+};
+
+/**
+ * Lookup lists for filters/forms — warehouses, locations, users, etc.
+ * (GET /stock-counts/lookups).
+ * @returns {Promise<Object>}
+ */
+export const getStockCountLookups = async () => {
+  const { data } = await apiClient.get("/stock-counts/lookups");
+  return data?.data;
+};
+
+/**
+ * Calendar view of stock counts for a given month.
+ * (GET /stock-counts/calendar). Both params are required by the backend.
+ * @param {number} month - 1-12
+ * @param {number} year  - e.g. 2026
+ * @returns {Promise<Object>}
+ */
+export const getStockCountCalendar = async (month, year) => {
+  const { data } = await apiClient.get("/stock-counts/calendar", {
+    params: { month, year },
+  });
+  return data?.data;
+};
+
+/**
+ * Search items to add to a stock count (GET /stock-counts/items/search).
+ * @param {Object} [params] - e.g. { search, warehouse_id }
+ * @returns {Promise<Array>}
+ */
+export const searchStockCountItems = async (params = {}) => {
+  const { data } = await apiClient.get("/stock-counts/items/search", {
+    params,
+  });
+  return data?.data || [];
+};
+
+/**
+ * Export stock counts. Backend only supports xlsx/csv (no pdf), and
+ * takes an `ids` array rather than a page/scope description.
+ * @param {Object} [options]
+ * @param {"xlsx"|"csv"} [options.format]
+ * @param {Array<number|string>} [options.ids]
+ * @returns {Promise<Blob>}
+ */
+export const exportStockCounts = async (options = {}) => {
+  const params = { format: options.format || "xlsx" };
+  if (options.ids && options.ids.length) params.ids = options.ids;
+  const { data } = await apiClient.get("/stock-counts/export", {
+    params,
+    responseType: "blob",
+  });
+  return data;
+};
+
+/**
+ * Create a new stock count (status starts as "draft"). Items are added
+ * afterward via addStockCountItem().
  * @param {CreateStockCountPayload} payload
  * @returns {Promise<StockCount>}
  */
@@ -139,34 +216,111 @@ export const deleteStockCount = async (id) => {
 };
 
 /**
- * Start a stock count: draft -> in_progress.
- * Snapshots system_quantity on each item at this point.
- * @param {number|string} id
+ * Add an item to a stock count (no quantity yet — that's set per item via
+ * updateStockCountItem()).
+ * @param {number|string} stockCountId
+ * @param {AddStockCountItemPayload} payload
  * @returns {Promise<StockCount>}
  */
-export const startStockCount = async (id) => {
-  const { data } = await apiClient.post(`/stock-counts/${id}/start`);
+export const addStockCountItem = async (stockCountId, payload) => {
+  const { data } = await apiClient.post(
+    `/stock-counts/${stockCountId}/items`,
+    payload,
+  );
   return data?.data;
 };
 
 /**
- * Complete a stock count: in_progress -> completed.
- * @param {number|string} id
- * @returns {Promise<StockCount>}
+ * Record/update the counted quantity for a single line item.
+ * @param {number|string} stockCountId
+ * @param {number|string} itemId - the stock count item's id (not the catalog item_id)
+ * @param {UpdateStockCountItemPayload} payload
+ * @returns {Promise<StockCountItem>}
  */
-export const completeStockCount = async (id) => {
-  const { data } = await apiClient.post(`/stock-counts/${id}/complete`);
+export const updateStockCountItem = async (stockCountId, itemId, payload) => {
+  const { data } = await apiClient.patch(
+    `/stock-counts/${stockCountId}/items/${itemId}`,
+    payload,
+  );
   return data?.data;
 };
 
 /**
- * Approve a stock count: completed -> approved.
- * Posts inventory adjustments for variance items (adjustment_created -> 1).
+ * Remove a line item from a stock count.
+ * @param {number|string} stockCountId
+ * @param {number|string} itemId
+ * @returns {Promise<void>}
+ */
+export const removeStockCountItem = async (stockCountId, itemId) => {
+  await apiClient.delete(`/stock-counts/${stockCountId}/items/${itemId}`);
+};
+
+/**
+ * Counting progress for a stock count (e.g. counted vs total items).
+ * @param {number|string} id
+ * @returns {Promise<Object>}
+ */
+export const getStockCountProgress = async (id) => {
+  const { data } = await apiClient.get(`/stock-counts/${id}/progress`);
+  return data?.data;
+};
+
+/**
+ * Variance breakdown for a stock count.
+ * @param {number|string} id
+ * @returns {Promise<Object>}
+ */
+export const getStockCountVariance = async (id) => {
+  const { data } = await apiClient.get(`/stock-counts/${id}/variance`);
+  return data?.data;
+};
+
+/**
+ * Submit a stock count for approval (draft/in-progress -> completed,
+ * per the real controller — there is no separate /start or /complete step).
+ * @param {number|string} id
+ * @returns {Promise<StockCount>}
+ */
+export const submitStockCount = async (id) => {
+  const { data } = await apiClient.post(`/stock-counts/${id}/submit`);
+  return data?.data;
+};
+
+/**
+ * Approve a submitted stock count. Posts inventory adjustments for
+ * variance items (adjustment_created -> 1).
  * @param {number|string} id
  * @returns {Promise<StockCount>}
  */
 export const approveStockCount = async (id) => {
   const { data } = await apiClient.post(`/stock-counts/${id}/approve`);
+  return data?.data;
+};
+
+/**
+ * Reject a submitted stock count. The backend expects a reason.
+ * @param {number|string} id
+ * @param {string} reason
+ * @returns {Promise<StockCount>}
+ */
+export const rejectStockCount = async (id, reason) => {
+  const { data } = await apiClient.post(`/stock-counts/${id}/reject`, {
+    reason,
+  });
+  return data?.data;
+};
+
+/**
+ * Ask for a recount instead of approving/rejecting outright.
+ * @param {number|string} id
+ * @param {string} [reason]
+ * @returns {Promise<StockCount>}
+ */
+export const requestStockCountRecount = async (id, reason) => {
+  const { data } = await apiClient.post(
+    `/stock-counts/${id}/request-recount`,
+    reason ? { reason } : undefined,
+  );
   return data?.data;
 };
 
