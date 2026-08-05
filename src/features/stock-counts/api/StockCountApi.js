@@ -65,18 +65,31 @@ import apiClient from "../../../shared/api/axiosClient.js";
  * @typedef {Object} CreateStockCountPayload
  * @property {number} warehouse_id
  * @property {number|null} [warehouse_location_id]
- * @property {string} count_date                      - "YYYY-MM-DD"
+ * @property {"Cycle Count"|"Spot Check"|"Full Physical"|"Recount"} [count_type]
+ * @property {"low"|"medium"|"high"} [priority]
+ * @property {string} [count_date]                     - "YYYY-MM-DD", defaults to today server-side
+ * @property {string} [start_time]                     - "HH:mm"
+ * @property {number} [assigned_to]                     - user id; defaults to current user
+ * @property {string} [notes]
+ * @property {Array<{item_id: number, warehouse_location_id?: number|null}>} [items]
  *
- * NOTE: unlike an earlier version of this file, `items` is NOT part of
- * creation. The real backend adds items in a separate step — see
- * addStockCountItem() below. A stock count can be created with zero items.
+ *
  */
-
 /**
  * @typedef {Object} UpdateStockCountPayload
  * @property {string|null} [notes]
  * @property {string} [count_date]                     - "YYYY-MM-DD"
  */
+/**
+ * @typedef {Object} UpdateStockCountPayload
+ * @property {number} [warehouse_id]
+ * @property {number|null} [warehouse_location_id]
+ * @property {"Cycle Count"|"Spot Check"|"Full Physical"|"Recount"} [count_type]
+ * @property {"low"|"medium"|"high"} [priority]
+ * @property {string} [count_date]                     - "YYYY-MM-DD"
+ * @property {string} [start_time]                     - "HH:mm"
+ * @property {number} [assigned_to]                     - reassigns the counter (server maps this to counted_by)
+ * @property {string|null} [notes]
 
 /**
  * @typedef {Object} AddStockCountItemPayload

@@ -50,6 +50,8 @@ import {
   getStockCountOverview,
   getStockCountLookups,
   getStockCountCalendar,
+  getStockCountVariance,
+  searchStockCountItems,
   exportStockCounts,
 } from "../api/StockCountApi.js";
 import { listUsers } from "../../../lib/api.js";
@@ -317,19 +319,20 @@ async function apiFetchLookups() {
 }
 
 // POST /stock-counts
-// NOTE: the real backend does not accept `items` on create — items get
-// added afterward, one at a time, via POST /stock-counts/:id/items. Any
-// count_type/priority/assigned_counter fields the form collects aren't in
-// the documented payload either; sending them is harmless (Laravel will
-// just ignore unknown fields) but they won't be persisted unless the
-// backend is confirmed to accept them.
+// The backend's store() validates and persists count_type, priority,
+// start_time and assigned_to alongside warehouse/location/date/notes —
+// so all of them are sent, not just the bare minimum.
 async function apiCreateStockCount(payload) {
   const body = {
     warehouse_id: payload.warehouse_id || payload.warehouse,
     warehouse_location_id:
       payload.location || payload.warehouse_location_id || null,
+    count_type: payload.countType || undefined,
+    priority: payload.priority ? payload.priority.toLowerCase() : undefined,
     count_date: payload.scheduledDate || payload.count_date,
-    notes: payload.notes,
+    start_time: payload.startTime || undefined,
+    assigned_to: payload.assignedCounter || undefined,
+    notes: payload.notes || undefined,
   };
   const stockCount = await createStockCount(body);
 
@@ -346,9 +349,20 @@ async function apiCreateStockCount(payload) {
   return stockCount;
 }
 
-// PUT /stock-counts/:id
+// PUT /stock-counts/:id — only allowed while status is "draft".
 async function apiUpdateStockCount(id, payload) {
-  return await updateStockCount(id, payload);
+  const body = {
+    warehouse_id: payload.warehouse_id || payload.warehouse || undefined,
+    warehouse_location_id:
+      payload.location || payload.warehouse_location_id || null,
+    count_type: payload.countType || undefined,
+    priority: payload.priority ? payload.priority.toLowerCase() : undefined,
+    count_date: payload.scheduledDate || payload.count_date,
+    start_time: payload.startTime || undefined,
+    assigned_to: payload.assignedCounter || undefined,
+    notes: payload.notes,
+  };
+  return await updateStockCount(id, body);
 }
 
 // DELETE /stock-counts/:id
@@ -370,6 +384,32 @@ async function apiUpdateStockCountItem(stockCountId, itemId, payload) {
 // DELETE /stock-counts/:id/items/:itemId
 async function apiRemoveStockCountItem(stockCountId, itemId) {
   return await removeStockCountItem(stockCountId, itemId);
+}
+
+// Duplicate a stock count: recreate the header fields on a fresh draft,
+// then copy its item list across. There is no dedicated /duplicate route
+// on the backend, so this is composed from create + addItems.
+async function apiDuplicateStockCount(id) {
+  const source = await getStockCount(id);
+  if (!source) return null;
+
+  const copy = await createStockCount({
+    warehouse_id: source.warehouse_id,
+    warehouse_location_id: source.warehouse_location_id,
+    count_type: source.count_type,
+    priority: source.priority,
+    count_date: new Date().toISOString().slice(0, 10),
+    assigned_to: source.counted_by,
+    notes: source.notes,
+  });
+
+  for (const it of source.items || []) {
+    await addStockCountItem(copy.id, {
+      item_id: it.item_id,
+      warehouse_location_id: it.warehouse_location_id ?? null,
+    });
+  }
+  return copy;
 }
 
 // POST /stock-counts/:id/submit | /approve | /reject | /request-recount | /cancel
@@ -399,6 +439,18 @@ async function apiExportStockCounts(options = {}) {
   const format = options.format === "pdf" ? "xlsx" : options.format || "xlsx";
   const ids = options.id != null ? [options.id] : options.ids;
   return await exportStockCounts({ format, ids });
+}
+
+// Trigger a browser download for a Blob returned by an export call.
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 // No backend endpoint renders a "count sheet" — this builds a simple
@@ -969,6 +1021,156 @@ function RowActionsMenu({
 }
 
 /* ============================================================================
+   REASON MODAL (used for Reject / Request Recount — reject requires a
+   reason server-side; recount reason is optional)
+============================================================================ */
+function ReasonModal({ open, title, label, required, onClose, onSubmit }) {
+  const [reason, setReason] = useState("");
+  useEffect(() => {
+    if (open) setReason("");
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-[420px] rounded-2xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-[15px] font-semibold text-gray-900">{title}</h3>
+        <label className="mt-3 block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <textarea
+          autoFocus
+          rows={3}
+          maxLength={500}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Add a note..."
+          className="mt-1.5 w-full resize-none rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={required && !reason.trim()}
+            onClick={() => onSubmit(reason.trim())}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
+   ADD ITEMS MODAL (search catalog items, add to a stock count)
+============================================================================ */
+function AddItemsModal({ open, onClose, onSearch, results, onAdd, addedIds }) {
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setQ("");
+      onSearch("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-24"
+      onClick={onClose}
+    >
+      <div
+        className="w-[480px] rounded-2xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold text-gray-900">
+            Add Items
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="relative mt-3">
+          <Search
+            size={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              onSearch(e.target.value);
+            }}
+            placeholder="Search catalog items by name or SKU..."
+            className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <div className="mt-3 max-h-72 space-y-1 overflow-y-auto">
+          {(results || []).map((r) => {
+            const already = addedIds?.has(r.id);
+            return (
+              <button
+                key={r.id}
+                disabled={already}
+                onClick={() => onAdd(r)}
+                className={cx(
+                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
+                  already
+                    ? "cursor-default text-gray-300"
+                    : "text-gray-700 hover:bg-gray-50",
+                )}
+              >
+                <span>
+                  {r.name}{" "}
+                  <span className="text-gray-400">({r.sku})</span>
+                </span>
+                {already ? (
+                  <Check size={14} className="text-emerald-500" />
+                ) : (
+                  <Plus size={14} className="text-gray-400" />
+                )}
+              </button>
+            );
+          })}
+          {q && (!results || results.length === 0) && (
+            <p className="px-3 py-2 text-sm text-gray-400">No matches.</p>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================================
    ADVANCED FILTERS MODAL
 ============================================================================ */
 function AdvancedFiltersModal({ open, onClose, filters, onApply }) {
@@ -1147,7 +1349,7 @@ function AdvancedFiltersModal({ open, onClose, filters, onApply }) {
 }
 
 /* ============================================================================
-   NEW STOCK COUNT MODAL
+   NEW / EDIT STOCK COUNT MODAL
 ============================================================================ */
 function LabeledSelect({
   label,
@@ -1199,7 +1401,14 @@ function LabeledSelect({
   );
 }
 
-function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
+function NewStockCountModal({
+  open,
+  onClose,
+  lookups,
+  initialForm,
+  onSave,
+  isEditing,
+}) {
   const [form, setForm] = useState({
     warehouse: "",
     location: "",
@@ -1214,14 +1423,14 @@ function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
   useEffect(() => {
     if (open)
       setForm({
-        warehouse: "",
+        warehouse: initialForm?.warehouse || "",
         location: initialForm?.location || "",
         countType: initialForm?.countType || "",
-        priority: "Medium",
+        priority: initialForm?.priority || "Medium",
         scheduledDate: initialForm?.scheduledDate || "",
-        startTime: "",
-        assignedCounter: "",
-        notes: "",
+        startTime: initialForm?.startTime || "",
+        assignedCounter: initialForm?.assignedCounter || "",
+        notes: initialForm?.notes || "",
       });
   }, [open, initialForm]);
 
@@ -1253,10 +1462,12 @@ function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
             </div>
             <div>
               <h3 className="text-[15px] font-semibold text-gray-900">
-                New Stock Count
+                {isEditing ? "Edit Stock Count" : "New Stock Count"}
               </h3>
               <p className="text-sm text-gray-500">
-                Create a new stock count to record physical inventory.
+                {isEditing
+                  ? "Update the details for this stock count."
+                  : "Create a new stock count to record physical inventory."}
               </p>
             </div>
           </div>
@@ -1367,15 +1578,17 @@ function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
             </p>
           </div>
 
-          <div className="flex gap-3 rounded-lg bg-blue-50 px-4 py-3">
-            <Info size={16} className="mt-0.5 shrink-0 text-blue-500" />
-            <p className="text-sm text-blue-700">
-              <span className="font-semibold">What happens next?</span>
-              <br />
-              After creating the stock count, you can add items and begin the
-              counting process.
-            </p>
-          </div>
+          {!isEditing && (
+            <div className="flex gap-3 rounded-lg bg-blue-50 px-4 py-3">
+              <Info size={16} className="mt-0.5 shrink-0 text-blue-500" />
+              <p className="text-sm text-blue-700">
+                <span className="font-semibold">What happens next?</span>
+                <br />
+                After creating the stock count, you can add items and begin
+                the counting process.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
@@ -1386,10 +1599,18 @@ function NewStockCountModal({ open, onClose, lookups, initialForm, onCreate }) {
             Cancel
           </button>
           <button
-            onClick={() => onCreate(form)}
+            onClick={() => onSave(form)}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            <Plus size={15} /> Create Stock Count
+            {isEditing ? (
+              <>
+                <Check size={15} /> Save Changes
+              </>
+            ) : (
+              <>
+                <Plus size={15} /> Create Stock Count
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -1686,6 +1907,21 @@ function StockCountDetails({ countId, onBack }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("Items");
+  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
+
+  const [itemSearch, setItemSearch] = useState("");
+  const [addItemsOpen, setAddItemsOpen] = useState(false);
+  const [itemSearchResults, setItemSearchResults] = useState([]);
+  const [reasonModal, setReasonModal] = useState(null); // { action }
+
+  const [variance, setVariance] = useState(null);
+  const [varianceLoading, setVarianceLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const res = await apiFetchStockCountDetails(countId);
+    setData(res);
+    return res;
+  }, [countId]);
 
   useEffect(() => {
     let alive = true;
@@ -1701,10 +1937,78 @@ function StockCountDetails({ countId, onBack }) {
     };
   }, [countId]);
 
+  // Load the variance breakdown lazily, the first time the Summary tab
+  // is opened (GET /stock-counts/:id/variance).
+  useEffect(() => {
+    if (tab !== "Summary" || variance) return;
+    let alive = true;
+    setVarianceLoading(true);
+    getStockCountVariance(countId)
+      .then((res) => {
+        if (alive) setVariance(res);
+      })
+      .catch(() => {
+        if (alive) setVariance({ items: [] });
+      })
+      .finally(() => {
+        if (alive) setVarianceLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tab, countId, variance]);
+
   const header = data?.header;
   const stats = data?.stats;
   const items = data?.items || [];
   const activity = data?.activity || [];
+
+  const filteredItems = items.filter((it) => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      it.name?.toLowerCase().includes(q) ||
+      it.sku?.toLowerCase().includes(q) ||
+      it.barcode?.toLowerCase().includes(q)
+    );
+  });
+
+  const addedItemIds = new Set(
+    items.map((it) => it.itemId ?? it.item_id).filter(Boolean),
+  );
+
+  const saveCountedQty = async (item, rawValue) => {
+    if (rawValue === "" || Number(rawValue) === Number(item.countedQty)) return;
+    await apiUpdateStockCountItem(countId, item.id, {
+      counted_quantity: Number(rawValue),
+    });
+    refresh();
+  };
+
+  const removeCountItem = async (item) => {
+    if (!window.confirm(`Remove ${item.name} from this count?`)) return;
+    await apiRemoveStockCountItem(countId, item.id);
+    refresh();
+  };
+
+  const searchItemsToAdd = async (q) => {
+    try {
+      const results = await searchStockCountItems({ search: q });
+      setItemSearchResults(results || []);
+    } catch (err) {
+      setItemSearchResults([]);
+    }
+  };
+
+  const addSelectedItem = async (catalogItem) => {
+    await apiAddStockCountItem(countId, { item_id: catalogItem.id });
+    refresh();
+  };
+
+  const runTransition = async (action, extra) => {
+    await apiTransitionStockCount(countId, action, extra);
+    refresh();
+  };
 
   return (
     <div className="mx-auto max-w-[1500px] px-8 py-6">
@@ -1736,14 +2040,69 @@ function StockCountDetails({ countId, onBack }) {
             • {header?.countType || "–"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        <div className="relative flex items-center gap-2">
+          <button
+            onClick={() => printCountSheet(header, items)}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
             <Printer size={15} /> Print Count Sheet
           </button>
-          <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button
+            onClick={() => setDetailMenuOpen((o) => !o)}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
             More Actions <ChevronDown size={14} />
           </button>
-          <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          {detailMenuOpen && header && (
+            <RowActionsMenu
+              row={{
+                id: countId,
+                countNo: header.countNo,
+                rawStatus: header.rawStatus,
+              }}
+              onClose={() => setDetailMenuOpen(false)}
+              onView={() => {}}
+              onEdit={() => {}}
+              onContinue={() => {}}
+              onDelete={async (r) => {
+                if (
+                  !window.confirm(
+                    `Delete stock count ${r.countNo}? This cannot be undone.`,
+                  )
+                )
+                  return;
+                await apiDeleteStockCount(r.id);
+                onBack();
+              }}
+              onPrint={() => printCountSheet(header, items)}
+              onDuplicate={async (r) => {
+                await apiDuplicateStockCount(r.id);
+              }}
+              onSubmit={() => runTransition("submit")}
+              onCancel={() => {
+                if (
+                  !window.confirm(
+                    `Cancel stock count ${header.countNo}? This cannot be undone.`,
+                  )
+                )
+                  return;
+                runTransition("cancel");
+              }}
+              onApprove={() => runTransition("approve")}
+              onReject={() => setReasonModal({ action: "reject" })}
+              onRequestRecount={() =>
+                setReasonModal({ action: "request-recount" })
+              }
+              onExportPdf={async () => {
+                const blob = await apiExportStockCounts({ ids: [countId] });
+                downloadBlob(blob, `${header?.countNo || countId}.xlsx`);
+              }}
+            />
+          )}
+          <button
+            onClick={() => runTransition("submit")}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
             Submit Count
           </button>
         </div>
@@ -1840,19 +2199,18 @@ function StockCountDetails({ countId, onBack }) {
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                   />
                   <input
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
                     placeholder="Search items by name, SKU, or barcode..."
                     className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    <FilterIcon size={14} /> Filter
-                  </button>
-                  <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <button
+                    onClick={() => setAddItemsOpen(true)}
+                    className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
                     <Plus size={14} /> Add Items
-                  </button>
-                  <button className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    <Upload size={14} /> Import from File
                   </button>
                 </div>
               </div>
@@ -1880,17 +2238,25 @@ function StockCountDetails({ countId, onBack }) {
                       Array.from({ length: 6 }).map((_, i) => (
                         <SkeletonRow key={i} cols={7} />
                       ))
-                    ) : items.length === 0 ? (
+                    ) : filteredItems.length === 0 ? (
                       <tr>
                         <td colSpan={7}>
                           <EmptyState
-                            title="No items in this count yet"
-                            description="Add items manually or import them from a file to get started."
+                            title={
+                              itemSearch
+                                ? "No items match your search"
+                                : "No items in this count yet"
+                            }
+                            description={
+                              itemSearch
+                                ? "Try a different name, SKU, or barcode."
+                                : "Add items manually to get started."
+                            }
                           />
                         </td>
                       </tr>
                     ) : (
-                      items.map((it) => (
+                      filteredItems.map((it) => (
                         <tr
                           key={it.id}
                           className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
@@ -1923,6 +2289,10 @@ function StockCountDetails({ countId, onBack }) {
                             <input
                               defaultValue={it.countedQty ?? ""}
                               placeholder="Enter qty"
+                              onBlur={(e) => saveCountedQty(it, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") e.target.blur();
+                              }}
                               className="w-24 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
                             />
                           </td>
@@ -1935,9 +2305,10 @@ function StockCountDetails({ countId, onBack }) {
                                 size={15}
                                 className="cursor-pointer hover:text-gray-600"
                               />
-                              <MoreVertical
+                              <Trash2
                                 size={15}
-                                className="cursor-pointer hover:text-gray-600"
+                                className="cursor-pointer hover:text-red-500"
+                                onClick={() => removeCountItem(it)}
                               />
                             </div>
                           </td>
@@ -1950,7 +2321,56 @@ function StockCountDetails({ countId, onBack }) {
             </div>
           )}
 
-          {tab !== "Items" && (
+          {tab === "Summary" && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-gray-200">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500">
+                    <th className="px-4 py-3">Item</th>
+                    <th className="px-4 py-3">System Qty</th>
+                    <th className="px-4 py-3">Counted Qty</th>
+                    <th className="px-4 py-3">Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {varianceLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <SkeletonRow key={i} cols={4} />
+                    ))
+                  ) : (variance?.items || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={4}>
+                        <EmptyState
+                          title="No variance data yet"
+                          description="Variance breakdown appears once items have been counted."
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    (variance?.items || []).map((v) => (
+                      <tr
+                        key={v.id}
+                        className="border-b border-gray-50 last:border-0"
+                      >
+                        <td className="px-4 py-3">
+                          {v.item?.name || v.name || "-"}
+                        </td>
+                        <td className="px-4 py-3">{v.system_quantity}</td>
+                        <td className="px-4 py-3">{v.counted_quantity}</td>
+                        <td className="px-4 py-3">
+                          <VarianceCell
+                            value={Number(v.variance_quantity ?? 0)}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab !== "Items" && tab !== "Summary" && (
             <div className="mt-5 rounded-xl border border-gray-200 bg-white">
               <EmptyState
                 title={`No ${tab.toLowerCase()} yet`}
@@ -2050,6 +2470,36 @@ function StockCountDetails({ countId, onBack }) {
           </div>
         </aside>
       </div>
+
+      <AddItemsModal
+        open={addItemsOpen}
+        onClose={() => setAddItemsOpen(false)}
+        onSearch={searchItemsToAdd}
+        results={itemSearchResults}
+        addedIds={addedItemIds}
+        onAdd={addSelectedItem}
+      />
+
+      <ReasonModal
+        open={!!reasonModal}
+        title={
+          reasonModal?.action === "reject"
+            ? "Reject Stock Count"
+            : "Request Recount"
+        }
+        label={
+          reasonModal?.action === "reject"
+            ? "Rejection reason"
+            : "Recount reason (optional)"
+        }
+        required={reasonModal?.action === "reject"}
+        onClose={() => setReasonModal(null)}
+        onSubmit={async (reason) => {
+          const action = reasonModal.action;
+          setReasonModal(null);
+          await runTransition(action, { reason });
+        }}
+      />
     </div>
   );
 }
@@ -2078,11 +2528,13 @@ function StockCountsList({ onOpenDetails }) {
   const [advancedFilters, setAdvancedFilters] = useState({});
   const [newCountOpen, setNewCountOpen] = useState(false);
   const [newCountInitialForm, setNewCountInitialForm] = useState(null);
+  const [editingCountId, setEditingCountId] = useState(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [openMenuRowId, setOpenMenuRowId] = useState(null);
+  const [reasonModal, setReasonModal] = useState(null); // { action, row }
 
   const loadOverview = useCallback(() => {
     setOverviewLoading(true);
@@ -2119,22 +2571,75 @@ function StockCountsList({ onOpenDetails }) {
     apiFetchLookups().then(setLookups);
   }, []);
 
+  // GET /stock-counts/calendar?month=&year= — real endpoint, now actually called.
   useEffect(() => {
     if (!calendarOpen) return;
+    let alive = true;
     setCalendarLoading(true);
-    // GET /api/stock-counts/calendar?month=&year=
-    Promise.resolve(null).then((res) => {
-      setCalendarEvents(res || []);
-      setCalendarLoading(false);
-    });
+    getStockCountCalendar(calendarMonth.getMonth() + 1, calendarMonth.getFullYear())
+      .then((res) => {
+        if (!alive) return;
+        const events = (res?.events || res || []).map((ev) => ({
+          id: ev.id,
+          date: ev.count_date || ev.date,
+          type: ev.count_type || ev.type || "Cycle Count",
+          time: ev.start_time || ev.time || "",
+          location: ev.location?.name || ev.location || "-",
+          location_id: ev.warehouse_location_id ?? ev.location_id,
+        }));
+        setCalendarEvents(events);
+      })
+      .catch(() => {
+        if (alive) setCalendarEvents([]);
+      })
+      .finally(() => {
+        if (alive) setCalendarLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [calendarOpen, calendarMonth]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const handleCreate = async (form) => {
-    await apiCreateStockCount(form);
+  const closeCountModal = () => {
     setNewCountOpen(false);
     setNewCountInitialForm(null);
+    setEditingCountId(null);
+  };
+
+  const openNewCount = (initialForm = null) => {
+    setEditingCountId(null);
+    setNewCountInitialForm(initialForm);
+    setNewCountOpen(true);
+  };
+
+  const openEditCount = async (row) => {
+    const sc = await getStockCount(row.id);
+    if (!sc) return;
+    setEditingCountId(sc.id);
+    setNewCountInitialForm({
+      warehouse: sc.warehouse_id,
+      location: sc.warehouse_location_id || "",
+      countType: sc.count_type || "",
+      priority: sc.priority
+        ? sc.priority[0].toUpperCase() + sc.priority.slice(1)
+        : "Medium",
+      scheduledDate: (sc.count_date || "").slice(0, 10),
+      startTime: sc.start_time || "",
+      assignedCounter: sc.counted_by || "",
+      notes: sc.notes || "",
+    });
+    setNewCountOpen(true);
+  };
+
+  const handleSave = async (form) => {
+    if (editingCountId) {
+      await apiUpdateStockCount(editingCountId, form);
+    } else {
+      await apiCreateStockCount(form);
+    }
+    closeCountModal();
     loadRows();
     loadOverview();
   };
@@ -2155,14 +2660,7 @@ function StockCountsList({ onOpenDetails }) {
     const blob = await apiExportStockCounts(params);
     const ext = options.format === "csv" ? "csv" : "xlsx";
     const filename = `stock_counts_${options.scope || "current"}.${ext}`;
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    downloadBlob(blob, filename);
   };
 
   const rowAction = (fn) => async (row) => {
@@ -2183,10 +2681,7 @@ function StockCountsList({ onOpenDetails }) {
         <div className="flex items-center gap-2">
           <ExportDropdown onExport={handleExport} />
           <button
-            onClick={() => {
-              setNewCountInitialForm(null);
-              setNewCountOpen(true);
-            }}
+            onClick={() => openNewCount(null)}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Plus size={15} /> New Stock Count
@@ -2427,13 +2922,30 @@ function StockCountsList({ onOpenDetails }) {
                               row={row}
                               onClose={() => setOpenMenuRowId(null)}
                               onView={() => onOpenDetails(row.id)}
-                              onEdit={() => {}}
+                              onEdit={() => openEditCount(row)}
                               onContinue={() => onOpenDetails(row.id)}
-                              onDelete={rowAction((r) =>
-                                apiDeleteStockCount(r.id),
+                              onDelete={rowAction((r) => {
+                                if (
+                                  !window.confirm(
+                                    `Delete stock count ${r.countNo}? This cannot be undone.`,
+                                  )
+                                )
+                                  return Promise.resolve();
+                                return apiDeleteStockCount(r.id);
+                              })}
+                              onPrint={async (r) => {
+                                const details = await apiFetchStockCountDetails(
+                                  r.id,
+                                );
+                                if (details)
+                                  printCountSheet(
+                                    details.header,
+                                    details.items,
+                                  );
+                              }}
+                              onDuplicate={rowAction((r) =>
+                                apiDuplicateStockCount(r.id),
                               )}
-                              onPrint={() => {}}
-                              onDuplicate={() => {}}
                               onSubmit={rowAction((r) =>
                                 apiTransitionStockCount(r.id, "submit"),
                               )}
@@ -2449,22 +2961,24 @@ function StockCountsList({ onOpenDetails }) {
                               onApprove={rowAction((r) =>
                                 apiTransitionStockCount(r.id, "approve"),
                               )}
-                              onReject={rowAction((r) =>
-                                apiTransitionStockCount(r.id, "reject"),
-                              )}
-                              onRequestRecount={rowAction((r) =>
-                                apiTransitionStockCount(
-                                  r.id,
-                                  "request-recount",
-                                ),
-                              )}
-                              onExportPdf={() =>
-                                apiExportStockCounts({
-                                  format: "pdf",
-                                  scope: "single",
-                                  id: row.id,
-                                })
-                              }
+                              onReject={(r) => {
+                                setOpenMenuRowId(null);
+                                setReasonModal({ action: "reject", row: r });
+                              }}
+                              onRequestRecount={(r) => {
+                                setOpenMenuRowId(null);
+                                setReasonModal({
+                                  action: "request-recount",
+                                  row: r,
+                                });
+                              }}
+                              onExportPdf={async () => {
+                                const blob = await apiExportStockCounts({
+                                  format: "xlsx",
+                                  ids: [row.id],
+                                });
+                                downloadBlob(blob, `${row.countNo}.xlsx`);
+                              }}
                             />
                           )}
                         </td>
@@ -2564,13 +3078,11 @@ function StockCountsList({ onOpenDetails }) {
 
       <NewStockCountModal
         open={newCountOpen}
-        onClose={() => {
-          setNewCountOpen(false);
-          setNewCountInitialForm(null);
-        }}
+        onClose={closeCountModal}
         lookups={lookups}
         initialForm={newCountInitialForm}
-        onCreate={handleCreate}
+        isEditing={!!editingCountId}
+        onSave={handleSave}
       />
 
       <StockCountCalendarModal
@@ -2583,8 +3095,30 @@ function StockCountsList({ onOpenDetails }) {
         locations={lookups?.locations || []}
         onNewCount={(initialForm) => {
           setCalendarOpen(false);
-          setNewCountInitialForm(initialForm);
-          setNewCountOpen(true);
+          openNewCount(initialForm);
+        }}
+      />
+
+      <ReasonModal
+        open={!!reasonModal}
+        title={
+          reasonModal?.action === "reject"
+            ? "Reject Stock Count"
+            : "Request Recount"
+        }
+        label={
+          reasonModal?.action === "reject"
+            ? "Rejection reason"
+            : "Recount reason (optional)"
+        }
+        required={reasonModal?.action === "reject"}
+        onClose={() => setReasonModal(null)}
+        onSubmit={async (reason) => {
+          const { action, row } = reasonModal;
+          setReasonModal(null);
+          await apiTransitionStockCount(row.id, action, { reason });
+          loadRows();
+          loadOverview();
         }}
       />
     </div>
