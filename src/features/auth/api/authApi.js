@@ -1,4 +1,6 @@
-import apiClient from "../../../shared/api/axiosClient.js"
+import apiClient, {
+  tokenStorage,
+} from "../../../shared/api/axiosClient.js";
 
 const ACCESS_TOKEN_KEY = "entouche_access_token"
 
