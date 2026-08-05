@@ -129,7 +129,7 @@ export const updateLocation = (id, payload) => request(`/locations/${id}`, { met
 export const deleteLocation = (id) => request(`/locations/${id}`, { method: 'DELETE' });
 
 
-export const listReceipts = (params) => request('/receipts', { params });
+export const listReceipts = (params) => request('/api/v1/receipts', { params });
 export const getReceipt = (id) => request(`/receipts/${id}`);
 export const createReceipt = (payload) => request('/receipts', { method: 'POST', body: payload });
 export const updateReceipt = (id, payload) => request(`/receipts/${id}`, { method: 'PUT', body: payload });
