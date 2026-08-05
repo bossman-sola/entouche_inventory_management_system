@@ -4,8 +4,8 @@ import axios from "axios"
 // export const BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com"
 // React will automatically use the URL of the active staging or production deploy
 
-const staging = "https://entouche-staging-api-16910c236bc5.herokuapp.com";
-const production = "https://entouche-production-api-8db0aeb1236f.herokuapp.com";
+const staging = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+const production = "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
 
 export const BASE_URL =
   import.meta.env.VITE_API_URL ??
@@ -20,7 +20,7 @@ export const tokenStorage = {
 }
 
 const apiClient = axios.create({
-  baseURL: `${BASE_URL}/api/v1`,
+  baseURL: `${BASE_URL}`,
   headers: {
     Accept: "application/json",
   },
