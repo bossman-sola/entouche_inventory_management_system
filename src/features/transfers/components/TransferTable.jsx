@@ -85,6 +85,7 @@ function RowActionsMenu({ anchorRef, onClose, children }) {
 export default function TransferTable({
   visible, filteredCount, page, pages, perPage, setPage, setPerPage,
   loading,
+  onSelectTransfer,
   onSubmit, onApprove, onReject, onComplete, onCancel, onDelete,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -125,7 +126,19 @@ export default function TransferTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400"><Spinner size={16} className="inline mr-2" /> Loading transfers…</td></tr>
+              <>{Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse">
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-28" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-14" /></td>
+                    <td className="py-3 px-4"><div className="h-3 bg-gray-200 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-6 bg-gray-200 rounded w-16" /></td>
+                  </tr>
+                ))}</>
             ) : visible.length === 0 ? (
               <tr><td colSpan={9} className="py-12 px-4 text-center text-sm text-gray-400">No transfers yet - create one to see it here.</td></tr>
             ) : visible.map(t => {
@@ -134,7 +147,15 @@ export default function TransferTable({
               if (!buttonRefs.current[t.id]) buttonRefs.current[t.id] = { current: null };
               return (
                 <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium text-blue-600 cursor-pointer hover:underline whitespace-nowrap">{t.transfer_number ?? `TRF-${t.id}`}</td>
+                  <td className="py-3 px-4 text-sm font-medium whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onSelectTransfer?.(t)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t.transfer_number ?? `TRF-${t.id}`}
+                    </button>
+                  </td>
                   <td className="py-3 px-4 whitespace-nowrap">
                     <p className="text-sm text-gray-800">{formatDate(t.transfer_date)}</p>
                     {t.created_at && <p className="text-xs text-gray-400">{formatTime(t.created_at)}</p>}

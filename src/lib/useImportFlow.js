@@ -1,28 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { createItem, createUser, createImport, listImports } from "./api";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createImport, requestRaw } from "./api";
 import { parseCSV, parseXLSX, normalizeHeader, normalizeName } from "./parsers";
 import { validateData, CREATABLE_TYPES, genPassword } from "./validation";
-
-const HISTORY_STORAGE_KEY = "entouche_import_history";
-
-function loadStoredHistory() {
-  try {
-    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredHistory(history) {
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-  } catch {
-    
-  }
-}
-
 
 function mapApiImportToHistoryEntry(imp) {
   if (!imp) return null;
@@ -35,8 +14,19 @@ function mapApiImportToHistoryEntry(imp) {
     : "Import";
   return {
     id: `api-${imp.id}`,
-    date: createdAt ? createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
-    time: createdAt ? createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "",
+    date: createdAt
+      ? createdAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+      : "",
+    time: createdAt
+      ? createdAt.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      : "",
     type,
     file: imp.file_name || imp.original_filename || "-",
     rec: total,
@@ -48,8 +38,12 @@ function mapApiImportToHistoryEntry(imp) {
 }
 
 export function useImportFlow({
-  currentUser, refData, importType, loadReferenceData,
-  selectedWarehouseId, selectedLocationId,
+  currentUser,
+  refData,
+  importType,
+  loadReferenceData,
+  selectedWarehouseId,
+  selectedLocationId,
 }) {
   const [file, setFile] = useState(null);
   const [validated, setValidated] = useState(false);
@@ -57,36 +51,60 @@ export function useImportFlow({
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importDone, setImportDone] = useState(false);
-  const [history, setHistory] = useState(loadStoredHistory);
+  const [history, setHistory] = useState([]);
+  const [historyMeta, setHistoryMeta] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPerPage, setHistoryPerPage] = useState(8);
+  const [historyFilter, setHistoryFilter] = useState("");
   const [parsedData, setParsedData] = useState(null);
   const [errors, setErrors] = useState([]);
   const [parseError, setParseError] = useState("");
   const fileRef = useRef(null);
 
-  
-  useEffect(() => {
-    saveStoredHistory(history);
-  }, [history]);
+  const loadHistory = useCallback(
+    async (page = historyPage, perPage = historyPerPage, filter = historyFilter) => {
+      if (!currentUser) {
+        setHistory([]);
+        setHistoryMeta(null);
+        setHistoryError("");
+        return;
+      }
 
-  
-  useEffect(() => {
-    if (!currentUser) return;
-    let cancelled = false;
-    listImports()
-      .then((data) => {
-        if (cancelled) return;
-        const list = Array.isArray(data) ? data : data?.data || [];
+      setHistoryLoading(true);
+      setHistoryError("");
+      try {
+        const params = { page, per_page: perPage };
+        const normalizedFilter = String(filter || "").trim().toLowerCase();
+        if (normalizedFilter) params.import_type = normalizedFilter;
+
+        const raw = await requestRaw("/imports", { params });
+        const list = Array.isArray(raw?.data) ? raw.data : [];
         const apiEntries = list.map(mapApiImportToHistoryEntry).filter(Boolean);
-        setHistory((prev) => {
-          const existingIds = new Set(prev.map((h) => h.id));
-          const merged = [...prev, ...apiEntries.filter((e) => !existingIds.has(e.id))];
-          merged.sort((a, b) => (b.id > a.id ? 1 : -1));
-          return merged;
-        });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentUser]);
+        setHistory(apiEntries);
+        setHistoryMeta(raw?.meta || null);
+      } catch (err) {
+        setHistory([]);
+        setHistoryMeta(null);
+        setHistoryError(err.message || "Unable to load import history.");
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [currentUser, historyPage, historyPerPage, historyFilter],
+  );
+
+  useEffect(() => {
+    if (!currentUser) {
+      setHistory([]);
+      setHistoryMeta(null);
+      setHistoryError("");
+      return;
+    }
+
+    loadHistory(historyPage, historyPerPage, historyFilter);
+  }, [currentUser, historyPage, historyPerPage, historyFilter, loadHistory]);
 
   const handleFile = async (f) => {
     if (!f) return;
@@ -123,24 +141,29 @@ export function useImportFlow({
       const { headers, rows, total } = parsedData;
       const errs = validateData(headers, rows, importType, refData);
       setErrors(errs);
-      setParsedData(p => ({ ...p, valid: Math.max(0, total - errs.length), errors: errs.length }));
+      const invalidRows = new Set(errs.filter((error) => typeof error.row === "number").map((error) => error.row));
+      setParsedData((p) => ({ ...p, valid: Math.max(0, total - invalidRows.size), errors: errs.length }));
     }, 400);
   };
 
   const cleanRowIndexes = () => {
-    const badRows = new Set(errors.filter(e => typeof e.row === "number").map(e => e.row));
-    return parsedData.rows.map((_, i) => i).filter(i => !badRows.has(i + 2));
+    const badRows = new Set(errors.filter((e) => typeof e.row === "number").map((e) => e.row));
+    return parsedData.rows.map((_, i) => i).filter((i) => !badRows.has(i + 2));
   };
 
   const handleImport = async () => {
     if (!file || !validated || !CREATABLE_TYPES.includes(importType)) return;
-    // Inventory imports upload straight to the Asset importer, which only needs a warehouse:
     if (importType === "Inventory" && !selectedWarehouseId) {
-      setErrors(prev => [...prev, {
-        row: "-", column: "(setup)",
-        error: "Select a warehouse before importing inventory",
-        errorColor: "text-red-500", value: "-",
-      }]);
+      setErrors((prev) => [
+        ...prev,
+        {
+          row: "-",
+          column: "(setup)",
+          error: "Select a warehouse before importing inventory",
+          errorColor: "text-red-500",
+          value: "-",
+        },
+      ]);
       return;
     }
 
@@ -154,65 +177,33 @@ export function useImportFlow({
     let importTotal = total;
     const apiErrors = [];
 
-    // if (importType === "Inventory") {
-      
-      try {
-        setImportProgress({ current: 1, total: 1 });
-        const result = await createImport({
-          file,
-          importType,
-          warehouseId: selectedWarehouseId,
+    try {
+      setImportProgress({ current: 1, total: 1 });
+      const result = (await createImport({
+        file,
+        importType,
+        warehouseId: selectedWarehouseId,
+      })) || {};
+      ok = result.successful_rows ?? okRows.length;
+      importTotal = result.total_rows ?? total;
+      (result.errors || []).forEach((e) => {
+        apiErrors.push({
+          row: e.row_number ?? "-",
+          column: e.field || "(server)",
+          error: e.error_message || "Import failed",
+          errorColor: "text-red-500",
+          value: "-",
         });
-        ok = result.successful_rows || 0;
-        importTotal = result.total_rows ?? total;
-        (result.errors || []).forEach(e => {
-          apiErrors.push({
-            row: e.row_number ?? "-",
-            column: e.field || "(server)",
-            error: e.error_message || "Import failed",
-            errorColor: "text-red-500",
-            value: "-",
-          });
-        });
-      } catch (err) {
-        apiErrors.push({ row: "-", column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
-      }
-    // } else {
-    //   // ── Items and Users: one API call per row ──
-    //   for (let n = 0; n < okRows.length; n++) {
-    //     const rowI = okRows[n];
-    //     const row = rows[rowI];
-    //     setImportProgress({ current: n + 1, total: okRows.length });
-    //     try {
-    //       if (importType === "Items") {
-    //         const catName = row[colIdx("Category")];
-    //         const unitName = row[colIdx("Unit of Measure")];
-    //         const cat = refData.categories.get(normalizeName(catName));
-    //         const unit = refData.units.get(normalizeName(unitName));
-    //         await createItem({
-    //           name: row[colIdx("Item Name")],
-    //           category_id: cat?.id,
-    //           unit_of_measure_id: unit?.id,
-    //           reorder_level: Number(row[colIdx("Reorder Level")]) || 0,
-    //           item_type: "product",
-    //           status: "active",
-    //         });
-    //       } else if (importType === "Users") {
-    //         const role = row[colIdx("Role")];
-    //         await createUser({
-    //           name: row[colIdx("Name")],
-    //           email: row[colIdx("Email")],
-    //           password: genPassword(),
-    //           status: "active",
-    //           roles: role ? [role] : [],
-    //         });
-    //       }
-    //       ok++;
-    //     } catch (err) {
-    //       apiErrors.push({ row: rowI + 2, column: "(server)", error: err.message || "Import failed", errorColor: "text-red-500", value: "-" });
-    //     }
-    //   }
-    // }
+      });
+    } catch (err) {
+      apiErrors.push({
+        row: "-",
+        column: "(server)",
+        error: err.message || "Import failed",
+        errorColor: "text-red-500",
+        value: "-",
+      });
+    }
 
     const combinedErrors = [...errors, ...apiErrors];
     setErrors(combinedErrors);
@@ -220,25 +211,14 @@ export function useImportFlow({
     setImporting(false);
     setImportDone(true);
 
-    const fail = importTotal - ok;
-    const newEntry = {
-      id: Date.now(),
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      type: importType,
-      file: file.name,
-      rec: importTotal,
-      ok,
-      fail,
-      status: ok > 0 ? "Completed" : "Failed",
-      by: currentUser?.name || "Unknown",
-    };
-    setHistory(p => [newEntry, ...p]);
     setFile(null);
     setParsedData(null);
     setValidated(false);
     setErrors([]);
-    loadReferenceData(); 
+    loadReferenceData();
+
+    await loadHistory(1, historyPerPage, historyFilter);
+    setHistoryPage(1);
   };
 
   const handleCancel = () => {
@@ -251,8 +231,29 @@ export function useImportFlow({
   };
 
   return {
-    file, validated, validating, importing, importProgress, importDone,
-    history, parsedData, errors, parseError, fileRef,
-    handleFile, handleValidate, handleImport, handleCancel,
+    file,
+    validated,
+    validating,
+    importing,
+    importProgress,
+    importDone,
+    history,
+    historyMeta,
+    historyLoading,
+    historyError,
+    historyPage,
+    setHistoryPage,
+    historyPerPage,
+    setHistoryPerPage,
+    historyFilter,
+    setHistoryFilter,
+    parsedData,
+    errors,
+    parseError,
+    fileRef,
+    handleFile,
+    handleValidate,
+    handleImport,
+    handleCancel,
   };
 }

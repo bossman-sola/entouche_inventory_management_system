@@ -199,14 +199,25 @@ const Notifications = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -8, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.98 }}
-          transition={{ duration: 0.15, ease: "easeOut" }}
-          className="absolute right-0 top-[calc(100%+12px)] w-[420px] max-w-[92vw] bg-white rounded-2xl shadow-2xl border border-gray-100 z-30 origin-top-right overflow-hidden flex flex-col"
-          style={{ maxHeight: "calc(100vh - 100px)" }}
-        >
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/40 z-20"
+          />
+          
+          {/* Drawer */}
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-white shadow-2xl z-30 overflow-hidden flex flex-col"
+          >
          
           <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-start justify-between">
@@ -260,8 +271,7 @@ const Notifications = ({
               <ChevronRight size={13} />
             </button>
           )}
-        </motion.div>
-      )}
+        </motion.div>        </>      )}
     </AnimatePresence>
   );
 };

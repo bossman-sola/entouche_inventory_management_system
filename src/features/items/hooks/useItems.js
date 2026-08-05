@@ -2,17 +2,19 @@ import { useState, useEffect, useCallback } from "react";
 import * as itemsApi from "../api/itemsApi.js";
 import { mapApiItemToUiItem } from "../api/itemsMapper.js";
 
-export const useItems = () => {
+export const useItems = (query = {}) => {
   const [rawItems, setRawItems] = useState([]);
+  const [meta, setMeta] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (params = {}) => {
     setIsLoading(true);
     setError(null);
     try {
-      const { items } = await itemsApi.listItems();
+      const { items, meta: m } = await itemsApi.listItems(params);
       setRawItems(items);
+      setMeta(m);
     } catch (err) {
       setError(err.response?.data?.message || "Couldn't load items.");
     } finally {
@@ -21,8 +23,8 @@ export const useItems = () => {
   }, []);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    fetchItems(query);
+  }, [fetchItems, JSON.stringify(query)]);
 
   // NOTE: the list endpoint doesn't return live stock quantities, so the
   // table shows 0 / "Out of Stock" until you open an item's details, which
@@ -64,6 +66,7 @@ export const useItems = () => {
   return {
     items,
     rawItems,
+    meta,
     isLoading,
     error,
     refetch: fetchItems,

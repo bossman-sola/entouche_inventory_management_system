@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Plus, Download, Upload, Search, ChevronDown, Filter,
   MoreVertical, Eye, Trash2, SlidersHorizontal
 } from 'lucide-react';
+import useClickOutside from '../../../lib/useClickOutside.js';
 import ItemDetailsModal from '../components/ItemDetailsModal';
 import AddNewItems from '../components/addNewItems';
 import ImportItems from '../components/importItems';
@@ -33,15 +34,8 @@ const TYPE_BADGE_STYLES = {
 };
 
 const Items = () => {
-  const {
-    items,
-    isLoading: isLoadingItems,
-    error: itemsError,
-    createItem,
-    updateItem,
-    deleteItem,
-    toggleItemStatus,
-  } = useItems();
+  // items hook is called after local state declarations below so the
+  // query object can reference the current filter/pagination state.
 
  
   const { categories, createCategory } = useCategories();
@@ -49,11 +43,14 @@ const Items = () => {
   const { units, createUnit } = useUnits();
 
   const [activeMenu, setActiveMenu] = useState(null);
+  const activeMenuRef = useRef(null);
+  useClickOutside(activeMenuRef, () => setActiveMenu(null));
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,8 +62,27 @@ const Items = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const {
+    items,
+    meta,
+    isLoading: isLoadingItems,
+    error: itemsError,
+    refetch,
+    createItem,
+    updateItem,
+    deleteItem,
+    toggleItemStatus,
+  } = useItems({
+    page: currentPage,
+    per_page: itemsPerPage,
+    search: searchQuery || undefined,
+    category: filterCategory !== 'All Categories' ? filterCategory : undefined,
+    status: filterStatus !== 'All Statuses' ? filterStatus : undefined,
+    type: filterType !== 'All Types' ? filterType : undefined,
+  });
 
-  const categoryNames = ['All Categories', ...Array.from(new Set(items.map(i => i.category))).sort()];
+
+  const categoryNames = ['All Categories', ...Array.from(new Set(categories.map(c => c.name))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
   const types = ['All Types', ...UNIT_TYPES];
 
@@ -75,27 +91,8 @@ const Items = () => {
   const existingSkus = useMemo(() => items.map(i => i.sku).filter(Boolean), [items]);
 
 
-  const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q) ||
-        item.barcode.toLowerCase().includes(q);
-      const matchesCategory = filterCategory === 'All Categories' || item.category === filterCategory;
-      const matchesStatus = filterStatus === 'All Statuses' || item.status === filterStatus;
-      const matchesType = filterType === 'All Types' || item.type === filterType;
-      return matchesSearch && matchesCategory && matchesStatus && matchesType;
-    });
-  }, [items, searchQuery, filterCategory, filterStatus, filterType]);
-
-
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = filteredItems.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil((meta?.total ?? 0) / itemsPerPage));
+  const paginatedItems = items; // server provides the current page
 
 
   const handleFilterChange = (setter) => (val) => {
@@ -153,21 +150,28 @@ const Items = () => {
   };
 
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredItems);
+    const ws = XLSX.utils.json_to_sheet(items);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inventory_Items");
     XLSX.writeFile(wb, "Inventory_Export.xlsx");
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
     setActionError(null);
+    setDeletingId(id);
     try {
       await deleteItem(id);
+      setActiveMenu(null);
+
+      // If we just deleted the only item on a page beyond the first,
+      // step back a page so the table doesn't render empty.
+      if (items.length === 1 && currentPage > 1) {
+        setCurrentPage((p) => p - 1);
+      }
     } catch (err) {
       setActionError(err.response?.data?.message || "Couldn't delete this item.");
     } finally {
-      setActiveMenu(null);
+      setDeletingId(null);
     }
   };
 
@@ -177,7 +181,7 @@ const Items = () => {
     setActiveMenu(null);
   };
 
-  
+
   const handleCreateCategory = async (data) => {
     return createCategory({
       name: data.name,
@@ -245,11 +249,11 @@ const Items = () => {
       setActionError(message);
       throw new Error(message);
     }
-  };
 
-  const hasActiveFilters =
-    searchQuery || filterCategory !== 'All Categories' ||
-    filterStatus !== 'All Statuses' || filterType !== 'All Types';
+    if (typeof refetch === 'function') {
+      await refetch();
+    }
+  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -258,6 +262,12 @@ const Items = () => {
     setFilterType('All Types');
     setCurrentPage(1);
   };
+
+  const hasActiveFilters =
+    searchQuery ||
+    filterCategory !== 'All Categories' ||
+    filterStatus !== 'All Statuses' ||
+    filterType !== 'All Types';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 min-w-0 font-['Inter'] pb-10">
@@ -297,10 +307,10 @@ const Items = () => {
 
       {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Items" val={items.length.toLocaleString()} sub="Active items" icon={<Num size={20}/>} />
-        <StatCard title="Item Categories" val={Array.from(new Set(items.map(i => i.category))).length.toString()} sub="Categories" icon={<Card size={20}/>} />
-        <StatCard title="Total SKUs" val={items.length.toLocaleString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
-        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of total items` : '0% of total items'} icon={<Book size={20}/>} />
+        <StatCard title="Total Items" val={(meta?.total ?? items.length).toLocaleString()} sub="Total items in inventory" icon={<Num size={20}/>} />
+        <StatCard title="Item Categories" val={categories.length.toString()} sub="Active categories" icon={<Card size={20}/>} />
+        <StatCard title="Total SKUs" val={Array.from(new Set(items.map(i => i.sku).filter(Boolean))).length.toString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
+        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of items` : '0% of items'} icon={<Book size={20}/>} />
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -412,22 +422,36 @@ const Items = () => {
                     Loading items...
                   </td>
                 </tr>
-              ) : paginatedItems.length === 0 ? (
+              ) : (meta?.total ?? 0) === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
                     <div className="flex flex-col items-center gap-2">
                       <Search size={32} className="text-gray-200"/>
-                      <p>{items.length === 0 ? "No items yet. Add your first one to get started." : "No items match your filters."}</p>
-                      {items.length > 0 && (
-                        <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
-                      )}
+                      <p>No items yet. Add your first one to get started.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
+                    <div className="flex flex-col items-center gap-2">
+                      <Search size={32} className="text-gray-200"/>
+                      <p>No items match your filters.</p>
+                      <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
                     </div>
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600"/></td>
+                items.map((item) => (
+                  <tr 
+                    key={item.id} 
+                    className={`transition-colors ${
+                      deletingId === item.id
+                        ? 'bg-red-50 opacity-60 pointer-events-none'
+                        : 'hover:bg-gray-50/50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600" disabled={deletingId === item.id}/></td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-[#F1F5F9] rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-100">
@@ -462,22 +486,53 @@ const Items = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 relative text-center">
-                      <button
-                        onClick={() => setActiveMenu(activeMenu === item.id ? null : item.id)}
-                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                      {/*
+                        FIX: the ref used to be attached unconditionally on every
+                        row, so after render it only pointed at the LAST row's
+                        menu container — causing useClickOutside to treat clicks
+                        inside any other row's open menu as "outside clicks" and
+                        close the menu before the click handler (Delete/View) could
+                        fire. Now the ref is only attached to the row whose menu
+                        is actually open.
+                      */}
+                      <div
+                        ref={activeMenu === item.id ? activeMenuRef : null}
+                        className="relative inline-block"
                       >
-                        <MoreVertical size={18}/>
-                      </button>
-                      {activeMenu === item.id && (
-                        <div className="absolute right-12 top-2 w-36 bg-white border border-[#F1F5F9] shadow-2xl rounded-xl z-50 py-1 overflow-hidden">
-                          <button onClick={() => handleOpenModal(item)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors">
-                            <Eye size={15} className="text-indigo-500"/> View Details
-                          </button>
-                          <button onClick={() => handleDelete(item.id)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
-                            <Trash2 size={15}/> Delete Item
-                          </button>
-                        </div>
-                      )}
+                        <button
+                          onClick={() => setActiveMenu(activeMenu === item.id ? null : item.id)}
+                          className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                        >
+                          <MoreVertical size={18}/>
+                        </button>
+                        {activeMenu === item.id && (
+                          <div className="absolute right-12 top-2 w-36 bg-white border border-[#F1F5F9] shadow-2xl rounded-xl z-50 py-1 overflow-hidden">
+                            <button onClick={() => handleOpenModal(item)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                              <Eye size={15} className="text-indigo-500"/> View Details
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              disabled={deletingId === item.id}
+                              className={`w-full text-left px-4 py-2.5 text-[12px] font-bold flex items-center gap-3 transition-colors ${
+                                deletingId === item.id
+                                  ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                                  : 'text-red-600 hover:bg-red-50'
+                              }`}
+                            >
+                              {deletingId === item.id ? (
+                                <>
+                                  <div className="w-[15px] h-[15px] border-2 border-red-200 border-t-red-600 rounded-full animate-spin"/>
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 size={15}/> Delete Item
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -489,7 +544,12 @@ const Items = () => {
         {/* PAGINATION FOOTER */}
         <div className="px-6 py-4 border-t border-[#F1F5F9] flex flex-wrap items-center justify-between gap-4">
           <p className="text-[12px] font-semibold text-[#6B7591]">
-            Showing {filteredItems.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length.toLocaleString()} items
+            {(() => {
+              const total = meta?.total ?? 0;
+              const start = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+              const end = Math.min(currentPage * itemsPerPage, total || items.length);
+              return `Showing ${start} to ${end} of ${total.toLocaleString()} items`;
+            })()}
           </p>
 
           <div className="flex items-center gap-2">
