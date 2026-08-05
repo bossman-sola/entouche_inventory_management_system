@@ -1,4 +1,4 @@
-const API_BASE = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+const API_BASE = "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
 
 export async function apiRequest(path, { method = "GET", token, body } = {}) {
   const res = await fetch(`${API_BASE}${path}`, {

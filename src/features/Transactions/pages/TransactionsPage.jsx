@@ -74,7 +74,7 @@ export default function TransactionsPage() {
         if (cancelled) return;
         setAuthError(
           e.message ||
-            "Could not connect to the API. Check your network access to the staging server.",
+            "Could not connect to the API. Check your network access to the production server.",
         );
       }
     })();
@@ -129,7 +129,7 @@ export default function TransactionsPage() {
     } catch (e) {
       setDataError(
         e.message ||
-          "Could not reach the API. Check your connection or CORS access to the staging server.",
+          "Could not reach the API. Check your connection or CORS access to the production server.",
       );
     } finally {
       setDataLoading(false);
