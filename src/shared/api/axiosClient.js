@@ -1,98 +1,195 @@
-import axios from "axios"
+import axios from "axios";
 
-// Base URL for the Entouche staging API
-// export const BASE_URL = "https://entouche-staging-api-16910c236bc5.herokuapp.com"
-// React will automatically use the URL of the active staging or production deploy
+const STAGING_URL =
+  "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
 
-const staging = "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
-const production = "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
+const PRODUCTION_URL =
+  "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
 
 export const BASE_URL =
   import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? staging : production);
+  (import.meta.env.DEV ? STAGING_URL : PRODUCTION_URL);
 
-const STORAGE_KEY = "inventorypro_access_token"
+/*
+ * Use the same storage key everywhere in the application.
+ * Your other API helper already uses "entouche_access_token".
+ */
+const ACCESS_TOKEN_KEY = "entouche_access_token";
 
 export const tokenStorage = {
-  get: () => localStorage.getItem(STORAGE_KEY),
-  set: (token) => localStorage.setItem(STORAGE_KEY, token),
-  clear: () => localStorage.removeItem(STORAGE_KEY),
-}
+  get() {
+    try {
+      return localStorage.getItem(ACCESS_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+
+  set(token) {
+    try {
+      if (token) {
+        localStorage.setItem(ACCESS_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+      }
+    } catch {
+      // Storage may be unavailable in restricted browser contexts.
+    }
+  },
+
+  clear() {
+    try {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    } catch {
+      // Storage may be unavailable in restricted browser contexts.
+    }
+  },
+};
 
 const apiClient = axios.create({
-  baseURL: `${BASE_URL}`,
+  baseURL: BASE_URL,
   headers: {
     Accept: "application/json",
+    "Content-Type": "application/json",
   },
-})
+});
 
-// Attach the access token to every outgoing request
-apiClient.interceptors.request.use((config) => {
-  const token = tokenStorage.get()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+/*
+ * Attach the access token to every outgoing request.
+ */
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = tokenStorage.get();
+
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+/*
+ * Prevent several failed requests from making several refresh calls
+ * at the same time.
+ */
+let isRefreshing = false;
+let refreshQueue = [];
+
+function processRefreshQueue(error, token = null) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+
+  refreshQueue = [];
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== "/login") {
+    window.location.assign("/login");
   }
-  return config
-})
-
-// --- 401 handling: try to refresh the token once, then retry the request ---
-let isRefreshing = false
-let pendingQueue = []
-
-function resolveQueue(error, token = null) {
-  pendingQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error)
-    else resolve(token)
-  })
-  pendingQueue = []
 }
 
 apiClient.interceptors.response.use(
   (response) => response,
+
   async (error) => {
-    const originalRequest = error.config
-    const status = error.response?.status
-    const isAuthRoute = originalRequest?.url?.includes("/auth/login") ||
-      originalRequest?.url?.includes("/auth/refresh")
+    const originalRequest = error.config;
+    const status = error.response?.status;
+    const requestUrl = originalRequest?.url ?? "";
 
-    if (status === 401 && !originalRequest._retry && !isAuthRoute) {
-      if (isRefreshing) {
-        // queue this request until the refresh call finishes
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({ resolve, reject })
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return apiClient(originalRequest)
-        })
-      }
+    const isLoginRequest = requestUrl.includes("/auth/login");
+    const isRefreshRequest = requestUrl.includes("/auth/refresh");
+    const isAuthRequest = isLoginRequest || isRefreshRequest;
 
-      originalRequest._retry = true
-      isRefreshing = true
-
-      try {
-        const { data } = await axios.post(
-          `${BASE_URL}/api/v1/auth/refresh`,
-          {},
-          { headers: { Authorization: `Bearer ${tokenStorage.get()}`, Accept: "application/json" } }
-        )
-        const newToken = data?.data?.access_token
-        tokenStorage.set(newToken)
-        resolveQueue(null, newToken)
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
-        return apiClient(originalRequest)
-      } catch (refreshError) {
-        resolveQueue(refreshError, null)
-        tokenStorage.clear()
-        // hard redirect to login since auth state is no longer valid
-        window.location.href = "/login"
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
-      }
+    /*
+     * Leave non-401 errors and login/refresh failures untouched.
+     */
+    if (
+      status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry ||
+      isAuthRequest
+    ) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error)
-  }
-)
+    const currentToken = tokenStorage.get();
 
-export default apiClient
+    /*
+     * A protected request failed but there is no stored token.
+     * Refreshing is impossible, so send the user to login.
+     */
+    if (!currentToken) {
+      tokenStorage.clear();
+      redirectToLogin();
+      return Promise.reject(error);
+    }
+
+    /*
+     * Wait for an already-running refresh request.
+     */
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        refreshQueue.push({ resolve, reject });
+      }).then((newToken) => {
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+        return apiClient(originalRequest);
+      });
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      /*
+       * Use plain axios here so the refresh request does not trigger
+       * this apiClient response interceptor again.
+       */
+      const response = await axios.post(
+        `${BASE_URL}/auth/refresh`,
+        {},
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${currentToken}`,
+          },
+        },
+      );
+
+      const newToken = response.data?.data?.access_token;
+
+      if (!newToken) {
+        throw new Error(
+          "Token refresh succeeded, but no access token was returned.",
+        );
+      }
+
+      tokenStorage.set(newToken);
+      processRefreshQueue(null, newToken);
+
+      originalRequest.headers = originalRequest.headers ?? {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+      return apiClient(originalRequest);
+    } catch (refreshError) {
+      processRefreshQueue(refreshError);
+      tokenStorage.clear();
+      redirectToLogin();
+
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
+  },
+);
+
+export default apiClient;

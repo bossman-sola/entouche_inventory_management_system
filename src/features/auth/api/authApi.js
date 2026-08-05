@@ -1,21 +1,39 @@
 import apiClient from "../../../shared/api/axiosClient.js"
 
+const ACCESS_TOKEN_KEY = "entouche_access_token"
+
+
 /**
  * POST /auth/login
  * @param {{email: string, password: string}} credentials
  * @returns {Promise<{user: object, access_token: string, token_type: string}>}
  */
 export async function login({ email, password }) {
-  const { data } = await apiClient.post("/auth/login", { email, password })
-  return data.data // { user, access_token, token_type }
+  const response = await apiClient.post("/auth/login", {
+    email,
+    password,
+  });
+
+  const loginData = response.data?.data;
+
+  if (!loginData?.access_token) {
+    throw new Error(
+      "Login succeeded, but no access token was returned.",
+    );
+  }
+
+  tokenStorage.set(loginData.access_token);
+
+  return loginData;
 }
 
-/**
- * POST /auth/logout
- */
 export async function logout() {
-  const { data } = await apiClient.post("/auth/logout")
-  return data
+  try {
+    const response = await apiClient.post("/auth/logout");
+    return response.data;
+  } finally {
+    tokenStorage.clear();
+  }
 }
 
 /**
