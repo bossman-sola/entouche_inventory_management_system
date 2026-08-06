@@ -2,9 +2,6 @@ import apiClient, {
   tokenStorage,
 } from "../../../shared/api/axiosClient.js";
 
-const ACCESS_TOKEN_KEY = "entouche_access_token"
-
-
 /**
  * POST /auth/login
  * @param {{email: string, password: string}} credentials
