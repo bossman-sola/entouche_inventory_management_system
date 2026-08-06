@@ -1,39 +1,65 @@
 import { useState, useCallback, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/Client.js";
-export function useWarehouseLocations(token) {
+import apiClient from "../../../shared/api/axiosClient.js";
+
+
+async function fetchAllPages(path, maxPages = 20) {
+  let page = 1;
+  let all = [];
+  while (page <= maxPages) {
+    const { data: json } = await apiClient.get(
+      `${path}${path.includes("?") ? "&" : "?"}page=${page}`,
+    );
+    const data = Array.isArray(json?.data) ? json.data : [];
+    all = all.concat(data);
+    const lastPage = json?.meta?.last_page || 1;
+    if (page >= lastPage) break;
+    page += 1;
+  }
+  return all;
+}
+
+function errorMessage(err, fallback) {
+  return err.response?.data?.message || err.message || fallback;
+}
+
+export function useWarehouseLocations() {
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     setError("");
     try {
-      const whs = await fetchAllPages("/warehouses", token);
+      const whs = await fetchAllPages("/warehouses");
       setWarehouses(whs);
 
       const perWarehouse = await Promise.all(
-        whs.map(w =>
-          apiRequest(`/warehouses/${w.id}/locations`, token)
-            .then(json => (Array.isArray(json?.data) ? json.data : []).map(loc => ({
-              ...loc,
-              warehouseId: w.id,
-              warehouseName: w.name,
-            })))
-            .catch(() => []) 
-        )
+        whs.map((w) =>
+          apiClient
+            .get(`/warehouses/${w.id}/locations`)
+            .then(({ data: json }) =>
+              (Array.isArray(json?.data) ? json.data : []).map((loc) => ({
+                ...loc,
+                warehouseId: w.id,
+                warehouseName: w.name,
+              })),
+            )
+            .catch(() => []),
+        ),
       );
       setLocations(perWarehouse.flat());
     } catch (err) {
-      setError(err.message || "Couldn't load warehouses");
+      setError(errorMessage(err, "Couldn't load warehouses"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return { warehouses, locations, loading, error, reload: load };
 }

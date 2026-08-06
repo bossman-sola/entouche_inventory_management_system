@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 
-import { apiRequest, fetchAllPages } from "../api/TransactionApi.js";
+import apiClient, { tokenStorage } from "../../../shared/api/axiosClient.js";
+import {
+  listAllItems,
+  listAllSuppliers,
+  listAllUnits,
+  listAllWarehouses,
+  listAllTransactions,
+  getWarehouseLocations,
+  createTransactionByType,
+} from "../api/TransactionApi.js";
 import { normalizeTransaction } from "../utils/normalize.js";
 import {
   iconPaths,
@@ -63,13 +72,18 @@ export default function TransactionsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const json = await apiRequest("/auth/login", {
-          method: "POST",
-          body: { email: AUTO_LOGIN_EMAIL, password: AUTO_LOGIN_PASSWORD },
+        const { data } = await apiClient.post("/auth/login", {
+          email: AUTO_LOGIN_EMAIL,
+          password: AUTO_LOGIN_PASSWORD,
         });
+        const loginData = data?.data;
+        if (!loginData?.access_token) {
+          throw new Error("Login succeeded, but no access token was returned.");
+        }
+        tokenStorage.set(loginData.access_token);
         if (cancelled) return;
-        setToken(json.data.access_token);
-        setCurrentUserName(json.data.user?.name || AUTO_LOGIN_EMAIL);
+        setToken(loginData.access_token);
+        setCurrentUserName(loginData.user?.name || AUTO_LOGIN_EMAIL);
       } catch (e) {
         if (cancelled) return;
         setAuthError(
@@ -91,16 +105,14 @@ export default function TransactionsPage() {
     try {
       const [itemsRaw, suppliersRaw, unitsRaw, warehousesRaw, transactionsRaw] =
         await Promise.all([
-          fetchAllPages("/items", token),
-          fetchAllPages("/suppliers", token),
-          fetchAllPages("/units", token),
-          fetchAllPages("/warehouses", token),
+          listAllItems(),
+          listAllSuppliers(),
+          listAllUnits(),
+          listAllWarehouses(),
           // Global ledger - filters (item_id, warehouse_id, transaction_type,
           // direction, date_from, date_to) are supported server-side if we
           // later want to push filtering down instead of doing it client-side.
-          fetchAllPages("/transactions", token, {
-            maxPages: TRANSACTIONS_MAX_PAGES,
-          }),
+          listAllTransactions(TRANSACTIONS_MAX_PAGES),
         ]);
 
       setTransactionsRaw(transactionsRaw)
@@ -161,13 +173,8 @@ export default function TransactionsPage() {
   // Passed down to the modal so each location dropdown can load the
   // right options once a warehouse is picked.
   const fetchLocationsForWarehouse = useCallback(
-    async (warehouseId) => {
-      const json = await apiRequest(`/warehouses/${warehouseId}/locations`, {
-        token,
-      });
-      return Array.isArray(json.data) ? json.data : [];
-    },
-    [token],
+    (warehouseId) => getWarehouseLocations(warehouseId),
+    [],
   );
 
   // Builds the exact request body each endpoint documents - the four
@@ -233,17 +240,10 @@ export default function TransactionsPage() {
     setSaveError("");
 
     const typeConfig = txTypes.find((t) => t.id === form.type);
-    const endpointMap = {
-      receipt: "/receipts",
-      transfer: "/transfers",
-      adjustment: "/adjustments",
-      stock_count: "/stock-counts",
-    };
-    const endpoint = endpointMap[typeConfig.apiType];
     const body = buildBody(form);
 
     try {
-      await apiRequest(endpoint, { method: "POST", token, body });
+      await createTransactionByType(typeConfig.apiType, body);
       setModalOpen(false);
       await loadData();
     } catch (e) {

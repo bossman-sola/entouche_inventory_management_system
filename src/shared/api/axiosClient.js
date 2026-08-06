@@ -10,10 +10,7 @@ export const BASE_URL =
   import.meta.env.VITE_API_URL ??
   (import.meta.env.DEV ? STAGING_URL : PRODUCTION_URL);
 
-/*
- * Use the same storage key everywhere in the application.
- * Your other API helper already uses "entouche_access_token".
- */
+
 const ACCESS_TOKEN_KEY = "entouche_access_token";
 
 export const tokenStorage = {
