@@ -9,7 +9,7 @@ export function StockCountOverview({ overview, loading, onOpenCalendar }) {
   const recentActivity = overview?.recentActivity || [];
 
   return (
-    <aside className="w-75 shrink-0 space-y-5">
+    <aside className="w-full shrink-0 space-y-5 lg:w-[300px]">
       <div className="rounded-xl border border-gray-200 bg-white p-5">
         <h3 className="text-[15px] font-semibold text-gray-900">
           Stock Count Overview

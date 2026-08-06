@@ -71,7 +71,13 @@ export function StockCountsList({ onOpenDetails }) {
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [openMenuRowId, setOpenMenuRowId] = useState(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const [reasonModal, setReasonModal] = useState(null); // { action, row }
+
+  const closeRowMenu = useCallback(() => {
+    setOpenMenuRowId(null);
+    setMenuAnchor(null);
+  }, []);
 
   const loadOverview = useCallback(() => {
     setOverviewLoading(true);
@@ -223,7 +229,7 @@ export function StockCountsList({ onOpenDetails }) {
   };
 
   return (
-    <div className="relative mx-auto max-w-[1500px] px-8 py-6">
+    <div className="relative mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Stock Counts</h1>
@@ -242,9 +248,9 @@ export function StockCountsList({ onOpenDetails }) {
         </div>
       </div>
 
-      <div className="mt-6 flex gap-6">
+      <div className="mt-6 flex flex-col gap-6 lg:flex-row">
         <div className="min-w-0 flex-1">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={FileText}
               iconBg="bg-blue-50"
@@ -284,8 +290,8 @@ export function StockCountsList({ onOpenDetails }) {
           </div>
 
           <div className="mt-5 rounded-xl border border-gray-200 bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4">
-              <div className="relative w-72">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+              <div className="relative w-full sm:w-72">
                 <Search
                   size={15}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -301,7 +307,7 @@ export function StockCountsList({ onOpenDetails }) {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-end gap-3">
                 <div>
                   <p className="mb-1 text-[10px] font-semibold tracking-wide text-gray-400">
                     WAREHOUSE
@@ -382,7 +388,7 @@ export function StockCountsList({ onOpenDetails }) {
                 </div>
                 <button
                   onClick={() => setFiltersOpen(true)}
-                  className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   <SlidersHorizontal size={14} /> Filters
                 </button>
@@ -457,7 +463,7 @@ export function StockCountsList({ onOpenDetails }) {
                           <br />
                           <span className="text-xs">{row.time}</span>
                         </td>
-                        <td className="relative px-4 py-3">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-3 text-gray-400">
                             <Eye
                               size={16}
@@ -467,13 +473,17 @@ export function StockCountsList({ onOpenDetails }) {
                             <MoreVertical
                               size={16}
                               className="cursor-pointer hover:text-gray-600"
-                              onClick={() => setOpenMenuRowId(row.id)}
+                              onClick={(e) => {
+                                setOpenMenuRowId(row.id);
+                                setMenuAnchor(e.currentTarget);
+                              }}
                             />
                           </div>
                           {openMenuRowId === row.id && (
                             <RowActionsMenu
                               row={row}
-                              onClose={() => setOpenMenuRowId(null)}
+                              anchorEl={menuAnchor}
+                              onClose={closeRowMenu}
                               onView={() => onOpenDetails(row.id)}
                               onEdit={() => openEditCount(row)}
                               onContinue={() => onOpenDetails(row.id)}
@@ -518,11 +528,11 @@ export function StockCountsList({ onOpenDetails }) {
                                 apiTransitionStockCount(r.id, "approve"),
                               )}
                               onReject={(r) => {
-                                setOpenMenuRowId(null);
+                                closeRowMenu();
                                 setReasonModal({ action: "reject", row: r });
                               }}
                               onRequestRecount={(r) => {
-                                setOpenMenuRowId(null);
+                                closeRowMenu();
                                 setReasonModal({
                                   action: "request-recount",
                                   row: r,

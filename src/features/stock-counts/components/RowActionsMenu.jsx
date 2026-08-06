@@ -1,4 +1,5 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useLayoutEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Eye,
   Pencil,
@@ -11,11 +12,14 @@ import {
   Printer,
   RotateCcw,
 } from "lucide-react";
-import useClickOutside from "../../../lib/useClickOutside.js";
 import { cx } from "./utils.js";
+
+const MENU_WIDTH = 208; // matches w-52
+const VIEWPORT_MARGIN = 8;
 
 export function RowActionsMenu({
   row,
+  anchorEl,
   onView,
   onEdit,
   onContinue,
@@ -30,8 +34,67 @@ export function RowActionsMenu({
   onExportPdf,
   onClose,
 }) {
-  const ref = useRef(null);
-  useClickOutside(ref, onClose);
+  const menuRef = useRef(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, ready: false });
+
+  const place = useCallback(() => {
+    if (!anchorEl) return;
+    const anchorRect = anchorEl.getBoundingClientRect();
+    const menuHeight = menuRef.current?.offsetHeight || 260;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+
+    let left = anchorRect.right - MENU_WIDTH;
+    left = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(left, viewportW - MENU_WIDTH - VIEWPORT_MARGIN),
+    );
+
+    let top = anchorRect.bottom + 4;
+    if (top + menuHeight > viewportH - VIEWPORT_MARGIN) {
+      const above = anchorRect.top - menuHeight - 4;
+      top =
+        above > VIEWPORT_MARGIN
+          ? above
+          : Math.max(VIEWPORT_MARGIN, viewportH - menuHeight - VIEWPORT_MARGIN);
+    }
+
+    setCoords({ top, left, ready: true });
+  }, [anchorEl]);
+
+  useLayoutEffect(() => {
+    place();
+  }, [place]);
+
+  useLayoutEffect(() => {
+    if (!anchorEl) return;
+    const handleReposition = () => place();
+    const handleScroll = () => onClose();
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    const handlePointerDown = (e) => {
+      if (menuRef.current?.contains(e.target)) return;
+      if (anchorEl.contains(e.target)) return;
+      onClose();
+    };
+
+    window.addEventListener("resize", handleReposition);
+    // Any ancestor scrolling (table container, page, etc.) closes the menu
+    // rather than letting it drift out of sync with its anchor.
+    window.addEventListener("scroll", handleScroll, true);
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleScroll, true);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [anchorEl, onClose, place]);
+
+  if (!anchorEl) return null;
 
   const item = (icon, label, onClick, danger) => (
     <button
@@ -52,7 +115,6 @@ export function RowActionsMenu({
     </button>
   );
 
-  
   let content;
   switch (row.rawStatus) {
     case "draft":
@@ -116,12 +178,20 @@ export function RowActionsMenu({
       );
   }
 
-  return (
+  return createPortal(
     <div
-      ref={ref}
-      className="absolute right-8 top-0 z-20 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+      ref={menuRef}
+      style={{
+        position: "fixed",
+        top: coords.top,
+        left: coords.left,
+        width: MENU_WIDTH,
+        visibility: coords.ready ? "visible" : "hidden",
+      }}
+      className="z-50 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
     >
       {content}
-    </div>
+    </div>,
+    document.body,
   );
 }
