@@ -29,7 +29,13 @@ import {
 } from "../components/dataLayer.js";
 import { cx, downloadBlob, printCountSheet } from "../components/utils.js";
 import { STATUSES } from "../components/constants.js";
-import { StatCard, StatusBadge, VarianceCell, SkeletonRow, EmptyState } from "../components/Primitives.jsx";
+import {
+  StatCard,
+  StatusBadge,
+  VarianceCell,
+  SkeletonRow,
+  EmptyState,
+} from "../components/Primitives.jsx";
 import { StockCountOverview } from "../components/StockCountOverview.jsx";
 import { ExportDropdown } from "../components/ExportDropdown.jsx";
 import { RowActionsMenu } from "../components/RowActionsMenu.jsx";
@@ -53,7 +59,7 @@ export function StockCountsList({ onOpenDetails }) {
   const [location, setLocation] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(10);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState({});
@@ -107,7 +113,10 @@ export function StockCountsList({ onOpenDetails }) {
     if (!calendarOpen) return;
     let alive = true;
     setCalendarLoading(true);
-    getStockCountCalendar(calendarMonth.getMonth() + 1, calendarMonth.getFullYear())
+    getStockCountCalendar(
+      calendarMonth.getMonth() + 1,
+      calendarMonth.getFullYear(),
+    )
       .then((res) => {
         if (!alive) return;
         const events = (res?.events || res || []).map((ev) => ({
@@ -146,7 +155,13 @@ export function StockCountsList({ onOpenDetails }) {
   };
 
   const openEditCount = async (row) => {
-    const sc = await getStockCount(row.id);
+    let sc;
+    try {
+      sc = await getStockCount(row.id);
+    } catch (err) {
+      alert("Couldn't load this stock count for editing.");
+      return;
+    }
     if (!sc) return;
     setEditingCountId(sc.id);
     setNewCountInitialForm({
@@ -195,9 +210,16 @@ export function StockCountsList({ onOpenDetails }) {
   };
 
   const rowAction = (fn) => async (row) => {
-    await fn(row);
-    loadRows();
-    loadOverview();
+    try {
+      await fn(row);
+      loadRows();
+      loadOverview();
+    } catch (err) {
+      alert(
+        err?.response?.data?.message ||
+          "That action couldn't be completed. Please try again.",
+      );
+    }
   };
 
   return (
@@ -465,14 +487,17 @@ export function StockCountsList({ onOpenDetails }) {
                                 return apiDeleteStockCount(r.id);
                               })}
                               onPrint={async (r) => {
-                                const details = await apiFetchStockCountDetails(
-                                  r.id,
-                                );
-                                if (details)
-                                  printCountSheet(
-                                    details.header,
-                                    details.items,
-                                  );
+                                try {
+                                  const details =
+                                    await apiFetchStockCountDetails(r.id);
+                                  if (details)
+                                    printCountSheet(
+                                      details.header,
+                                      details.items,
+                                    );
+                                } catch (err) {
+                                  alert("Couldn't load this count to print.");
+                                }
                               }}
                               onDuplicate={rowAction((r) =>
                                 apiDuplicateStockCount(r.id),
@@ -504,11 +529,15 @@ export function StockCountsList({ onOpenDetails }) {
                                 });
                               }}
                               onExportPdf={async () => {
-                                const blob = await apiExportStockCounts({
-                                  format: "xlsx",
-                                  ids: [row.id],
-                                });
-                                downloadBlob(blob, `${row.countNo}.xlsx`);
+                                try {
+                                  const blob = await apiExportStockCounts({
+                                    format: "xlsx",
+                                    ids: [row.id],
+                                  });
+                                  downloadBlob(blob, `${row.countNo}.xlsx`);
+                                } catch (err) {
+                                  alert("Couldn't export this stock count.");
+                                }
                               }}
                             />
                           )}
@@ -575,10 +604,17 @@ export function StockCountsList({ onOpenDetails }) {
                   <ChevronRight size={15} />
                 </button>
                 <div className="relative ml-2">
-                  <select className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none">
-                    <option>10 / page</option>
-                    <option>25 / page</option>
-                    <option>50 / page</option>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 focus:outline-none"
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
                   </select>
                   <ChevronDown
                     size={13}
@@ -647,9 +683,16 @@ export function StockCountsList({ onOpenDetails }) {
         onSubmit={async (reason) => {
           const { action, row } = reasonModal;
           setReasonModal(null);
-          await apiTransitionStockCount(row.id, action, { reason });
-          loadRows();
-          loadOverview();
+          try {
+            await apiTransitionStockCount(row.id, action, { reason });
+            loadRows();
+            loadOverview();
+          } catch (err) {
+            alert(
+              err?.response?.data?.message ||
+                "That action couldn't be completed. Please try again.",
+            );
+          }
         }}
       />
     </div>

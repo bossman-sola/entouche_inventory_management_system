@@ -18,6 +18,7 @@ export default function StockCountApp() {
         <StockCountDetails
           countId={route.id}
           onBack={() => setRoute({ name: "list" })}
+          onOpenDetails={(id) => setRoute({ name: "details", id })}
         />
       )}
     </div>

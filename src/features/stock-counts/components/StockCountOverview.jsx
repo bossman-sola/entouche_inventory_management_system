@@ -1,4 +1,3 @@
-import React from "react";
 import { RotateCcw, Calendar as CalendarIcon } from "lucide-react";
 import { cx } from "./utils.js";
 import { ACTIVITY_ICONS } from "./constants.js";
@@ -10,7 +9,7 @@ export function StockCountOverview({ overview, loading, onOpenCalendar }) {
   const recentActivity = overview?.recentActivity || [];
 
   return (
-    <aside className="w-[300px] shrink-0 space-y-5">
+    <aside className="w-75 shrink-0 space-y-5">
       <div className="rounded-xl border border-gray-200 bg-white p-5">
         <h3 className="text-[15px] font-semibold text-gray-900">
           Stock Count Overview
@@ -86,9 +85,6 @@ export function StockCountOverview({ overview, loading, onOpenCalendar }) {
           <h3 className="text-[15px] font-semibold text-gray-900">
             Recent Activity
           </h3>
-          <button className="text-xs font-medium text-blue-600 hover:text-blue-700">
-            View all
-          </button>
         </div>
         <div className="mt-4 space-y-4">
           {loading && recentActivity.length === 0 ? (

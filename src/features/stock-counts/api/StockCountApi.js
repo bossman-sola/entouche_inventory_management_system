@@ -229,17 +229,23 @@ export const deleteStockCount = async (id) => {
 };
 
 /**
- * Add an item to a stock count (no quantity yet — that's set per item via
- * updateStockCountItem()).
+ * Add one or more items to a stock count (no quantity yet — that's set per
+ * item via updateStockCountItem()).
+ *
+ * NOTE: the real backend route (StockCountController::addItems) validates
+ * the body as `{ items: [{ item_id, warehouse_location_id? }, ...] }` —
+ * a required array, min 1 — not a single flat object. Posting a bare
+ * `{ item_id }` 422s. This wraps whatever shape is passed in (a single
+ * item payload, or an array of them) into that `items` array.
  * @param {number|string} stockCountId
- * @param {AddStockCountItemPayload} payload
+ * @param {AddStockCountItemPayload|AddStockCountItemPayload[]} payload
  * @returns {Promise<StockCount>}
  */
 export const addStockCountItem = async (stockCountId, payload) => {
-  const { data } = await apiClient.post(
-    `/stock-counts/${stockCountId}/items`,
-    payload,
-  );
+  const items = Array.isArray(payload) ? payload : [payload];
+  const { data } = await apiClient.post(`/stock-counts/${stockCountId}/items`, {
+    items,
+  });
   return data?.data;
 };
 

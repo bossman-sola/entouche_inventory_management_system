@@ -19,11 +19,14 @@ import {
 } from "lucide-react";
 
 import {
+  getStockCount,
   getStockCountVariance,
   searchStockCountItems,
 } from "../api/StockCountApi.js";
 import {
   apiFetchStockCountDetails,
+  apiFetchLookups,
+  apiUpdateStockCount,
   apiUpdateStockCountItem,
   apiRemoveStockCountItem,
   apiAddStockCountItem,
@@ -33,14 +36,21 @@ import {
   apiDuplicateStockCount,
 } from "../components/dataLayer.js";
 import { cx, downloadBlob, printCountSheet } from "../components/utils.js";
-import { StatusBadge, VarianceCell, StatCard, SkeletonRow, EmptyState } from "../components/Primitives.jsx";
+import {
+  StatusBadge,
+  VarianceCell,
+  StatCard,
+  SkeletonRow,
+  EmptyState,
+} from "../components/Primitives.jsx";
 import { RowActionsMenu } from "../components/RowActionsMenu.jsx";
 import { AddItemsModal } from "../components/AddItemsModal.jsx";
 import { ReasonModal } from "../components/ReasonModal.jsx";
+import { NewStockCountModal } from "../components/NewStockCountModal.jsx";
 
 const DETAIL_TABS = ["Items", "Summary", "Adjustments", "History", "Notes"];
 
-export function StockCountDetails({ countId, onBack }) {
+export function StockCountDetails({ countId, onBack, onOpenDetails }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("Items");
@@ -50,6 +60,10 @@ export function StockCountDetails({ countId, onBack }) {
   const [addItemsOpen, setAddItemsOpen] = useState(false);
   const [itemSearchResults, setItemSearchResults] = useState([]);
   const [reasonModal, setReasonModal] = useState(null); // { action }
+
+  const [lookups, setLookups] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState(null);
 
   const [variance, setVariance] = useState(null);
   const [varianceLoading, setVarianceLoading] = useState(false);
@@ -74,7 +88,10 @@ export function StockCountDetails({ countId, onBack }) {
     };
   }, [countId]);
 
- 
+  useEffect(() => {
+    apiFetchLookups().then(setLookups);
+  }, []);
+
   useEffect(() => {
     if (tab !== "Summary" || variance) return;
     let alive = true;
@@ -115,16 +132,25 @@ export function StockCountDetails({ countId, onBack }) {
 
   const saveCountedQty = async (item, rawValue) => {
     if (rawValue === "" || Number(rawValue) === Number(item.countedQty)) return;
-    await apiUpdateStockCountItem(countId, item.id, {
-      counted_quantity: Number(rawValue),
-    });
-    refresh();
+    try {
+      await apiUpdateStockCountItem(countId, item.id, {
+        counted_quantity: Number(rawValue),
+      });
+      refresh();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Couldn't save that quantity.");
+      refresh(); // reset the input back to the last saved value
+    }
   };
 
   const removeCountItem = async (item) => {
     if (!window.confirm(`Remove ${item.name} from this count?`)) return;
-    await apiRemoveStockCountItem(countId, item.id);
-    refresh();
+    try {
+      await apiRemoveStockCountItem(countId, item.id);
+      refresh();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Couldn't remove that item.");
+    }
   };
 
   const searchItemsToAdd = async (q) => {
@@ -137,13 +163,55 @@ export function StockCountDetails({ countId, onBack }) {
   };
 
   const addSelectedItem = async (catalogItem) => {
-    await apiAddStockCountItem(countId, { item_id: catalogItem.id });
-    refresh();
+    try {
+      await apiAddStockCountItem(countId, { item_id: catalogItem.id });
+      refresh();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Couldn't add that item.");
+    }
   };
 
   const runTransition = async (action, extra) => {
-    await apiTransitionStockCount(countId, action, extra);
-    refresh();
+    try {
+      await apiTransitionStockCount(countId, action, extra);
+      refresh();
+    } catch (err) {
+      alert(
+        err?.response?.data?.message ||
+          "That action couldn't be completed. Please try again.",
+      );
+    }
+  };
+
+  // Mirrors StockCountsList's openEditCount/handleSave — pulls the raw
+  // backend record (not the display-mapped header) so the form's selects
+  // preselect correctly, then saves via the same update endpoint.
+  const openEdit = async () => {
+    const sc = await getStockCount(countId);
+    if (!sc) return;
+    setEditForm({
+      warehouse: sc.warehouse_id,
+      location: sc.warehouse_location_id || "",
+      countType: sc.count_type || "",
+      priority: sc.priority
+        ? sc.priority[0].toUpperCase() + sc.priority.slice(1)
+        : "Medium",
+      scheduledDate: (sc.count_date || "").slice(0, 10),
+      startTime: sc.start_time || "",
+      assignedCounter: sc.counted_by || "",
+      notes: sc.notes || "",
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditSave = async (form) => {
+    try {
+      await apiUpdateStockCount(countId, form);
+      setEditOpen(false);
+      refresh();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Couldn't save those changes.");
+    }
   };
 
   return (
@@ -197,9 +265,9 @@ export function StockCountDetails({ countId, onBack }) {
                 rawStatus: header.rawStatus,
               }}
               onClose={() => setDetailMenuOpen(false)}
-              onView={() => {}}
-              onEdit={() => {}}
-              onContinue={() => {}}
+              onView={() => setTab("Items")}
+              onEdit={openEdit}
+              onContinue={() => setTab("Items")}
               onDelete={async (r) => {
                 if (
                   !window.confirm(
@@ -207,12 +275,28 @@ export function StockCountDetails({ countId, onBack }) {
                   )
                 )
                   return;
-                await apiDeleteStockCount(r.id);
-                onBack();
+                try {
+                  await apiDeleteStockCount(r.id);
+                  onBack();
+                } catch (err) {
+                  alert(
+                    err?.response?.data?.message ||
+                      "Couldn't delete this stock count.",
+                  );
+                }
               }}
               onPrint={() => printCountSheet(header, items)}
               onDuplicate={async (r) => {
-                await apiDuplicateStockCount(r.id);
+                try {
+                  const copy = await apiDuplicateStockCount(r.id);
+                  if (copy?.id && onOpenDetails) onOpenDetails(copy.id);
+                  else if (copy?.id) onBack(); // no navigate prop wired up — fall back to the list, where it'll show
+                } catch (err) {
+                  alert(
+                    err?.response?.data?.message ||
+                      "Couldn't duplicate this stock count.",
+                  );
+                }
               }}
               onSubmit={() => runTransition("submit")}
               onCancel={() => {
@@ -235,12 +319,15 @@ export function StockCountDetails({ countId, onBack }) {
               }}
             />
           )}
-          <button
-            onClick={() => runTransition("submit")}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Submit Count
-          </button>
+          {(header?.rawStatus === "draft" ||
+            header?.rawStatus === "in_progress") && (
+            <button
+              onClick={() => runTransition("submit")}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Submit Count
+            </button>
+          )}
         </div>
       </div>
 
@@ -614,6 +701,15 @@ export function StockCountDetails({ countId, onBack }) {
         results={itemSearchResults}
         addedIds={addedItemIds}
         onAdd={addSelectedItem}
+      />
+
+      <NewStockCountModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        lookups={lookups}
+        initialForm={editForm}
+        isEditing
+        onSave={handleEditSave}
       />
 
       <ReasonModal
