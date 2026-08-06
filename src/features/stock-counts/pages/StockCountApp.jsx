@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { StockCountsList } from "./StockCountsList.jsx";
 import { StockCountDetails } from "./StockCountDetails.jsx";
 
