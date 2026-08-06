@@ -560,11 +560,11 @@ export default function AuditLogs() {
     setDataError("");
     try {
       const [items, categories, suppliers, units, users] = await Promise.all([
-        fetchAllPages("/api/v1/items", token),
-        fetchAllPages("/api/v1/categories", token),
-        fetchAllPages("/api/v1/suppliers", token),
-        fetchAllPages("/api/v1/units", token),
-        fetchAllPages("/api/v1/users", token),
+        fetchAllPages("/items", token),
+        fetchAllPages("/categories", token),
+        fetchAllPages("/suppliers", token),
+        fetchAllPages("/units", token),
+        fetchAllPages("/users", token),
       ]);
       const userMap = new Map(users.map((u) => [u.id, u]));
       const entries = [

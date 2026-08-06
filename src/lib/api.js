@@ -75,10 +75,34 @@ async function request(path, { method = 'GET', body, params, isForm = false, raw
 }
 
 
-export const login = (email, password) =>
-  request('/auth/login', { method: 'POST', body: { email, password } });
+export async function login(email, password) {
+  const data = await request('/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  });
 
-export const logout = () => request('/auth/logout', { method: 'POST' });
+  if (!data?.access_token) {
+    throw new ApiError(
+      'Login succeeded, but no access token was returned.',
+      500,
+      null
+    );
+  }
+
+  setAccessToken(data.access_token);
+
+  return data;
+}
+
+export async function logout() {
+  try {
+    return await request('/auth/logout', {
+      method: 'POST',
+    });
+  } finally {
+    setAccessToken(null);
+  }
+}
 
 export const refreshToken = () => request('/auth/refresh', { method: 'POST' });
 
