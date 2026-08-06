@@ -1,10 +1,8 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { useAccessToken } from "../api/Client.js";
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
 import { useTransfers } from "../hooks/useTransfers.js";
 import { Icon, icons } from "../components/icons.jsx";
-import { Spinner } from "../components/ui.jsx";
 import NewTransferModal from "../components/NewTransferModal.jsx";
 import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
 import TransferTable from "../components/TransferTable.jsx";
@@ -12,13 +10,12 @@ import TransferSidebar from "../components/TransferSidebar.jsx";
 import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
 
 export default function TransfersPage() {
-  const { token, user, status: authStatus, error: authError, retry: retryLogin } = useAccessToken();
-  const { locations, loading: locationsLoading, error: locationsError } = useWarehouseLocations(token);
+  const { locations, loading: locationsLoading, error: locationsError } = useWarehouseLocations();
   const {
     transfers, loading: transfersLoading, error: transfersError,
     createTransfer, submitTransfer, approveTransfer, rejectTransfer,
     completeTransfer, cancelTransfer, removeTransfer,
-  } = useTransfers(token);
+  } = useTransfers();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState(null);
@@ -116,18 +113,7 @@ export default function TransfersPage() {
         </div>
 
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {authStatus === "connecting" && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-              <Spinner size={13} /> Connecting to API…
-            </span>
-          )}
-          {authStatus === "error" && (
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
-              <Icon d={icons.lock} size={13} /> {authError || "Could not connect to the API."}
-              <button onClick={() => retryLogin()} className="ml-1 underline">Retry</button>
-            </div>
-          )}
-          {authStatus === "ok" && (locationsError || transfersError) && (
+          {(locationsError || transfersError) && (
             <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
               <Icon d={icons.alert} size={13} /> {locationsError || transfersError}
             </div>
@@ -176,7 +162,6 @@ export default function TransfersPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
-        token={token}
         locations={locations}
         locationsLoading={locationsLoading}
         locationsError={locationsError}

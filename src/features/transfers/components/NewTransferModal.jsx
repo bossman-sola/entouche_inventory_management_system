@@ -1,11 +1,32 @@
 import { useState, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/Client.js";
+import apiClient from "../../../shared/api/axiosClient.js";
 import { Icon, icons } from "./icons.jsx";
 import { Select, DateTimePicker, Modal, Spinner } from "./ui.jsx";
 
 const UNITS = ["pcs", "kg", "box", "carton", "set"];
 
-export default function NewTransferModal({ open, onClose, onSave, token, locations, locationsLoading, locationsError }) {
+
+async function fetchAllPages(path, maxPages = 20) {
+  let page = 1;
+  let all = [];
+  while (page <= maxPages) {
+    const { data: json } = await apiClient.get(
+      `${path}${path.includes("?") ? "&" : "?"}page=${page}`,
+    );
+    const data = Array.isArray(json?.data) ? json.data : [];
+    all = all.concat(data);
+    const lastPage = json?.meta?.last_page || 1;
+    if (page >= lastPage) break;
+    page += 1;
+  }
+  return all;
+}
+
+function errorMessage(err, fallback) {
+  return err.response?.data?.message || err.message || fallback;
+}
+
+export default function NewTransferModal({ open, onClose, onSave, locations, locationsLoading, locationsError }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [fromLocationId, setFromLocationId] = useState("");
   const [toLocationId, setToLocationId] = useState("");
@@ -29,22 +50,22 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
   const [usersError, setUsersError] = useState("");
 
   useEffect(() => {
-    if (!open || !token) return;
+    if (!open) return;
 
     setCatalogLoading(true);
     setCatalogError("");
-    fetchAllPages("/items", token)
+    fetchAllPages("/items")
       .then(setCatalog)
-      .catch(err => setCatalogError(err.message || "Couldn't load items"))
+      .catch(err => setCatalogError(errorMessage(err, "Couldn't load items")))
       .finally(() => setCatalogLoading(false));
 
     setUsersLoading(true);
     setUsersError("");
-    fetchAllPages("/users", token)
+    fetchAllPages("/users")
       .then(setUsers)
-      .catch(err => setUsersError(err.message || "Couldn't load users"))
+      .catch(err => setUsersError(errorMessage(err, "Couldn't load users")))
       .finally(() => setUsersLoading(false));
-  }, [open, token]);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -87,7 +108,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
     setSearchItem(""); setSearchQty(""); setSearchUnit(""); setSelectedItem(null);
 
     try {
-      const json = await apiRequest(`/items/${selectedItem.id}/stock-balance`, token);
+      const { data: json } = await apiClient.get(`/items/${selectedItem.id}/stock-balance`);
       const available = json?.data?.total_available ?? 0;
       setItems(p => p.map(r => r.id === rowId ? { ...r, availableStock: available } : r));
     } catch {
@@ -137,7 +158,7 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
       await onSave(buildPayload(), { submit: thenSubmit });
       onClose();
     } catch (err) {
-      setFormError(err.message || "Couldn't save transfer");
+      setFormError(errorMessage(err, "Couldn't save transfer"));
     } finally {
       setSaving(false);
     }
@@ -155,13 +176,6 @@ export default function NewTransferModal({ open, onClose, onSave, token, locatio
             <Icon d={icons.x} size={16} />
           </button>
         </div>
-
-        {!token && (
-          <div className="mb-5 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2.5">
-            <Icon d={icons.alert} size={15} className="text-orange-500 shrink-0" />
-            <p className="text-xs text-orange-700">Not connected to the API yet - item search and the user list won't load until sign-in succeeds.</p>
-          </div>
-        )}
 
         {/* Step 1: Details */}
         <div className="mb-6">
