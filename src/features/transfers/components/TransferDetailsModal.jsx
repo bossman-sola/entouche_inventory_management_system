@@ -23,10 +23,13 @@ const STATUS_LABELS = {
 };
 
 function StatusBadge({ status }) {
-  const style = STATUS_STYLES[status] || "bg-gray-100 text-gray-700 border-gray-200";
+  const style =
+    STATUS_STYLES[status] || "bg-gray-100 text-gray-700 border-gray-200";
   const label = STATUS_LABELS[status] || status || "Unknown";
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${style}`}>
+    <span
+      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${style}`}
+    >
       {label}
     </span>
   );
@@ -48,13 +51,18 @@ function formatDateTime(value) {
 function formatQuantity(value) {
   const n = Number(value);
   if (isNaN(n)) return value ?? "—";
-  return n % 1 === 0 ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+  return n % 1 === 0
+    ? String(n)
+    : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 export default function TransferDetailsModal({
   open,
   onClose,
   transfer,
+  locationsById,
+  itemsById,
+  usersById,
   currentUserCanApprove = true,
   onSubmit,
   onApprove,
@@ -72,8 +80,15 @@ export default function TransferDetailsModal({
 
   const items = transfer.items || [];
   const totalItems = items.length;
-  const totalQuantity = items.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  const totalQuantity = items.reduce(
+    (sum, row) => sum + Number(row.quantity || 0),
+    0,
+  );
   const status = transfer.status;
+  const fromLocation = locationsById?.get(String(transfer.from_location_id));
+  const toLocation = locationsById?.get(String(transfer.to_location_id));
+  const createdByUser = usersById?.get(String(transfer.created_by));
+  const requestedByUser = usersById?.get(String(transfer.requested_by));
 
   const runAction = async (key, fn, ...args) => {
     if (!fn) return;
@@ -104,7 +119,9 @@ export default function TransferDetailsModal({
             </div>
             <p className="text-sm text-gray-500 mt-0.5">
               Created {formatDateTime(transfer.created_at)}
-              {transfer.created_by_user?.name ? ` by ${transfer.created_by_user.name}` : ""}
+              {transfer.created_by_user?.name || createdByUser?.name
+                ? ` by ${transfer.created_by_user?.name ?? createdByUser?.name}`
+                : ""}
             </p>
           </div>
           <button
@@ -128,43 +145,76 @@ export default function TransferDetailsModal({
             <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
               1
             </div>
-            <h3 className="text-base font-bold text-gray-900">Transfer Details</h3>
+            <h3 className="text-base font-bold text-gray-900">
+              Transfer Details
+            </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">Transfer Date</div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                Transfer Date
+              </div>
               <div className="text-sm text-gray-900">
                 {formatDateTime(transfer.transfer_date || transfer.created_at)}
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">Reference Number</div>
-              <div className="text-sm text-gray-900">{transfer.reference_number || "—"}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">Requested By</div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                Reference Number
+              </div>
               <div className="text-sm text-gray-900">
-                {transfer.requested_by_user?.name || transfer.requested_by?.name || "—"}
+                {transfer.reference_number || "—"}
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">From Location</div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                Requested By
+              </div>
+              <div className="text-sm text-gray-900">
+                {transfer.requested_by_user?.name ||
+                  transfer.requested_by?.name ||
+                  requestedByUser?.name ||
+                  "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                From Location
+              </div>
               <div className="text-sm text-gray-900 flex items-center gap-1.5">
-                <Icon d={icons?.mapPin ?? icons.location} size={13} className="text-gray-400" />
-                {transfer.from_location?.name || "—"}
+                <Icon
+                  d={icons?.mapPin ?? icons.location}
+                  size={13}
+                  className="text-gray-400"
+                />
+                {fromLocation
+                  ? `${fromLocation.warehouseName ? fromLocation.warehouseName + " - " : ""}${fromLocation.name}`
+                  : "—"}
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">To Location</div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                To Location
+              </div>
               <div className="text-sm text-gray-900 flex items-center gap-1.5">
-                <Icon d={icons.mapPin ?? icons.location} size={13} className="text-gray-400" />
-                {transfer.to_location?.name || "—"}
+                <Icon
+                  d={icons.mapPin ?? icons.location}
+                  size={13}
+                  className="text-gray-400"
+                />
+                {toLocation
+                  ? `${toLocation.warehouseName ? toLocation.warehouseName + " - " : ""}${toLocation.name}`
+                  : "—"}
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-500 mb-1">Notes</div>
-              <div className="text-sm text-gray-900">{transfer.notes || "—"}</div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">
+                Notes
+              </div>
+              <div className="text-sm text-gray-900">
+                {transfer.notes || "—"}
+              </div>
             </div>
           </div>
 
@@ -195,31 +245,47 @@ export default function TransferDetailsModal({
                     </td>
                   </tr>
                 )}
-                {items.map((row, idx) => (
-                  <tr key={row.id ?? idx}>
-                    <td className="px-4 py-2.5 text-gray-500">{idx + 1}</td>
-                    <td className="px-4 py-2.5 font-medium text-gray-900">
-                      {row.item?.name ?? row.item_name ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-500">{row.item?.sku ?? row.sku ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-gray-500">
-                      {row.unit_of_measure?.abbreviation ?? row.unit ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-medium text-gray-900">
-                      {formatQuantity(row.quantity)}
-                    </td>
-                  </tr>
-                ))}
+                {items.map((row, idx) => {
+                  const resolvedItem = itemsById?.get(String(row.item_id));
+                  return (
+                    <tr key={row.id ?? idx}>
+                      <td className="px-4 py-2.5 text-gray-500">{idx + 1}</td>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">
+                        {row.item?.name ??
+                          row.item_name ??
+                          resolvedItem?.name ??
+                          "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">
+                        {row.item?.sku ?? row.sku ?? resolvedItem?.sku ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">
+                        {row.unit_of_measure?.abbreviation ??
+                          row.unit ??
+                          resolvedItem?.unit_of_measure?.abbreviation ??
+                          resolvedItem?.unit ??
+                          "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">
+                        {formatQuantity(row.quantity)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="flex items-center justify-end gap-6 text-sm text-gray-600 mb-2">
             <div>
-              Total Items: <span className="font-bold text-gray-900">{totalItems}</span>
+              Total Items:{" "}
+              <span className="font-bold text-gray-900">{totalItems}</span>
             </div>
             <div>
-              Total Quantity: <span className="font-bold text-gray-900">{formatQuantity(totalQuantity)}</span>
+              Total Quantity:{" "}
+              <span className="font-bold text-gray-900">
+                {formatQuantity(totalQuantity)}
+              </span>
             </div>
           </div>
 

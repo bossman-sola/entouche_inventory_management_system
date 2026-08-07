@@ -1,12 +1,13 @@
-import { StatCard } from './ui/StatCard.jsx';
-import { icons } from './ui/Icon.jsx';
-import { currency } from '../../../lib/format.js';
+import { StatCard } from "./ui/StatCard.jsx";
+import { icons } from "./ui/Icon.jsx";
+import { currency } from "../../../lib/format.js";
 
 export function StatCardsRow({
   locations,
   warehouses,
   totalQuantity,
   totalValue,
+  utilizationPct,
   locationsLoading,
   locationsError,
   loading,
@@ -55,8 +56,7 @@ export function StatCardsRow({
         iconBg="bg-purple-50"
         iconColor="text-purple-500"
         label="Utilization Rate"
-        unavailable
-        unavailableText="Capacity data isn't exposed by the API yet"
+        value={utilizationPct}
       />
     </div>
   );

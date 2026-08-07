@@ -1,32 +1,88 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
-  Search, RefreshCw, List, LayoutGrid, ChevronsUpDown,
-  Plus, X, Info, Edit2, Trash2, Warehouse, CheckCircle2, Wallet, Layers,
-  Download, Archive, ArrowRight, AlertTriangle, ChevronLeft, ChevronRight,
+  Search,
+  RefreshCw,
+  List,
+  LayoutGrid,
+  ChevronsUpDown,
+  Plus,
+  X,
+  Info,
+  Edit2,
+  Trash2,
+  Warehouse,
+  CheckCircle2,
+  Wallet,
+  Layers,
+  Download,
+  Archive,
+  ArrowRight,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
   PackageSearch,
-} from 'lucide-react';
-import { locationsApi } from '../api/locationsApi';
-import { warehousesApi } from '../api/warehousesApi';
-import './location.css';
+} from "lucide-react";
+import { locationsApi } from "../api/locationsApi";
+import { warehousesApi } from "../api/warehousesApi";
+import "./location.css";
 
 const TYPE_META = {
-  receiving_area: { label: 'Receiving Area', icon: Download, iconClass: 'indigo', codeClass: 'code-indigo', typeClass: 'type-receiving', codePrefix: 'RA' },
-  storage_area: { label: 'Storage Area', icon: Archive, iconClass: 'green', codeClass: 'code-green', typeClass: 'type-storage', codePrefix: 'STR' },
-  dispatch_area: { label: 'Dispatch Area', icon: ArrowRight, iconClass: 'orange', codeClass: 'code-orange', typeClass: 'type-dispatch', codePrefix: 'DIS' },
-  damaged_goods_area: { label: 'Damaged Goods Area', icon: AlertTriangle, iconClass: 'red', codeClass: 'code-red', typeClass: 'type-damaged', codePrefix: 'DMG' },
+  receiving_area: {
+    label: "Receiving Area",
+    icon: Download,
+    iconClass: "indigo",
+    codeClass: "code-indigo",
+    typeClass: "type-receiving",
+    codePrefix: "RA",
+  },
+  storage_area: {
+    label: "Storage Area",
+    icon: Archive,
+    iconClass: "green",
+    codeClass: "code-green",
+    typeClass: "type-storage",
+    codePrefix: "STR",
+  },
+  dispatch_area: {
+    label: "Dispatch Area",
+    icon: ArrowRight,
+    iconClass: "orange",
+    codeClass: "code-orange",
+    typeClass: "type-dispatch",
+    codePrefix: "DIS",
+  },
+  damaged_goods_area: {
+    label: "Damaged Goods Area",
+    icon: AlertTriangle,
+    iconClass: "red",
+    codeClass: "code-red",
+    typeClass: "type-damaged",
+    codePrefix: "DMG",
+  },
 };
 
-const LOCATION_TYPE_OPTIONS = Object.entries(TYPE_META).map(([value, meta]) => ({ value, label: meta.label }));
+const LOCATION_TYPE_OPTIONS = Object.entries(TYPE_META).map(
+  ([value, meta]) => ({ value, label: meta.label }),
+);
 
-const currency = (n) => `₦${Number(n || 0).toLocaleString('en-NG')}`;
+const currency = (n) => `₦${Number(n || 0).toLocaleString("en-NG")}`;
 
-const emptyForm = { name: '', code: '', type: '', warehouseId: '' };
+const emptyForm = {
+  name: "",
+  code: "",
+  type: "",
+  warehouseId: "",
+  description: "",
+  capacity: "",
+};
 
 const SERVER_FIELD_MAP = {
-  warehouse_id: 'warehouseId',
-  name: 'name',
-  code: 'code',
-  type: 'type',
+  warehouse_id: "warehouseId",
+  name: "name",
+  code: "code",
+  type: "type",
+  description: "description",
+  capacity: "capacity",
 };
 
 function mapServerErrorsToForm(apiErrors) {
@@ -39,14 +95,16 @@ function mapServerErrorsToForm(apiErrors) {
 }
 
 function generateLocationCode(warehouseId, type, existingLocations) {
-  if (!warehouseId || !type) return '';
-  const prefix = TYPE_META[type]?.codePrefix || 'LOC';
-  const whPart = String(warehouseId).padStart(3, '0');
+  if (!warehouseId || !type) return "";
+  const prefix = TYPE_META[type]?.codePrefix || "LOC";
+  const whPart = String(warehouseId).padStart(3, "0");
   const base = `WH-${whPart}-${prefix}`;
   const sameTypeCount = existingLocations.filter(
-    (l) => String(l.warehouseId) === String(warehouseId) && l.type === type
+    (l) => String(l.warehouseId) === String(warehouseId) && l.type === type,
   ).length;
-  return sameTypeCount === 0 ? base : `${base}-${String(sameTypeCount + 1).padStart(2, '0')}`;
+  return sameTypeCount === 0
+    ? base
+    : `${base}-${String(sameTypeCount + 1).padStart(2, "0")}`;
 }
 
 export default function LocationsPage() {
@@ -55,12 +113,12 @@ export default function LocationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
-  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [warehouseFilter, setWarehouseFilter] = useState("All Warehouses");
+  const [statusFilter, setStatusFilter] = useState("All Status");
   const [sortKey, setSortKey] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
-  const [viewMode, setViewMode] = useState('list');
+  const [sortDir, setSortDir] = useState("asc");
+  const [viewMode, setViewMode] = useState("list");
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
@@ -73,7 +131,7 @@ export default function LocationsPage() {
 
   const [toast, setToast] = useState(null);
 
-  function showToast(message, type = 'success') {
+  function showToast(message, type = "success") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   }
@@ -86,42 +144,58 @@ export default function LocationsPage() {
       setWarehouses(whs);
 
       const settled = await Promise.allSettled(
-        whs.map((w) => warehousesApi.listLocations(w.id))
+        whs.map((w) => warehousesApi.listLocations(w.id)),
       );
 
-      
       const byId = new Map();
       settled.forEach((r, idx) => {
-        if (r.status !== 'fulfilled') return;
+        if (r.status !== "fulfilled") return;
         const requestedWarehouse = whs[idx];
         (r.value || []).forEach((loc) => {
           if (byId.has(loc.id)) return;
-          const ownerId = loc.warehouseId ?? loc.warehouse_id ?? requestedWarehouse.id;
-          const owner = whs.find((w) => String(w.id) === String(ownerId)) || requestedWarehouse;
-          byId.set(loc.id, { ...loc, warehouse: owner.name, warehouseId: owner.id });
+          const ownerId =
+            loc.warehouseId ?? loc.warehouse_id ?? requestedWarehouse.id;
+          const owner =
+            whs.find((w) => String(w.id) === String(ownerId)) ||
+            requestedWarehouse;
+          byId.set(loc.id, {
+            ...loc,
+            warehouse: owner.name,
+            warehouseId: owner.id,
+          });
         });
       });
 
       setLocations(Array.from(byId.values()));
     } catch (err) {
-      setError(err.message || 'Failed to load locations');
+      setError(err.message || "Failed to load locations");
       setLocations([]);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadLocations(); }, []);
+  useEffect(() => {
+    (() => loadLocations())();
+  }, []);
 
   useEffect(() => {
     if (editingId) return;
-    const nextCode = generateLocationCode(form.warehouseId, form.type, locations);
-    setForm((f) => (f.code === nextCode ? f : { ...f, code: nextCode }));
+    const nextCode = generateLocationCode(
+      form.warehouseId,
+      form.type,
+      locations,
+    );
+    (() =>
+      setForm((f) => (f.code === nextCode ? f : { ...f, code: nextCode })))();
   }, [form.warehouseId, form.type, editingId, locations]);
 
   const warehouseOptions = useMemo(
-    () => ['All Warehouses', ...Array.from(new Set(locations.map((l) => l.warehouse).filter(Boolean)))],
-    [locations]
+    () => [
+      "All Warehouses",
+      ...Array.from(new Set(locations.map((l) => l.warehouse).filter(Boolean))),
+    ],
+    [locations],
   );
 
   const filteredLocations = useMemo(() => {
@@ -129,57 +203,73 @@ export default function LocationsPage() {
 
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      rows = rows.filter((l) =>
-        l.name?.toLowerCase().includes(q) ||
-        l.code?.toLowerCase().includes(q) ||
-        (TYPE_META[l.type]?.label || l.type || '').toLowerCase().includes(q)
+      rows = rows.filter(
+        (l) =>
+          l.name?.toLowerCase().includes(q) ||
+          l.code?.toLowerCase().includes(q) ||
+          (TYPE_META[l.type]?.label || l.type || "").toLowerCase().includes(q),
       );
     }
-    if (warehouseFilter !== 'All Warehouses') {
+    if (warehouseFilter !== "All Warehouses") {
       rows = rows.filter((l) => l.warehouse === warehouseFilter);
     }
-    if (statusFilter !== 'All Status') {
+    if (statusFilter !== "All Status") {
       rows = rows.filter((l) => l.status === statusFilter.toLowerCase());
     }
     if (sortKey) {
       rows.sort((a, b) => {
         const av = a[sortKey];
         const bv = b[sortKey];
-        const cmp = typeof av === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''));
-        return sortDir === 'asc' ? cmp : -cmp;
+        const cmp =
+          typeof av === "number"
+            ? av - bv
+            : String(av ?? "").localeCompare(String(bv ?? ""));
+        return sortDir === "asc" ? cmp : -cmp;
       });
     }
     return rows;
   }, [locations, searchTerm, warehouseFilter, statusFilter, sortKey, sortDir]);
 
-
   const stats = useMemo(() => {
     const total = locations.length;
-    const active = locations.filter((l) => l.status === 'active').length;
-    const totalValue = locations.reduce((sum, l) => sum + (l.stockValue || 0), 0);
-    const totalStock = locations.reduce((sum, l) => sum + (l.currentStock || 0), 0);
+    const active = locations.filter((l) => l.status === "active").length;
+    const totalValue = locations.reduce(
+      (sum, l) => sum + (l.stock_value || 0),
+      0,
+    );
+    const totalStock = locations.reduce(
+      (sum, l) => sum + (l.quantity_on_hand || 0),
+      0,
+    );
     const activePct = total ? Math.round((active / total) * 100) : 0;
     return { total, active, totalValue, totalStock, activePct };
   }, [locations]);
 
-
   const totalPages = Math.max(1, Math.ceil(filteredLocations.length / perPage));
-  const pageRows = filteredLocations.slice((page - 1) * perPage, page * perPage);
+  const pageRows = filteredLocations.slice(
+    (page - 1) * perPage,
+    page * perPage,
+  );
 
-  useEffect(() => { setPage(1); }, [searchTerm, warehouseFilter, statusFilter, perPage]);
+  useEffect(() => {
+    (() => setPage(1))();
+  }, [searchTerm, warehouseFilter, statusFilter, perPage]);
 
   function toggleSort(key) {
     if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir('asc');
+      setSortDir("asc");
     }
   }
 
   function openAddModal() {
     setEditingId(null);
-    setForm({ ...emptyForm, warehouseId: warehouses[0]?.id ? String(warehouses[0].id) : '' });
+    setForm({
+      ...emptyForm,
+      warehouseId: warehouses[0]?.id ? String(warehouses[0].id) : "",
+    });
     setFormErrors({});
     setModalOpen(true);
   }
@@ -187,10 +277,12 @@ export default function LocationsPage() {
   function openEditModal(loc) {
     setEditingId(loc.id);
     setForm({
-      name: loc.name || '',
-      code: loc.code || '',
-      type: loc.type || '',
-      warehouseId: loc.warehouseId ? String(loc.warehouseId) : '',
+      name: loc.name || "",
+      code: loc.code || "",
+      type: loc.type || "",
+      warehouseId: loc.warehouseId ? String(loc.warehouseId) : "",
+      description: loc.description || "",
+      capacity: loc.capacity != null ? String(loc.capacity) : "",
     });
     setFormErrors({});
     setModalOpen(true);
@@ -202,9 +294,10 @@ export default function LocationsPage() {
 
   function validateForm() {
     const errs = {};
-    if (!form.name.trim()) errs.name = 'Location name is required';
-    if (!form.type) errs.type = 'Select a type';
-    if (!editingId && !form.warehouseId) errs.warehouseId = 'Select a warehouse';
+    if (!form.name.trim()) errs.name = "Location name is required";
+    if (!form.type) errs.type = "Select a type";
+    if (!editingId && !form.warehouseId)
+      errs.warehouseId = "Select a warehouse";
     return errs;
   }
 
@@ -217,18 +310,24 @@ export default function LocationsPage() {
     try {
       if (editingId) {
         await locationsApi.update(editingId, {
+          warehouse_id: form.warehouseId,
           name: form.name,
           type: form.type,
+          description: form.description || null,
+          capacity: form.capacity !== "" ? Number(form.capacity) : null,
+          code: form.code,
         });
-        showToast('Location updated');
+        showToast("Location updated");
       } else {
         await warehousesApi.createLocation(form.warehouseId, {
           name: form.name,
           code: form.code,
           type: form.type,
-          status: 'active',
+          status: "active",
+          description: form.description || null,
+          capacity: form.capacity !== "" ? Number(form.capacity) : null,
         });
-        showToast('Location created');
+        showToast("Location created");
       }
       setModalOpen(false);
       await loadLocations();
@@ -237,9 +336,9 @@ export default function LocationsPage() {
 
       if (Object.keys(fieldErrors).length) {
         setFormErrors((prev) => ({ ...prev, ...fieldErrors }));
-        showToast(Object.values(fieldErrors)[0], 'error');
+        showToast(Object.values(fieldErrors)[0], "error");
       } else {
-        showToast(err.message || "Couldn't save this location.", 'error');
+        showToast(err.message || "Couldn't save this location.", "error");
       }
     } finally {
       setSaving(false);
@@ -251,20 +350,25 @@ export default function LocationsPage() {
     try {
       await locationsApi.remove(loc.id);
       setLocations((prev) => prev.filter((l) => l.id !== loc.id));
-      showToast('Location deleted');
+      showToast("Location deleted");
     } catch (err) {
-      showToast(err.message || "Couldn't delete this location.", 'error');
+      showToast(err.message || "Couldn't delete this location.", "error");
     }
   }
 
   async function handleToggleStatus(loc) {
-    const nextStatus = loc.status === 'active' ? 'inactive' : 'active';
+    const nextStatus = loc.status === "active" ? "inactive" : "active";
     try {
       await locationsApi.toggleStatus(loc.id, nextStatus);
-      setLocations((prev) => prev.map((l) => (l.id === loc.id ? { ...l, status: nextStatus } : l)));
+      setLocations((prev) =>
+        prev.map((l) => (l.id === loc.id ? { ...l, status: nextStatus } : l)),
+      );
       showToast(`Location marked ${nextStatus}`);
     } catch (err) {
-      showToast(err.message || "Couldn't update this location's status.", 'error');
+      showToast(
+        err.message || "Couldn't update this location's status.",
+        "error",
+      );
     }
   }
 
@@ -276,10 +380,19 @@ export default function LocationsPage() {
       <div className="page-head">
         <div>
           <h1>Warehouse Locations</h1>
-          <p className="page-sub">Manage all locations within your warehouse.</p>
-          <div className="crumbs">Warehouse<span className="sep">&rsaquo;</span><span className="current">Locations</span></div>
+          <p className="page-sub">
+            Manage all locations within your warehouse.
+          </p>
+          <div className="crumbs">
+            Warehouse<span className="sep">&rsaquo;</span>
+            <span className="current">Locations</span>
+          </div>
         </div>
-        <button className="btn-primary" onClick={openAddModal} disabled={loading || warehouses.length === 0}>
+        <button
+          className="btn-primary"
+          onClick={openAddModal}
+          disabled={loading || warehouses.length === 0}
+        >
           <Plus size={16} strokeWidth={2.5} />
           Add Location
         </button>
@@ -295,7 +408,8 @@ export default function LocationsPage() {
       {!loading && !error && warehouses.length === 0 && (
         <div className="api-note">
           <Info size={15} />
-          No warehouses yet - create a warehouse first, then locations can be added to it.
+          No warehouses yet - create a warehouse first, then locations can be
+          added to it.
         </div>
       )}
 
@@ -303,7 +417,9 @@ export default function LocationsPage() {
       <section className="stats">
         <div className="stat">
           <div className="stat-top">
-            <div className="stat-icon indigo"><Warehouse size={22} /></div>
+            <div className="stat-icon indigo">
+              <Warehouse size={22} />
+            </div>
             <div>
               <div className="stat-label">Total Locations</div>
               <div className="stat-value">{stats.total}</div>
@@ -314,18 +430,24 @@ export default function LocationsPage() {
 
         <div className="stat">
           <div className="stat-top">
-            <div className="stat-icon green"><CheckCircle2 size={22} /></div>
+            <div className="stat-icon green">
+              <CheckCircle2 size={22} />
+            </div>
             <div>
               <div className="stat-label">Active Locations</div>
               <div className="stat-value">{stats.active}</div>
             </div>
           </div>
-          <div className="stat-foot"><span className="pos">{stats.activePct}%</span> of total locations</div>
+          <div className="stat-foot">
+            <span className="pos">{stats.activePct}%</span> of total locations
+          </div>
         </div>
 
         <div className="stat">
           <div className="stat-top">
-            <div className="stat-icon orange"><Wallet size={22} /></div>
+            <div className="stat-icon orange">
+              <Wallet size={22} />
+            </div>
             <div>
               <div className="stat-label">Total Stock Value</div>
               <div className="stat-value">{currency(stats.totalValue)}</div>
@@ -336,10 +458,14 @@ export default function LocationsPage() {
 
         <div className="stat">
           <div className="stat-top">
-            <div className="stat-icon blue"><Layers size={22} /></div>
+            <div className="stat-icon blue">
+              <Layers size={22} />
+            </div>
             <div>
               <div className="stat-label">Total Stock</div>
-              <div className="stat-value">{stats.totalStock.toLocaleString()}</div>
+              <div className="stat-value">
+                {stats.totalStock.toLocaleString()}
+              </div>
             </div>
           </div>
           <div className="stat-foot">Total quantity in stock</div>
@@ -359,54 +485,110 @@ export default function LocationsPage() {
             />
           </div>
 
-          <select className="select" value={warehouseFilter} onChange={(e) => setWarehouseFilter(e.target.value)}>
-            {warehouseOptions.map((w) => <option key={w} value={w}>{w}</option>)}
+          <select
+            className="select"
+            value={warehouseFilter}
+            onChange={(e) => setWarehouseFilter(e.target.value)}
+          >
+            {warehouseOptions.map((w) => (
+              <option key={w} value={w}>
+                {w}
+              </option>
+            ))}
           </select>
 
-          <select className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select
+            className="select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
             <option>All Status</option>
             <option>Active</option>
             <option>Inactive</option>
           </select>
 
           <div className="tools-right">
-            <button className="tool-btn" aria-label="Refresh" onClick={loadLocations} disabled={loading}>
-              <RefreshCw size={17} className={loading ? 'spin' : ''} />
+            <button
+              className="tool-btn"
+              aria-label="Refresh"
+              onClick={loadLocations}
+              disabled={loading}
+            >
+              <RefreshCw size={17} className={loading ? "spin" : ""} />
             </button>
             <button
-              className={`tool-btn ${viewMode === 'list' ? 'active' : ''}`}
+              className={`tool-btn ${viewMode === "list" ? "active" : ""}`}
               aria-label="List view"
-              onClick={() => setViewMode('list')}
+              onClick={() => setViewMode("list")}
             >
               <List size={17} />
             </button>
             <button
-              className={`tool-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              className={`tool-btn ${viewMode === "grid" ? "active" : ""}`}
               aria-label="Grid view"
-              onClick={() => setViewMode('grid')}
+              onClick={() => setViewMode("grid")}
             >
               <LayoutGrid size={17} />
             </button>
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: "auto" }}>
           <table>
             <thead>
               <tr>
-                <th onClick={() => toggleSort('name')}>Location Name <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('code')}>Code <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('type')}>Type <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('warehouse')}>Warehouse <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('currentStock')}>Current Stock <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('stockValue')}>Stock Value <span className="sort"><ChevronsUpDown size={12} /></span></th>
-                <th onClick={() => toggleSort('status')}>Status <span className="sort"><ChevronsUpDown size={12} /></span></th>
+                <th onClick={() => toggleSort("name")}>
+                  Location Name{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("code")}>
+                  Code{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("type")}>
+                  Type{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("warehouse")}>
+                  Warehouse{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("quantity_on_hand")}>
+                  Current Stock{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("stock_value")}>
+                  Stock Value{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
+                <th onClick={() => toggleSort("status")}>
+                  Status{" "}
+                  <span className="sort">
+                    <ChevronsUpDown size={12} />
+                  </span>
+                </th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="empty-state">Loading locations…</td></tr>
+                <tr>
+                  <td colSpan={8} className="empty-state">
+                    Loading locations…
+                  </td>
+                </tr>
               )}
 
               {!loading && pageRows.length === 0 && (
@@ -416,52 +598,73 @@ export default function LocationsPage() {
                       <PackageSearch size={32} />
                       <div>
                         {locations.length === 0
-                          ? 'No locations yet. Add one to get started.'
-                          : 'No locations match your filters.'}
+                          ? "No locations yet. Add one to get started."
+                          : "No locations match your filters."}
                       </div>
                     </div>
                   </td>
                 </tr>
               )}
 
-              {!loading && pageRows.map((loc) => {
-                const meta = TYPE_META[loc.type] || TYPE_META.storage_area;
-                const Icon = meta.icon;
-                return (
-                  <tr key={loc.id}>
-                    <td>
-                      <div className="loc-cell">
-                        <div className={`loc-icon ${meta.iconClass}`}><Icon size={18} /></div>
-                        <span className="loc-name">{loc.name}</span>
-                      </div>
-                    </td>
-                    <td><span className={`pill ${meta.codeClass}`}>{loc.code}</span></td>
-                    <td><span className={`pill ${meta.typeClass}`}>{meta.label}</span></td>
-                    <td>{loc.warehouse}</td>
-                    <td className="num">{(loc.currentStock || 0).toLocaleString()}</td>
-                    <td className="money">{currency(loc.stockValue)}</td>
-                    <td>
-                      <button
-                        className={`pill status-${loc.status} pill-btn`}
-                        onClick={() => handleToggleStatus(loc)}
-                        title="Click to toggle status"
-                      >
-                        {loc.status === 'active' ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
-                    <td>
-                      <div className="actions">
-                        <button className="action edit" aria-label={`Edit ${loc.name}`} onClick={() => openEditModal(loc)}>
-                          <Edit2 size={17} />
+              {!loading &&
+                pageRows.map((loc) => {
+                  const meta = TYPE_META[loc.type] || TYPE_META.storage_area;
+                  const Icon = meta.icon;
+                  return (
+                    <tr key={loc.id}>
+                      <td>
+                        <div className="loc-cell">
+                          <div className={`loc-icon ${meta.iconClass}`}>
+                            <Icon size={18} />
+                          </div>
+                          <span className="loc-name">{loc.name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`pill ${meta.codeClass}`}>
+                          {loc.code}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`pill ${meta.typeClass}`}>
+                          {meta.label}
+                        </span>
+                      </td>
+                      <td>{loc.warehouse}</td>
+                      <td className="num">
+                        {(loc.quantity_on_hand || 0).toLocaleString()}
+                      </td>
+                      <td className="money">{currency(loc.stock_value)}</td>
+                      <td>
+                        <button
+                          className={`pill status-${loc.status} pill-btn`}
+                          onClick={() => handleToggleStatus(loc)}
+                          title="Click to toggle status"
+                        >
+                          {loc.status === "active" ? "Active" : "Inactive"}
                         </button>
-                        <button className="action del" aria-label={`Delete ${loc.name}`} onClick={() => handleDelete(loc)}>
-                          <Trash2 size={17} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td>
+                        <div className="actions">
+                          <button
+                            className="action edit"
+                            aria-label={`Edit ${loc.name}`}
+                            onClick={() => openEditModal(loc)}
+                          >
+                            <Edit2 size={17} />
+                          </button>
+                          <button
+                            className="action del"
+                            aria-label={`Delete ${loc.name}`}
+                            onClick={() => handleDelete(loc)}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -470,14 +673,24 @@ export default function LocationsPage() {
           <div className="foot-info">
             {filteredLocations.length
               ? `Showing ${startRow} to ${endRow} of ${filteredLocations.length} locations`
-              : 'Showing 0 to 0 of 0 locations'}
+              : "Showing 0 to 0 of 0 locations"}
           </div>
           <div className="pager">
-            <button className="page-btn" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <button
+              className="page-btn"
+              aria-label="Previous page"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
               <ChevronLeft size={15} />
             </button>
             <button className="page-btn current">{page}</button>
-            <button className="page-btn" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            <button
+              className="page-btn"
+              aria-label="Next page"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
               <ChevronRight size={15} />
             </button>
             <select
@@ -495,22 +708,40 @@ export default function LocationsPage() {
 
       {/* Add / Edit Location Modal */}
       {modalOpen && (
-        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div
+          className="modal-backdrop"
+          onClick={(e) => e.target === e.currentTarget && closeModal()}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modalTitle"
+          >
             <div className="modal-head">
               <div>
-                <div className="modal-title" id="modalTitle">{editingId ? 'Edit Location' : 'Add New Location'}</div>
+                <div className="modal-title" id="modalTitle">
+                  {editingId ? "Edit Location" : "Add New Location"}
+                </div>
                 <div className="modal-sub">
-                  {editingId ? 'Update this location\u2019s details.' : 'Create a new location within your warehouse.'}
+                  {editingId
+                    ? "Update this location\u2019s details."
+                    : "Create a new location within your warehouse."}
                 </div>
               </div>
-              <button className="modal-close" onClick={closeModal} aria-label="Close">
+              <button
+                className="modal-close"
+                onClick={closeModal}
+                aria-label="Close"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <div className="field">
-              <label className="field-label" htmlFor="locName">Location Name <span className="req">*</span></label>
+              <label className="field-label" htmlFor="locName">
+                Location Name <span className="req">*</span>
+              </label>
               <input
                 type="text"
                 id="locName"
@@ -518,12 +749,16 @@ export default function LocationsPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
-              {formErrors.name && <div className="field-error">{formErrors.name}</div>}
+              {formErrors.name && (
+                <div className="field-error">{formErrors.name}</div>
+              )}
             </div>
 
             <div className="field-row">
               <div className="field">
-                <label className="field-label" htmlFor="locCode">Code</label>
+                <label className="field-label" htmlFor="locCode">
+                  Code
+                </label>
                 <input
                   type="text"
                   id="locCode"
@@ -532,42 +767,111 @@ export default function LocationsPage() {
                   value={
                     editingId
                       ? form.code
-                      : form.code || 'Select warehouse & type first'
+                      : form.code || "Select warehouse & type first"
                   }
-                  style={{ background: '#f4f6fb', color: form.code ? '#1e2740' : '#9aa1b4', cursor: 'not-allowed' }}
+                  style={{
+                    background: "#f4f6fb",
+                    color: form.code ? "#1e2740" : "#9aa1b4",
+                    cursor: "not-allowed",
+                  }}
                 />
-                {formErrors.code && <div className="field-error">{formErrors.code}</div>}
-                <div style={{ fontSize: 11, color: '#9aa1b4', marginTop: 4 }}>
-                  {editingId ? "Codes can't be changed after a location is created." : 'Auto-generated from warehouse and type.'}
+                {formErrors.code && (
+                  <div className="field-error">{formErrors.code}</div>
+                )}
+                <div style={{ fontSize: 11, color: "#9aa1b4", marginTop: 4 }}>
+                  {editingId
+                    ? "Codes can't be changed after a location is created."
+                    : "Auto-generated from warehouse and type."}
                 </div>
               </div>
               <div className="field">
-                <label className="field-label" htmlFor="locType">Type <span className="req">*</span></label>
+                <label className="field-label" htmlFor="locType">
+                  Type <span className="req">*</span>
+                </label>
                 <select
                   id="locType"
                   value={form.type}
                   onChange={(e) => setForm({ ...form, type: e.target.value })}
                 >
                   <option value="">Select type</option>
-                  {LOCATION_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  {LOCATION_TYPE_OPTIONS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </select>
-                {formErrors.type && <div className="field-error">{formErrors.type}</div>}
+                {formErrors.type && (
+                  <div className="field-error">{formErrors.type}</div>
+                )}
               </div>
             </div>
 
             <div className="field">
-              <label className="field-label" htmlFor="locWarehouse">Warehouse <span className="req">*</span></label>
+              <label className="field-label" htmlFor="locWarehouse">
+                Warehouse <span className="req">*</span>
+              </label>
               <select
                 id="locWarehouse"
                 value={form.warehouseId}
-                onChange={(e) => setForm({ ...form, warehouseId: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, warehouseId: e.target.value })
+                }
                 disabled={!!editingId}
               >
                 <option value="">Select warehouse</option>
-                {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
               </select>
-              {formErrors.warehouseId && <div className="field-error">{formErrors.warehouseId}</div>}
-              {editingId && <div className="field-error" style={{ color: '#6b7280' }}>Locations can't be moved to a different warehouse.</div>}
+              {formErrors.warehouseId && (
+                <div className="field-error">{formErrors.warehouseId}</div>
+              )}
+              {editingId && (
+                <div className="field-error" style={{ color: "#6b7280" }}>
+                  Locations can't be moved to a different warehouse.
+                </div>
+              )}
+            </div>
+
+            <div className="field-row">
+              <div className="field">
+                <label className="field-label" htmlFor="locCapacity">
+                  Capacity
+                </label>
+                <input
+                  type="number"
+                  id="locCapacity"
+                  min="0"
+                  placeholder="e.g. 500"
+                  value={form.capacity}
+                  onChange={(e) =>
+                    setForm({ ...form, capacity: e.target.value })
+                  }
+                />
+                {formErrors.capacity && (
+                  <div className="field-error">{formErrors.capacity}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="field-label" htmlFor="locDescription">
+                Description
+              </label>
+              <textarea
+                id="locDescription"
+                rows={3}
+                placeholder="Optional notes about this location..."
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+              />
+              {formErrors.description && (
+                <div className="field-error">{formErrors.description}</div>
+              )}
             </div>
 
             <div className="modal-note">
@@ -576,9 +880,15 @@ export default function LocationsPage() {
             </div>
 
             <div className="modal-actions">
-              <button className="btn-ghost" onClick={closeModal}>Cancel</button>
-              <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save Location'}
+              <button className="btn-ghost" onClick={closeModal}>
+                Cancel
+              </button>
+              <button
+                className="btn-save"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save Location"}
               </button>
             </div>
           </div>
@@ -586,7 +896,7 @@ export default function LocationsPage() {
       )}
 
       {toast && (
-        <div className={`toast ${toast.type === 'error' ? 'error' : ''}`}>
+        <div className={`toast ${toast.type === "error" ? "error" : ""}`}>
           {toast.message}
         </div>
       )}
