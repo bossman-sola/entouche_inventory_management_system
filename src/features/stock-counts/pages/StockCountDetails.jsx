@@ -66,6 +66,8 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
   const [variance, setVariance] = useState(null);
   const [varianceLoading, setVarianceLoading] = useState(false);
 
+  const [anchorEl, setAnchorEl] = useState(null);
+
   const refresh = useCallback(async () => {
     const res = await apiFetchStockCountDetails(countId);
     setData(res);
@@ -250,13 +252,17 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
             <Printer size={15} /> Print Count Sheet
           </button>
           <button
-            onClick={() => setDetailMenuOpen((o) => !o)}
+            onClick={(e) => {
+              setAnchorEl(e.currentTarget);
+              setDetailMenuOpen((o) => !o);
+            }}
             className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             More Actions <ChevronDown size={14} />
           </button>
           {detailMenuOpen && header && (
             <RowActionsMenu
+              anchorEl={anchorEl}
               row={{
                 id: countId,
                 countNo: header.countNo,
