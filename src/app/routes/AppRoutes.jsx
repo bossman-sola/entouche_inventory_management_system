@@ -15,7 +15,7 @@ import Settings from "../../features/settings/pages/settings.jsx"
 import Reports from "../../features/reports/pages/reports.jsx"
 import SignIn from "../../features/auth/pages/SignIn.jsx"
 import ProtectedRoute from "../../shared/components/ProtectedRoute.jsx"
-import Stock from "../../features/stock-counts/pages/StockCountApp.jsx"
+import Stock from "../../features/stock-counts/pages/StockCountsPage.jsx"
 function AppRoutes() {
   return (
     <Routes>

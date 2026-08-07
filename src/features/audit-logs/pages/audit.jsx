@@ -1,14 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
-
-export const BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV
-    ? "https://entouche-staging-api-16910c236bc5.herokuapp.com"
-    : "https://entouche-production-api-8db0aeb1236f.herokuapp.com");
-
-const DEFAULT_EMAIL = "admin@inventory.local";
-const DEFAULT_PASSWORD = "Admin@1234";
+import { fetchAllPages, getAccessToken } from "../../../lib/api.js";
 
 const MODULE_COLOR = {
   Items: "#4f6ef7",
@@ -43,47 +35,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-
-async function apiFetch(path, { token, method = "GET", body } = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  let json = {};
-  try {
-    json = await res.json();
-  } catch {
-    /* non-JSON */
-  }
-  if (!res.ok || json.success === false) {
-    const msg = json?.errors
-      ? Object.values(json.errors).flat().join(" ")
-      : json?.message || `Request failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json;
-}
-
-async function fetchAllPages(path, token) {
-  let page = 1,
-    lastPage = 1;
-  const all = [];
-  do {
-    const json = await apiFetch(
-      `${path}${path.includes("?") ? "&" : "?"}page=${page}`,
-      { token },
-    );
-    all.push(...(json.data || []));
-    lastPage = json.meta?.last_page || 1;
-    page++;
-  } while (page <= lastPage);
-  return all;
-}
 
 function initials(name) {
   return (name || "?")
@@ -522,31 +473,10 @@ function toLogEntry(record, module, userMap) {
 }
 
 export default function AuditLogs() {
-  // --- Auth ---
-  const [token, setToken] = useState(null);
-  const [authStatus, setAuthStatus] = useState("connecting");
-  const [authError, setAuthError] = useState("");
-  const [loginEmail, setLoginEmail] = useState(DEFAULT_EMAIL);
-  const [loginPassword, setLoginPassword] = useState(DEFAULT_PASSWORD);
-
-  const login = useCallback(async (email, password) => {
-    setAuthStatus("connecting");
-    setAuthError("");
-    try {
-      const json = await apiFetch("/api/v1/auth/login", {
-        method: "POST",
-        body: { email, password },
-      });
-      setToken(json.data.access_token);
-      setAuthStatus("ok");
-    } catch (err) {
-      setAuthStatus("error");
-      setAuthError(err.message || "Could not reach the API");
-    }
-  }, []);
-  useEffect(() => {
-    login(DEFAULT_EMAIL, DEFAULT_PASSWORD);
-  }, [login]);
+  // Auth is handled by the app's real login flow - lib/api.js reads the
+  // token out of localStorage on every request, so this page only needs
+  // to know whether a token exists before it tries to load anything.
+  const [hasToken, setHasToken] = useState(!!getAccessToken());
 
   // --- Live activity feed, built from real records across the system ---
   const [logs, setLogs] = useState([]);
@@ -555,16 +485,21 @@ export default function AuditLogs() {
   const [dataError, setDataError] = useState("");
 
   const loadActivity = useCallback(async () => {
-    if (!token) return;
+    const token = getAccessToken();
+    setHasToken(!!token);
+    if (!token) {
+      setDataError("You're not logged in - sign in to load activity.");
+      return;
+    }
     setDataLoading(true);
     setDataError("");
     try {
       const [items, categories, suppliers, units, users] = await Promise.all([
-        fetchAllPages("/items", token),
-        fetchAllPages("/categories", token),
-        fetchAllPages("/suppliers", token),
-        fetchAllPages("/units", token),
-        fetchAllPages("/users", token),
+        fetchAllPages("/items"),
+        fetchAllPages("/categories"),
+        fetchAllPages("/suppliers"),
+        fetchAllPages("/units"),
+        fetchAllPages("/users"),
       ]);
       const userMap = new Map(users.map((u) => [u.id, u]));
       const entries = [
@@ -583,10 +518,10 @@ export default function AuditLogs() {
     } finally {
       setDataLoading(false);
     }
-  }, [token]);
+  }, []);
   useEffect(() => {
-    if (token) loadActivity();
-  }, [token, loadActivity]);
+    loadActivity();
+  }, [loadActivity]);
 
   const modulesPresent = useMemo(
     () => ["All Modules", ...Array.from(new Set(logs.map((l) => l.module)))],
@@ -798,8 +733,6 @@ export default function AuditLogs() {
     return [1, 2, null, page - 1, page, page + 1, null, totalPages];
   };
 
-  const isAuthed = authStatus === "ok" && token;
-
   return (
     <div
       style={{
@@ -874,12 +807,7 @@ export default function AuditLogs() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {authStatus === "connecting" && (
-              <span style={{ fontSize: 11.5, color: "#6b7591" }}>
-                Connecting…
-              </span>
-            )}
-            {isAuthed && (
+            {hasToken && !dataError && (
               <span
                 style={{
                   display: "flex",
@@ -907,7 +835,7 @@ export default function AuditLogs() {
             )}
             <button
               onClick={loadActivity}
-              disabled={!isAuthed || dataLoading}
+              disabled={dataLoading}
               title="Refresh"
               style={{
                 width: 30,
@@ -940,7 +868,7 @@ export default function AuditLogs() {
           </div>
         </div>
 
-        {authStatus === "error" && (
+        {dataError && (
           <div
             style={{
               marginBottom: 16,
@@ -955,10 +883,10 @@ export default function AuditLogs() {
             }}
           >
             <span style={{ fontSize: 12.5, color: "#c0392b" }}>
-              {authError || "Could not connect to the API."}
+              {dataError}
             </span>
             <button
-              onClick={() => login(loginEmail, loginPassword)}
+              onClick={loadActivity}
               style={{
                 fontSize: 12,
                 color: "#4f6ef7",
@@ -971,21 +899,6 @@ export default function AuditLogs() {
             >
               Retry
             </button>
-          </div>
-        )}
-        {dataError && (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#fff7ed",
-              border: "1px solid #fde3c2",
-              borderRadius: 10,
-              padding: "10px 14px",
-              fontSize: 12.5,
-              color: "#c27a0a",
-            }}
-          >
-            {dataError}
           </div>
         )}
 
