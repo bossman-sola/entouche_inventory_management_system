@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, icons } from "./icons.jsx";
 import { Spinner, StatusBadge } from "./ui.jsx";
@@ -29,17 +29,17 @@ const requestedByLabel = (t, usersById) => {
 const formatDate = (d) =>
   d
     ? new Date(d).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
     : "-";
 const formatTime = (d) =>
   d
     ? new Date(d).toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : "";
 
 function actionsFor(status) {
@@ -99,48 +99,83 @@ function pageList(current, total) {
 const MENU_WIDTH = 224;
 const MENU_MAX_HEIGHT = 260;
 
-function RowActionsMenu({ anchorEl, onClose, children }) {
-  const menuRef = useRef(null);
-  const [style, setStyle] = useState({ opacity: 0 });
+function RowActionsMenu({
+  anchorEl,
+  onClose,
+  children,
+}) {
+  if (!anchorEl) {
+    return null;
+  }
 
-  useLayoutEffect(() => {
-    if (!anchorEl) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const openUpward = spaceBelow < MENU_MAX_HEIGHT && spaceAbove > spaceBelow;
+  const rect =
+    anchorEl.getBoundingClientRect();
 
-    const left = Math.min(
-      Math.max(8, rect.right - MENU_WIDTH),
-      window.innerWidth - MENU_WIDTH - 8,
+  const spaceBelow =
+    window.innerHeight - rect.bottom;
+
+  const spaceAbove =
+    rect.top;
+
+  const openUpward =
+    spaceBelow < MENU_MAX_HEIGHT &&
+    spaceAbove > spaceBelow;
+
+  const left =
+    Math.min(
+      Math.max(
+        8,
+        rect.right - MENU_WIDTH
+      ),
+      window.innerWidth -
+      MENU_WIDTH -
+      8
     );
 
-    setStyle({
-      position: "fixed",
-      left,
-      top: openUpward ? undefined : rect.bottom + 4,
-      bottom: openUpward ? window.innerHeight - rect.top + 4 : undefined,
-      width: MENU_WIDTH,
-      maxHeight: MENU_MAX_HEIGHT,
-      opacity: 1,
-    });
-  }, [anchorEl]);
+  const style = {
+    position: "fixed",
+    left,
+
+    top: openUpward
+      ? undefined
+      : rect.bottom + 4,
+
+    bottom: openUpward
+      ? window.innerHeight -
+      rect.top +
+      4
+      : undefined,
+
+    width: MENU_WIDTH,
+    maxHeight: MENU_MAX_HEIGHT,
+  };
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
-        ref={menuRef}
+        className="fixed inset-0 z-40"
+        onClick={onClose}
+      />
+
+      <div
         style={style}
-        className="z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 overflow-y-auto"
+        className="
+          z-50
+          bg-white
+          border
+          border-gray-200
+          rounded-lg
+          shadow-lg
+          py-1
+          overflow-y-auto
+        "
       >
         {children}
       </div>
     </>,
-    document.body,
+    document.body
   );
 }
-
 export default function TransferTable({
   visible,
   filteredCount,
