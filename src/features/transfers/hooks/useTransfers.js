@@ -6,6 +6,7 @@ import {
 
 import * as TransferApi from "../api/TransfersApi.js";
 
+
 function errorMessage(err, fallback) {
   return (
     err?.response?.data?.message ||
@@ -14,10 +15,12 @@ function errorMessage(err, fallback) {
   );
 }
 
+
 export function useTransfers() {
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
 
   /* =======================================================
      INITIAL LOAD
@@ -65,36 +68,43 @@ export function useTransfers() {
     };
   }, []);
 
+
   /* =======================================================
-     RELOAD
+     MANUAL RELOAD
   ======================================================= */
 
-  const reload = useCallback(async (params = {}) => {
-    try {
-      setLoading(true);
-      setError("");
+  const reload = useCallback(
+    async (params = {}) => {
+      try {
+        setLoading(true);
+        setError("");
 
-      const response =
-        await TransferApi.listTransfers(params);
+        const response =
+          await TransferApi.listTransfers(
+            params
+          );
 
-      setTransfers(
-        response?.transfers ?? []
-      );
+        setTransfers(
+          response?.transfers ?? []
+        );
 
-      return response;
-    } catch (err) {
-      setError(
-        errorMessage(
-          err,
-          "Couldn't load transfers"
-        )
-      );
+        return response;
+      } catch (err) {
+        setError(
+          errorMessage(
+            err,
+            "Couldn't load transfers"
+          )
+        );
 
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
 
   /* =======================================================
      CREATE
@@ -114,6 +124,7 @@ export function useTransfers() {
     [reload]
   );
 
+
   /* =======================================================
      SUBMIT
   ======================================================= */
@@ -121,7 +132,9 @@ export function useTransfers() {
   const submitTransfer = useCallback(
     async (id) => {
       const result =
-        await TransferApi.submitTransfer(id);
+        await TransferApi.submitTransfer(
+          id
+        );
 
       await reload();
 
@@ -129,6 +142,7 @@ export function useTransfers() {
     },
     [reload]
   );
+
 
   /* =======================================================
      APPROVE
@@ -137,7 +151,9 @@ export function useTransfers() {
   const approveTransfer = useCallback(
     async (id) => {
       const result =
-        await TransferApi.approveTransfer(id);
+        await TransferApi.approveTransfer(
+          id
+        );
 
       await reload();
 
@@ -145,6 +161,7 @@ export function useTransfers() {
     },
     [reload]
   );
+
 
   /* =======================================================
      REJECT
@@ -165,6 +182,7 @@ export function useTransfers() {
     [reload]
   );
 
+
   /* =======================================================
      COMPLETE
   ======================================================= */
@@ -172,7 +190,9 @@ export function useTransfers() {
   const completeTransfer = useCallback(
     async (id) => {
       const result =
-        await TransferApi.completeTransfer(id);
+        await TransferApi.completeTransfer(
+          id
+        );
 
       await reload();
 
@@ -180,6 +200,7 @@ export function useTransfers() {
     },
     [reload]
   );
+
 
   /* =======================================================
      CANCEL
@@ -188,7 +209,9 @@ export function useTransfers() {
   const cancelTransfer = useCallback(
     async (id) => {
       const result =
-        await TransferApi.cancelTransfer(id);
+        await TransferApi.cancelTransfer(
+          id
+        );
 
       await reload();
 
@@ -196,6 +219,7 @@ export function useTransfers() {
     },
     [reload]
   );
+
 
   /* =======================================================
      DELETE
@@ -209,6 +233,7 @@ export function useTransfers() {
     },
     [reload]
   );
+
 
   /* =======================================================
      RETURN

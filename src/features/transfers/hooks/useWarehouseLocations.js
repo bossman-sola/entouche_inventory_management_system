@@ -15,10 +15,9 @@ async function fetchAllPages(
   let all = [];
 
   while (page <= maxPages) {
-    const { data: json } =
-      await apiClient.get(path, {
-        params: { page },
-      });
+    const { data: json } = await apiClient.get(path, {
+      params: { page },
+    });
 
     const data = Array.isArray(json?.data)
       ? json.data
@@ -76,6 +75,7 @@ async function fetchWarehouseLocations() {
             warehouseName:
               warehouse.name,
           }));
+
         } catch {
           return [];
         }
@@ -103,7 +103,10 @@ export function useWarehouseLocations() {
     useState("");
 
 
-  /* Initial load */
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -153,8 +156,11 @@ export function useWarehouseLocations() {
   }, []);
 
 
-  /* Manual reload */
-  const reload = useCallback(async () => {
+  /* =======================================================
+     MANUAL RELOAD
+  ======================================================= */
+
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -193,6 +199,6 @@ export function useWarehouseLocations() {
     locations,
     loading,
     error,
-    reload,
+    reload: load,
   };
 }

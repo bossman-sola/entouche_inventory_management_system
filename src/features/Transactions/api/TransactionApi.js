@@ -156,3 +156,16 @@ export async function createTransactionByType(apiType, body) {
       throw new Error(`Unsupported transaction type: ${apiType}`);
   }
 }
+
+export async function listAllReceipts() {
+  return fetchAllPages("/receipts");
+}
+export async function listAllTransfers() {
+  return fetchAllPages("/transfers");
+}
+export async function listAllAdjustments() {
+  return fetchAllPages("/adjustments");
+}
+export async function listAllStockCounts() {
+  return fetchAllPages("/stock-counts");
+}

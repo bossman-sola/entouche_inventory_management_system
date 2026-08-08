@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react"; 
 import * as XLSX from "xlsx";
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
 import { useTransfers } from "../hooks/useTransfers.js";
@@ -12,10 +12,31 @@ import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
 export default function TransfersPage() {
   const { locations, loading: locationsLoading, error: locationsError } = useWarehouseLocations();
   const {
-    transfers, loading: transfersLoading, error: transfersError,
-    createTransfer, submitTransfer, approveTransfer, rejectTransfer,
-    completeTransfer, cancelTransfer, removeTransfer,
+    locations,
+    loading: locationsLoading,
+    error: locationsError,
+  } = useWarehouseLocations();
+
+  const {
+    items,
+    users,
+    loading: itemsUsersLoading,
+    error: itemsUsersError,
+  } = useItemsUsers();
+
+  const {
+    transfers,
+    loading: transfersLoading,
+    error: transfersError,
+    createTransfer,
+    submitTransfer,
+    approveTransfer,
+    rejectTransfer,
+    completeTransfer,
+    cancelTransfer,
+    removeTransfer,
   } = useTransfers();
+
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState(null);
@@ -29,7 +50,44 @@ export default function TransfersPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
-  const setDateRange = (start, end) => { setDateStart(start); setDateEnd(end); setPage(1); };
+  const setDateRange = (start, end) => {
+    setDateStart(start);
+    setDateEnd(end);
+    setPage(1);
+  };
+
+  const locationsById = useMemo(
+    () =>
+      new Map(
+        locations.map((location) => [
+          String(location.id),
+          location,
+        ])
+      ),
+    [locations]
+  );
+
+  const itemsById = useMemo(
+    () =>
+      new Map(
+        items.map((item) => [
+          String(item.id),
+          item,
+        ])
+      ),
+    [items]
+  );
+
+  const usersById = useMemo(
+    () =>
+      new Map(
+        users.map((user) => [
+          String(user.id),
+          user,
+        ])
+      ),
+    [users]
+  );
 
   const filtered = transfers.filter(t => {
     if (fromFilter && String(t.from_location?.id) !== fromFilter) return false;
@@ -113,11 +171,19 @@ export default function TransfersPage() {
         </div>
 
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {(locationsError || transfersError) && (
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
-              <Icon d={icons.alert} size={13} /> {locationsError || transfersError}
-            </div>
-          )}
+          {(
+            locationsError ||
+            itemsUsersError ||
+            transfersError
+          ) && (
+              <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <Icon d={icons.alert} size={13} />
+
+                {locationsError ||
+                  itemsUsersError ||
+                  transfersError}
+              </div>
+            )}
         </div>
 
         {/* <TransferStatsCards transfers={transfers} /> */}
@@ -141,7 +207,17 @@ export default function TransfersPage() {
           perPage={perPage}
           setPage={setPage}
           setPerPage={setPerPage}
-          loading={transfersLoading && transfers.length === 0}
+
+          loading={
+            transfersLoading ||
+            locationsLoading ||
+            itemsUsersLoading
+          }
+
+          locationsById={locationsById}
+          itemsById={itemsById}
+          usersById={usersById}
+
           onSelectTransfer={setSelectedTransfer}
           onSubmit={submitTransfer}
           onApprove={approveTransfer}
@@ -165,12 +241,19 @@ export default function TransfersPage() {
         locations={locations}
         locationsLoading={locationsLoading}
         locationsError={locationsError}
+        items={items}
+        itemsLoading={itemsUsersLoading}
       />
 
       <TransferDetailsModal
         open={!!selectedTransfer}
         onClose={() => setSelectedTransfer(null)}
         transfer={activeTransfer}
+
+        items={items}
+        users={users}
+        locations={locations}
+
         onSubmit={submitTransfer}
         onApprove={approveTransfer}
         onReject={rejectTransfer}

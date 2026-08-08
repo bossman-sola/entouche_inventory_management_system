@@ -16,9 +16,10 @@ import {
   getStockCountLookups,
   exportStockCounts,
 } from "../api/StockCountApi.js";
-import { listUsers } from "../../../lib/api.js";
+import { api } from "../../../shared/api/entoucheApi.js";
 import { warehousesApi } from "../../warehouse/api/warehousesApi.js";
 
+const listUsers = api.listUsers;
 
 export async function apiFetchOverview() {
   try {
@@ -37,10 +38,8 @@ export async function apiFetchOverview() {
         recentActivity: ov.recent_activity ?? ov.recentActivity ?? [],
       };
     }
-  } catch (err) {
-    
-  }
-  
+  } catch (err) {}
+
   try {
     const { stockCounts, meta } = await listStockCounts({ page: 1 });
     const total = meta?.total ?? stockCounts.length;
@@ -71,7 +70,6 @@ export async function apiFetchOverview() {
     return null;
   }
 }
-
 
 export async function apiFetchStockCounts(params = {}) {
   const { stockCounts, meta } = await listStockCounts(params);
@@ -106,7 +104,7 @@ export async function apiFetchStockCounts(params = {}) {
       status: (sc.status || "")
         .replace(/_/g, " ")
         .replace(/^./, (s) => s.toUpperCase()),
-      
+
       rawStatus: sc.status,
       rawWarehouseId: sc.warehouse_id,
       rawWarehouseLocationId: sc.warehouse_location_id,
@@ -125,7 +123,6 @@ export async function apiFetchStockCounts(params = {}) {
     pageSize: meta?.per_page ?? params.pageSize ?? 10,
   };
 }
-
 
 export async function apiFetchStockCountDetails(id) {
   const sc = await getStockCount(id);
@@ -218,18 +215,14 @@ export async function apiFetchLookups() {
         users: mapOpts(lk.users, ["name", "email"]),
       };
     }
-  } catch (err) {
-    
-  }
+  } catch (err) {}
   try {
-    
     const allWarehouses = await warehousesApi.listAll();
     const warehouses = allWarehouses.map((w) => ({
       value: w.id,
       label: w.name || w.warehouse_name || `Warehouse ${w.id}`,
     }));
 
-   
     const locationsByWarehouse = await Promise.all(
       allWarehouses.map((w) =>
         warehousesApi
@@ -258,7 +251,6 @@ export async function apiFetchLookups() {
   }
 }
 
-
 export async function apiCreateStockCount(payload) {
   const body = {
     warehouse_id: payload.warehouse_id || payload.warehouse,
@@ -273,7 +265,6 @@ export async function apiCreateStockCount(payload) {
   };
   const stockCount = await createStockCount(body);
 
-  
   const items = payload.items || [];
   for (const it of items) {
     await addStockCountItem(stockCount.id, {
@@ -283,7 +274,6 @@ export async function apiCreateStockCount(payload) {
   }
   return stockCount;
 }
-
 
 export async function apiUpdateStockCount(id, payload) {
   const body = {
@@ -300,26 +290,21 @@ export async function apiUpdateStockCount(id, payload) {
   return await updateStockCount(id, body);
 }
 
-
 export async function apiDeleteStockCount(id) {
   return await deleteStockCount(id);
 }
-
 
 export async function apiAddStockCountItem(stockCountId, payload) {
   return await addStockCountItem(stockCountId, payload);
 }
 
-
 export async function apiUpdateStockCountItem(stockCountId, itemId, payload) {
   return await updateStockCountItem(stockCountId, itemId, payload);
 }
 
-
 export async function apiRemoveStockCountItem(stockCountId, itemId) {
   return await removeStockCountItem(stockCountId, itemId);
 }
-
 
 export async function apiDuplicateStockCount(id) {
   const source = await getStockCount(id);
@@ -344,7 +329,6 @@ export async function apiDuplicateStockCount(id) {
   return copy;
 }
 
-
 export async function apiTransitionStockCount(id, action, extra) {
   switch (action) {
     case "submit":
@@ -361,7 +345,6 @@ export async function apiTransitionStockCount(id, action, extra) {
       throw new Error(`Unsupported transition action: ${action}`);
   }
 }
-
 
 export async function apiExportStockCounts(options = {}) {
   const format = options.format === "pdf" ? "xlsx" : options.format || "xlsx";
