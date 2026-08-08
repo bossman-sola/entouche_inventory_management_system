@@ -6,10 +6,19 @@ import {
   listAllUnits,
   listAllWarehouses,
   listAllTransactions,
+  listAllReceipts,
+  listAllTransfers,
+  listAllAdjustments,
+  listAllStockCounts,
   getWarehouseLocations,
   createTransactionByType,
 } from "../api/TransactionApi.js";
-import { normalizeTransaction } from "../utils/normalize.js";
+import {
+  normalizeTransaction,
+  normalizeDraftDocument,
+  isActionableStatus,
+} from "../utils/normalize.js";
+
 import { iconPaths, PER_PAGE, txTypes } from "../constants.js";
 import { Upload } from "lucide-react";
 import { Icon } from "../components/icons/Icon.jsx";
@@ -18,7 +27,7 @@ import { MetricsRow } from "../components/MetricsRow.jsx";
 import { FiltersBar } from "../components/FiltersBar.jsx";
 import { TransactionsTable } from "../components/TransactionsTable.jsx";
 import { NewTransactionModal } from "../components/NewTransactionModal.jsx";
-import { TransactionDetailsModal } from "../components/Transactiondetailsmodal .jsx";
+import { TransactionDetailsModal } from "../components/Transactiondetailsmodal.jsx";
 
 // /api/v1/transactions is now a live, global, read-only ledger endpoint
 // (filterable by item_id, warehouse_id, transaction_type, direction,
@@ -62,17 +71,27 @@ export default function TransactionsPage() {
     setDataError("");
     setPartialWarning("");
     try {
-      const [itemsRaw, suppliersRaw, unitsRaw, warehousesRaw, transactionsRaw] =
-        await Promise.all([
-          listAllItems(),
-          listAllSuppliers(),
-          listAllUnits(),
-          listAllWarehouses(),
-          // Global ledger - filters (item_id, warehouse_id, transaction_type,
-          // direction, date_from, date_to) are supported server-side if we
-          // later want to push filtering down instead of doing it client-side.
-          listAllTransactions(TRANSACTIONS_MAX_PAGES),
-        ]);
+      const [
+        itemsRaw,
+        suppliersRaw,
+        unitsRaw,
+        warehousesRaw,
+        transactionsRaw,
+        receiptsRaw,
+        transfersRaw,
+        adjustmentsRaw,
+        stockCountsRaw,
+      ] = await Promise.all([
+        listAllItems(),
+        listAllSuppliers(),
+        listAllUnits(),
+        listAllWarehouses(),
+        listAllTransactions(TRANSACTIONS_MAX_PAGES),
+        listAllReceipts(),
+        listAllTransfers(),
+        listAllAdjustments(),
+        listAllStockCounts(),
+      ]);
 
       setTransactionsRaw(transactionsRaw);
       setCatalogItems(itemsRaw);
@@ -80,15 +99,30 @@ export default function TransactionsPage() {
       setUnits(unitsRaw);
       setWarehouses(warehousesRaw);
 
-      // Transactions come back from the API with their related item
-      // (assumed eager-loaded as `item`). Fall back to the catalog lookup
-      // by item_id in case a given record doesn't have it embedded.
       const itemsById = new Map(itemsRaw.map((it) => [it.id, it]));
-      const flat = transactionsRaw
-        .map((raw) =>
-          normalizeTransaction(raw, raw.item || itemsById.get(raw.item_id)),
-        )
-        .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+
+      const ledgerFlat = transactionsRaw.map((raw) =>
+        normalizeTransaction(raw, raw.item || itemsById.get(raw.item_id)),
+      );
+
+      const draftRows = [
+        ...receiptsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "receipt", itemsById)),
+        ...transfersRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "transfer", itemsById)),
+        ...adjustmentsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "adjustment", itemsById)),
+        ...stockCountsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "stock_count", itemsById)),
+      ];
+
+      const flat = [...draftRows, ...ledgerFlat].sort(
+        (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0),
+      );
 
       setTransactions(flat);
 

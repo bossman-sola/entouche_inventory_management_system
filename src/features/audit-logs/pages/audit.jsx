@@ -1,14 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
-import { fetchAllPages, getAccessToken } from "../../../lib/api.js";
+import { fetchAllPages } from "../../../shared/api/entoucheApi";
 
-const MODULE_COLOR = {
-  Items: "#4f6ef7",
-  Categories: "#8b5cf6",
-  Suppliers: "#22c27e",
-  Units: "#f59e0b",
-  Users: "#c0392b",
-};
 const ACTION_COLORS = {
   CREATE: { bg: "#e6faf3", color: "#16a369" },
   UPDATE: { bg: "#eef2ff", color: "#4f6ef7" },
@@ -473,11 +466,6 @@ function toLogEntry(record, module, userMap) {
 }
 
 export default function AuditLogs() {
-  // Auth is handled by the app's real login flow - lib/api.js reads the
-  // token out of localStorage on every request, so this page only needs
-  // to know whether a token exists before it tries to load anything.
-  const [hasToken, setHasToken] = useState(!!getAccessToken());
-
   // --- Live activity feed, built from real records across the system ---
   const [logs, setLogs] = useState([]);
   const [usersTotal, setUsersTotal] = useState(null);
@@ -485,12 +473,6 @@ export default function AuditLogs() {
   const [dataError, setDataError] = useState("");
 
   const loadActivity = useCallback(async () => {
-    const token = getAccessToken();
-    setHasToken(!!token);
-    if (!token) {
-      setDataError("You're not logged in - sign in to load activity.");
-      return;
-    }
     setDataLoading(true);
     setDataError("");
     try {
@@ -520,7 +502,7 @@ export default function AuditLogs() {
     }
   }, []);
   useEffect(() => {
-    loadActivity();
+    (() => loadActivity())();
   }, [loadActivity]);
 
   const modulesPresent = useMemo(
@@ -552,7 +534,9 @@ export default function AuditLogs() {
   const calRef = useRef();
 
   useEffect(() => {
-    if (!selected && logs.length) setSelected(logs[0]);
+    (() => {
+      if (!selected && logs.length) setSelected(logs[0]);
+    })();
   }, [logs, selected]);
   useEffect(() => {
     const h = (e) => {
@@ -807,7 +791,7 @@ export default function AuditLogs() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {hasToken && !dataError && (
+            {!dataError && (
               <span
                 style={{
                   display: "flex",

@@ -1,0 +1,17 @@
+[33mcommit 135096d1045bf0df1ed739cc13f97209559383b2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev-fix[m[33m)[m
+Author: Henry <henries90@gmail.com>
+Date:   Sat Aug 8 12:28:54 2026 +0100
+
+    Removed auto login details to ensure centralized axios interceptor is used
+
+M	src/features/Transactions/constants.js
+M	src/features/Transactions/pages/TransactionsPage.jsx
+M	src/features/data-import/components/ConnectionStatus.jsx
+M	src/features/data-import/pages/DataImportPage.jsx
+M	src/features/items/components/importItems.jsx
+M	src/features/transfers/api/Client.js
+M	src/features/users/pages/users.jsx
+M	src/lib/api.js
+M	src/lib/useInventoryApi.js
+M	src/shared/layouts/MainLayout.jsx
+M	src/shared/layouts/Notifications.jsx

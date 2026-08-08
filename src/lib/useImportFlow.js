@@ -1,7 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { createImport, requestRaw } from "./api";
 import { parseCSV, parseXLSX, normalizeHeader, normalizeName } from "./parsers";
+import apiClient from "../shared/api/axiosClient";
 import { validateData, CREATABLE_TYPES, genPassword } from "./validation";
+
+async function createImport({ file, importType, warehouseId }) {
+  const type = String(importType).toLowerCase();
+  if (type === "inventory" && !warehouseId) {
+    const err = new Error(
+      "A warehouse must be selected before uploading an inventory import.",
+    );
+    err.status = 422;
+    throw err;
+  }
+  const form = new FormData();
+  form.append("file", file);
+  form.append("import_type", type);
+  if (warehouseId) form.append("warehouse_id", warehouseId);
+  const { data } = await apiClient.post("/imports", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data?.data ?? data;
+}
 
 function mapApiImportToHistoryEntry(imp) {
   if (!imp) return null;
@@ -16,16 +35,16 @@ function mapApiImportToHistoryEntry(imp) {
     id: `api-${imp.id}`,
     date: createdAt
       ? createdAt.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
       : "",
     time: createdAt
       ? createdAt.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+          hour: "2-digit",
+          minute: "2-digit",
+        })
       : "",
     type,
     file: imp.file_name || imp.original_filename || "-",
@@ -64,7 +83,11 @@ export function useImportFlow({
   const fileRef = useRef(null);
 
   const loadHistory = useCallback(
-    async (page = historyPage, perPage = historyPerPage, filter = historyFilter) => {
+    async (
+      page = historyPage,
+      perPage = historyPerPage,
+      filter = historyFilter,
+    ) => {
       if (!currentUser) {
         setHistory([]);
         setHistoryMeta(null);
@@ -76,10 +99,14 @@ export function useImportFlow({
       setHistoryError("");
       try {
         const params = { page, per_page: perPage };
-        const normalizedFilter = String(filter || "").trim().toLowerCase();
+        const normalizedFilter = String(filter || "")
+          .trim()
+          .toLowerCase();
         if (normalizedFilter) params.import_type = normalizedFilter;
 
-        const raw = await requestRaw("/imports", { params });
+        const raw = await apiClient
+          .get("/imports", { params })
+          .then((r) => r.data);
         const list = Array.isArray(raw?.data) ? raw.data : [];
         const apiEntries = list.map(mapApiImportToHistoryEntry).filter(Boolean);
         setHistory(apiEntries);
@@ -125,10 +152,14 @@ export function useImportFlow({
         const { headers, rows } = await parseXLSX(f);
         setParsedData({ headers, rows, total: rows.length });
       } else {
-        setParseError("Unsupported file type. Please upload a CSV or XLSX file.");
+        setParseError(
+          "Unsupported file type. Please upload a CSV or XLSX file.",
+        );
       }
     } catch {
-      setParseError("Could not read this file. It may be corrupted or in an unsupported format.");
+      setParseError(
+        "Could not read this file. It may be corrupted or in an unsupported format.",
+      );
     }
   };
 
@@ -141,13 +172,23 @@ export function useImportFlow({
       const { headers, rows, total } = parsedData;
       const errs = validateData(headers, rows, importType, refData);
       setErrors(errs);
-      const invalidRows = new Set(errs.filter((error) => typeof error.row === "number").map((error) => error.row));
-      setParsedData((p) => ({ ...p, valid: Math.max(0, total - invalidRows.size), errors: errs.length }));
+      const invalidRows = new Set(
+        errs
+          .filter((error) => typeof error.row === "number")
+          .map((error) => error.row),
+      );
+      setParsedData((p) => ({
+        ...p,
+        valid: Math.max(0, total - invalidRows.size),
+        errors: errs.length,
+      }));
     }, 400);
   };
 
   const cleanRowIndexes = () => {
-    const badRows = new Set(errors.filter((e) => typeof e.row === "number").map((e) => e.row));
+    const badRows = new Set(
+      errors.filter((e) => typeof e.row === "number").map((e) => e.row),
+    );
     return parsedData.rows.map((_, i) => i).filter((i) => !badRows.has(i + 2));
   };
 
@@ -179,11 +220,12 @@ export function useImportFlow({
 
     try {
       setImportProgress({ current: 1, total: 1 });
-      const result = (await createImport({
-        file,
-        importType,
-        warehouseId: selectedWarehouseId,
-      })) || {};
+      const result =
+        (await createImport({
+          file,
+          importType,
+          warehouseId: selectedWarehouseId,
+        })) || {};
       ok = result.successful_rows ?? okRows.length;
       importTotal = result.total_rows ?? total;
       (result.errors || []).forEach((e) => {

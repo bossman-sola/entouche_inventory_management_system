@@ -1,15 +1,15 @@
 import { useState, useCallback } from "react";
-import {
-  login as apiLogin,
-  setAccessToken,
+import { api, fetchAllPages } from "../shared/api/entoucheApi";
+import apiClient, { tokenStorage } from "../shared/api/axiosClient";
+import { normalizeName } from "./parsers";
+
+const {
+  login: apiLogin,
   listCategories,
   listUnits,
   listUsers,
   listWarehouses,
-  fetchAllPages,
-  requestRaw,
-} from "./api";
-import { normalizeName } from "./parsers";
+} = api;
 
 export function useInventoryApi() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -35,7 +35,9 @@ export function useInventoryApi() {
           listCategories(),
           listUnits(),
           listUsers(),
-          requestRaw("/users", { params: { per_page: 1 } }),
+          apiClient
+            .get("/users", { params: { per_page: 1 } })
+            .then((r) => r.data),
           fetchAllPages("/items"),
           listWarehouses(),
         ]);
@@ -61,7 +63,7 @@ export function useInventoryApi() {
       setAuthError("");
       try {
         const data = await apiLogin(email, password);
-        setAccessToken(data.access_token);
+        tokenStorage.set(data.access_token);
         setCurrentUser(data.user);
         setAuthStatus("ok");
         loadReferenceData(); // chained directly after successful auth
