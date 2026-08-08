@@ -3,7 +3,12 @@ import * as XLSX from "xlsx";
 import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
-import {
+import { Upload } from "lucide-react";
+
+import { api } from "../../../shared/api/entoucheApi";
+import { mapApiReceipt, packReceiptNotes } from "../../../shared/api/mappers";
+
+const {
   listSuppliers,
   listReceipts,
   createReceipt,
@@ -11,10 +16,7 @@ import {
   deleteReceipt,
   receiveReceipt,
   cancelReceipt,
-  mapApiReceipt,
-  packReceiptNotes,
-} from "../../../lib/api.js";
-import { Upload } from "lucide-react";
+} = api;
 
 function parseNaira(str) {
   return Number(String(str).replace(/[₦,]/g, "")) || 0;
@@ -122,20 +124,7 @@ const DotsIcon = () => (
     <circle cx="12" cy="19" r="1" />
   </svg>
 );
-const DownloadIcon = () => (
-  <svg
-    width={14}
-    height={14}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="#5c657a"
-    strokeWidth={2}
-  >
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
+
 const PlusIcon = () => (
   <svg
     width={14}
@@ -323,12 +312,12 @@ export default function Receipts() {
   };
 
   useEffect(() => {
-    refreshReceipts();
+    (() => refreshReceipts())();
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingSuppliers(true);
+    (() => setLoadingSuppliers(true))();
     listSuppliers()
       .then((rows) => {
         if (!cancelled) setSupplierOptions(rows || []);
@@ -1208,7 +1197,7 @@ export default function Receipts() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {r.supplier ?? '-'}
+                        {r.supplier ?? "-"}
                       </td>
                       <td
                         style={{
@@ -1235,7 +1224,7 @@ export default function Receipts() {
                           fontWeight: 500,
                         }}
                       >
-                        {r.received_by || '-'}
+                        {r.received_by || "-"}
                       </td>
                       <td
                         style={{
