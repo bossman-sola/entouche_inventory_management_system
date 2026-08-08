@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react"; 
 import * as XLSX from "xlsx";
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
 import { useItemsUsers } from "../hooks/useItemsUsers.js";
@@ -16,12 +16,14 @@ export default function TransfersPage() {
     loading: locationsLoading,
     error: locationsError,
   } = useWarehouseLocations();
+
   const {
-    items: catalogItems,
+    items,
     users,
     loading: itemsUsersLoading,
     error: itemsUsersError,
   } = useItemsUsers();
+
   const {
     transfers,
     loading: transfersLoading,
@@ -34,6 +36,7 @@ export default function TransfersPage() {
     cancelTransfer,
     removeTransfer,
   } = useTransfers();
+
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState(null);
@@ -53,14 +56,38 @@ export default function TransfersPage() {
     setPage(1);
   };
 
-  // The list endpoint only returns from_location_id/to_location_id (raw FKs),
-  // not the eager-loaded relation objects the UI was written against. We
-  // already fetch the full location list separately, so resolve locally.
-  const locationsById = new Map(locations.map((l) => [String(l.id), l]));
-  // Same problem for items (item_id only) and users (requested_by/created_by/
-  // approved_by as raw ids) — resolve those locally too.
-  const itemsById = new Map(catalogItems.map((i) => [String(i.id), i]));
-  const usersById = new Map(users.map((u) => [String(u.id), u]));
+  const locationsById = useMemo(
+    () =>
+      new Map(
+        locations.map((location) => [
+          String(location.id),
+          location,
+        ])
+      ),
+    [locations]
+  );
+
+  const itemsById = useMemo(
+    () =>
+      new Map(
+        items.map((item) => [
+          String(item.id),
+          item,
+        ])
+      ),
+    [items]
+  );
+
+  const usersById = useMemo(
+    () =>
+      new Map(
+        users.map((user) => [
+          String(user.id),
+          user,
+        ])
+      ),
+    [users]
+  );
 
   const filtered = transfers.filter((t) => {
     if (fromFilter && String(t.from_location_id) !== fromFilter) return false;
@@ -174,12 +201,19 @@ export default function TransfersPage() {
         </div>
 
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {(locationsError || transfersError || itemsUsersError) && (
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
-              <Icon d={icons.alert} size={13} />{" "}
-              {locationsError || transfersError || itemsUsersError}
-            </div>
-          )}
+          {(
+            locationsError ||
+            itemsUsersError ||
+            transfersError
+          ) && (
+              <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <Icon d={icons.alert} size={13} />
+
+                {locationsError ||
+                  itemsUsersError ||
+                  transfersError}
+              </div>
+            )}
         </div>
 
         {/* <TransferStatsCards transfers={transfers} /> */}
@@ -221,10 +255,17 @@ export default function TransfersPage() {
           perPage={perPage}
           setPage={setPage}
           setPerPage={setPerPage}
-          loading={transfersLoading && transfers.length === 0}
+
+          loading={
+            transfersLoading ||
+            locationsLoading ||
+            itemsUsersLoading
+          }
+
           locationsById={locationsById}
           itemsById={itemsById}
           usersById={usersById}
+
           onSelectTransfer={setSelectedTransfer}
           onSubmit={submitTransfer}
           onApprove={approveTransfer}
@@ -248,7 +289,7 @@ export default function TransfersPage() {
         locations={locations}
         locationsLoading={locationsLoading}
         locationsError={locationsError}
-        items={catalogItems}
+        items={items}
         itemsLoading={itemsUsersLoading}
       />
 
@@ -256,9 +297,11 @@ export default function TransfersPage() {
         open={!!selectedTransfer}
         onClose={() => setSelectedTransfer(null)}
         transfer={activeTransfer}
-        locationsById={locationsById}
-        itemsById={itemsById}
-        usersById={usersById}
+
+        items={items}
+        users={users}
+        locations={locations}
+
         onSubmit={submitTransfer}
         onApprove={approveTransfer}
         onReject={rejectTransfer}
