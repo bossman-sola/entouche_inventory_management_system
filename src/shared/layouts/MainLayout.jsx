@@ -23,7 +23,12 @@ import NewReceiptApprovalDialog from "./dialogs/NewReceiptApprovalDialog";
 import UserCreatedDialog from "./dialogs/UserCreatedDialog";
 import SystemMaintenanceDialog from "./dialogs/SystemMaintenanceDialog";
 import ImportCompletedDialog from "./dialogs/ImportCompletedDialog";
-import { RefreshCw as RefreshCwIcon, Boxes as BoxesIcon, FileBarChart2 as FileBarChart2Icon, PlugZap as PlugZapIcon } from "lucide-react";
+import {
+  RefreshCw as RefreshCwIcon,
+  Boxes as BoxesIcon,
+  FileBarChart2 as FileBarChart2Icon,
+  PlugZap as PlugZapIcon,
+} from "lucide-react";
 
 import {
   ChevronDown,
@@ -36,7 +41,6 @@ import {
   Settings as SettingsGear,
   LogOut,
 } from "lucide-react";
-
 
 const DEMO_NOTIFICATIONS = [
   {
@@ -52,7 +56,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n2",
     type: "receipt_completed",
     title: "Receipt Completed",
-    description: "Receipt RCPT-000156 has been completed and added to inventory.",
+    description:
+      "Receipt RCPT-000156 has been completed and added to inventory.",
     timeAgo: "15 min ago",
     unread: true,
     receiptId: "RCPT-000156",
@@ -61,7 +66,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n3",
     type: "transfer_approved",
     title: "Transfer Approved",
-    description: "Transfer TRF-000089 has been approved and is ready for completion.",
+    description:
+      "Transfer TRF-000089 has been approved and is ready for completion.",
     timeAgo: "32 min ago",
     unread: true,
     transferId: "TRF-000089",
@@ -79,7 +85,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n5",
     type: "adjustment_pending",
     title: "Adjustment Pending",
-    description: "Adjustment ADJ-000045 for item iPhone 13 is awaiting approval.",
+    description:
+      "Adjustment ADJ-000045 for item iPhone 13 is awaiting approval.",
     timeAgo: "1 hr ago",
     unread: true,
     adjustmentId: "ADJ-000045",
@@ -88,7 +95,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n6",
     type: "stock_count_variance",
     title: "Stock Count Variance",
-    description: "Stock Count SC-000123 has variance exceeding the allowed limit.",
+    description:
+      "Stock Count SC-000123 has variance exceeding the allowed limit.",
     timeAgo: "2 hr ago",
     unread: false,
     stockCountId: "SC-000123",
@@ -105,7 +113,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n8",
     type: "new_receipt_awaiting_approval",
     title: "New Receipt Awaiting Approval",
-    description: "Receipt RCPT-000157 has been submitted and is awaiting approval.",
+    description:
+      "Receipt RCPT-000157 has been submitted and is awaiting approval.",
     timeAgo: "3 hr ago",
     unread: false,
     receiptId: "RCPT-000157",
@@ -114,7 +123,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n9",
     type: "import_completed",
     title: "Import Completed",
-    description: "Import IMP-000045 has been completed successfully. 245 items were imported.",
+    description:
+      "Import IMP-000045 has been completed successfully. 245 items were imported.",
     timeAgo: "Just now",
     unread: true,
   },
@@ -122,7 +132,8 @@ const DEMO_NOTIFICATIONS = [
     id: "n10",
     type: "user_created",
     title: "User Created",
-    description: "New user Michael Johnson has been created and account is active.",
+    description:
+      "New user Michael Johnson has been created and account is active.",
     timeAgo: "5 min ago",
     unread: true,
   },
@@ -130,90 +141,395 @@ const DEMO_NOTIFICATIONS = [
 
 const DEMO_DIALOG_DATA = {
   low_stock_alert: {
-    item: { name: "Dell Latitude 5440", sku: "LAP-001", category: "Laptops", brand: "Dell", unit: "PCS", status: "Active" },
+    item: {
+      name: "Dell Latitude 5440",
+      sku: "LAP-001",
+      category: "Laptops",
+      brand: "Dell",
+      unit: "PCS",
+      status: "Active",
+    },
     locations: [
-      { name: "Receiving Area", zone: "Receiving Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
-      { name: "Storage Area", zone: "Storage Zone A", onHand: 15, reserved: 0, available: 15, status: "Low Stock" },
-      { name: "Dispatch Area", zone: "Dispatch Zone", onHand: 2, reserved: 0, available: 2, status: "In Stock" },
-      { name: "Damaged Goods Area", zone: "Damage Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+      {
+        name: "Receiving Area",
+        zone: "Receiving Zone",
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        status: "Out of Stock",
+      },
+      {
+        name: "Storage Area",
+        zone: "Storage Zone A",
+        onHand: 15,
+        reserved: 0,
+        available: 15,
+        status: "Low Stock",
+      },
+      {
+        name: "Dispatch Area",
+        zone: "Dispatch Zone",
+        onHand: 2,
+        reserved: 0,
+        available: 2,
+        status: "In Stock",
+      },
+      {
+        name: "Damaged Goods Area",
+        zone: "Damage Zone",
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        status: "Out of Stock",
+      },
     ],
-    stats: { totalAvailable: 17, reorderLevel: 20, shortage: 3, leadTimeDays: 5 },
+    stats: {
+      totalAvailable: 17,
+      reorderLevel: 20,
+      shortage: 3,
+      leadTimeDays: 5,
+    },
   },
   reorder_level_reached: {
-    item: { name: "HP LaserJet Pro M404dn", sku: "HPLJ-M404", category: "Printers", brand: "HP", unit: "PCS", status: "Active" },
+    item: {
+      name: "HP LaserJet Pro M404dn",
+      sku: "HPLJ-M404",
+      category: "Printers",
+      brand: "HP",
+      unit: "PCS",
+      status: "Active",
+    },
     locations: [
-      { name: "Receiving Area", zone: "Receiving Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
-      { name: "Storage Area", zone: "Storage Zone A", onHand: 10, reserved: 0, available: 10, status: "Reorder Level" },
-      { name: "Dispatch Area", zone: "Dispatch Zone", onHand: 3, reserved: 0, available: 3, status: "In Stock" },
-      { name: "Damaged Goods Area", zone: "Damage Zone", onHand: 0, reserved: 0, available: 0, status: "Out of Stock" },
+      {
+        name: "Receiving Area",
+        zone: "Receiving Zone",
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        status: "Out of Stock",
+      },
+      {
+        name: "Storage Area",
+        zone: "Storage Zone A",
+        onHand: 10,
+        reserved: 0,
+        available: 10,
+        status: "Reorder Level",
+      },
+      {
+        name: "Dispatch Area",
+        zone: "Dispatch Zone",
+        onHand: 3,
+        reserved: 0,
+        available: 3,
+        status: "In Stock",
+      },
+      {
+        name: "Damaged Goods Area",
+        zone: "Damage Zone",
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        status: "Out of Stock",
+      },
     ],
     stats: { totalAvailable: 10, reorderLevel: 10, leadTimeDays: 3 },
   },
   receipt_completed: {
-    receipt: { number: "RCPT-000156", completedOn: "May 20, 2025 10:15 AM", receivedBy: "John Michael", supplier: "Dell Technologies", warehouse: "Main Warehouse", type: "Purchase Receipt" },
-    items: [{ name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 20, unit: "PCS", unitCost: 650000, totalCost: 13000000 }],
+    receipt: {
+      number: "RCPT-000156",
+      completedOn: "May 20, 2025 10:15 AM",
+      receivedBy: "John Michael",
+      supplier: "Dell Technologies",
+      warehouse: "Main Warehouse",
+      type: "Purchase Receipt",
+    },
+    items: [
+      {
+        name: "Dell Latitude 5440",
+        cat: "Laptops",
+        sku: "DL-5440",
+        qty: 20,
+        unit: "PCS",
+        unitCost: 650000,
+        totalCost: 13000000,
+      },
+    ],
     totals: { items: 1, qty: "20 PCS", amount: 13000000 },
-    inventoryUpdates: [{ location: "Storage Area", zone: "Storage Zone A", previous: "10 PCS", received: "20 PCS", newStock: "30 PCS" }],
+    inventoryUpdates: [
+      {
+        location: "Storage Area",
+        zone: "Storage Zone A",
+        previous: "10 PCS",
+        received: "20 PCS",
+        newStock: "30 PCS",
+      },
+    ],
     notes: "Dell laptop delivery for Q2 purchase order.",
   },
   transfer_approved: {
-    transfer: { number: "TRF-000089", approvedOn: "May 20, 2025 9:42 AM", approvedBy: "Michael Johnson", approvedByRole: "Warehouse Manager", fromLocation: "Receiving Area", fromZone: "Receiving Zone", toLocation: "Storage Area A", toZone: "Storage Zone A", purpose: "Regular Stock Transfer" },
+    transfer: {
+      number: "TRF-000089",
+      approvedOn: "May 20, 2025 9:42 AM",
+      approvedBy: "Michael Johnson",
+      approvedByRole: "Warehouse Manager",
+      fromLocation: "Receiving Area",
+      fromZone: "Receiving Zone",
+      toLocation: "Storage Area A",
+      toZone: "Storage Zone A",
+      purpose: "Regular Stock Transfer",
+    },
     items: [
-      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 15, unit: "PCS" },
-      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 5, unit: "PCS" },
+      {
+        name: "Dell Latitude 5440",
+        cat: "Laptops",
+        sku: "DL-5440",
+        qty: 15,
+        unit: "PCS",
+      },
+      {
+        name: 'Dell 24" Monitor',
+        cat: "Monitors",
+        sku: "DM-24",
+        qty: 5,
+        unit: "PCS",
+      },
     ],
     totals: { items: 2, qty: "20 PCS", type: "Stock Transfer" },
-    details: { requestedOn: "May 20, 2025 8:55 AM", requestedBy: "John Michael", requestedByRole: "Inventory Officer", reference: "PO-REF-2025-048", status: "Approved" },
+    details: {
+      requestedOn: "May 20, 2025 8:55 AM",
+      requestedBy: "John Michael",
+      requestedByRole: "Inventory Officer",
+      reference: "PO-REF-2025-048",
+      status: "Approved",
+    },
   },
   transfer_completed: {
-    transfer: { number: "TRF-000089", completedOn: "May 20, 2025 10:28 AM", completedBy: "John Michael", completedByRole: "Inventory Officer", fromLocation: "Receiving Area", fromZone: "Receiving Zone", toLocation: "Storage Area A", toZone: "Storage Zone A", purpose: "Regular Stock Transfer" },
+    transfer: {
+      number: "TRF-000089",
+      completedOn: "May 20, 2025 10:28 AM",
+      completedBy: "John Michael",
+      completedByRole: "Inventory Officer",
+      fromLocation: "Receiving Area",
+      fromZone: "Receiving Zone",
+      toLocation: "Storage Area A",
+      toZone: "Storage Zone A",
+      purpose: "Regular Stock Transfer",
+    },
     items: [
-      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 15, unit: "PCS" },
-      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 5, unit: "PCS" },
+      {
+        name: "Dell Latitude 5440",
+        cat: "Laptops",
+        sku: "DL-5440",
+        qty: 15,
+        unit: "PCS",
+      },
+      {
+        name: 'Dell 24" Monitor',
+        cat: "Monitors",
+        sku: "DM-24",
+        qty: 5,
+        unit: "PCS",
+      },
     ],
     totals: { items: 2, qty: "20 PCS" },
-    summary: { previousLocation: "Receiving Area", previousStock: "25 PCS", transferredOut: "20 PCS", transferredIn: "20 PCS", newLocation: "Storage Area A", newStock: "120 PCS" },
+    summary: {
+      previousLocation: "Receiving Area",
+      previousStock: "25 PCS",
+      transferredOut: "20 PCS",
+      transferredIn: "20 PCS",
+      newLocation: "Storage Area A",
+      newStock: "120 PCS",
+    },
     notes: "Transfer completed and inventory updated successfully.",
   },
   adjustment_pending: {
-    adjustment: { number: "ADJ-000045", submittedOn: "May 20, 2025 11:35 AM", submittedBy: "John Michael", submittedByRole: "Inventory Officer", type: "Decrease", reason: "Damaged Goods", approvalFrom: "Michael Johnson", approvalFromRole: "Warehouse Manager" },
-    items: [{ name: "iPhone 13", cat: "Mobile Phones", sku: "IP13-128", location: "Storage Area A", zone: "Storage Zone A", qtyChange: "-2", unit: "PCS" }],
-    stockSummary: { previous: "10 PCS", adjustment: "-2 PCS", expected: "8 PCS" },
-    details: { reasonDetails: "2 units damaged beyond repair during handling.", reference: "DAM-2025-005", affectedBy: "Handling Damage", attachment: "damage_photo.jpg" },
+    adjustment: {
+      number: "ADJ-000045",
+      submittedOn: "May 20, 2025 11:35 AM",
+      submittedBy: "John Michael",
+      submittedByRole: "Inventory Officer",
+      type: "Decrease",
+      reason: "Damaged Goods",
+      approvalFrom: "Michael Johnson",
+      approvalFromRole: "Warehouse Manager",
+    },
+    items: [
+      {
+        name: "iPhone 13",
+        cat: "Mobile Phones",
+        sku: "IP13-128",
+        location: "Storage Area A",
+        zone: "Storage Zone A",
+        qtyChange: "-2",
+        unit: "PCS",
+      },
+    ],
+    stockSummary: {
+      previous: "10 PCS",
+      adjustment: "-2 PCS",
+      expected: "8 PCS",
+    },
+    details: {
+      reasonDetails: "2 units damaged beyond repair during handling.",
+      reference: "DAM-2025-005",
+      affectedBy: "Handling Damage",
+      attachment: "damage_photo.jpg",
+    },
     workflowSteps: [
-      { label: "Submitted", status: "done", date: "May 20, 2025 11:35 AM", by: "John Michael" },
-      { label: "Pending Approval", status: "current", by: "Michael Johnson", byRole: "Warehouse Manager" },
+      {
+        label: "Submitted",
+        status: "done",
+        date: "May 20, 2025 11:35 AM",
+        by: "John Michael",
+      },
+      {
+        label: "Pending Approval",
+        status: "current",
+        by: "Michael Johnson",
+        byRole: "Warehouse Manager",
+      },
       { label: "Approved", status: "pending" },
     ],
   },
   stock_count_variance: {
-    count: { number: "SC-000123", countedOn: "May 20, 2025 2:45 PM", location: "Storage Area A", zone: "Storage Zone A", countType: "Cycle Count", countedBy: "John Michael", countedByRole: "Inventory Officer", approvalFrom: "Michael Johnson", approvalFromRole: "Warehouse Manager" },
-    summary: { itemsCounted: 25, totalVarianceQty: "-15 PCS", totalVarianceValue: 215000, variancePct: 5.62 },
+    count: {
+      number: "SC-000123",
+      countedOn: "May 20, 2025 2:45 PM",
+      location: "Storage Area A",
+      zone: "Storage Zone A",
+      countType: "Cycle Count",
+      countedBy: "John Michael",
+      countedByRole: "Inventory Officer",
+      approvalFrom: "Michael Johnson",
+      approvalFromRole: "Warehouse Manager",
+    },
+    summary: {
+      itemsCounted: 25,
+      totalVarianceQty: "-15 PCS",
+      totalVarianceValue: 215000,
+      variancePct: 5.62,
+    },
     varianceLevels: [
-      { level: "Critical", range: "> 10%", items: 2, qty: "-8 PCS", value: 130000 },
-      { level: "High", range: "5% - 10%", items: 3, qty: "-5 PCS", value: 85000 },
+      {
+        level: "Critical",
+        range: "> 10%",
+        items: 2,
+        qty: "-8 PCS",
+        value: 130000,
+      },
+      {
+        level: "High",
+        range: "5% - 10%",
+        items: 3,
+        qty: "-5 PCS",
+        value: 85000,
+      },
       { level: "Low", range: "2% - 5%", items: 6, qty: "-2 PCS", value: 25000 },
-      { level: "Within Limit", range: "≤ 2%", items: 14, qty: "0 PCS", value: 0 },
+      {
+        level: "Within Limit",
+        range: "≤ 2%",
+        items: 14,
+        qty: "0 PCS",
+        value: 0,
+      },
     ],
     topVariances: [
-      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", systemQty: "20 PCS", countedQty: "15 PCS", variance: "-5 PCS", variancePct: -25.0 },
-      { name: "iPhone 13", cat: "Mobile Phones", sku: "IP13-128", systemQty: "10 PCS", countedQty: "6 PCS", variance: "-4 PCS", variancePct: -40.0 },
-      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", systemQty: "8 PCS", countedQty: "7 PCS", variance: "-1 PCS", variancePct: -12.5 },
+      {
+        name: "Dell Latitude 5440",
+        cat: "Laptops",
+        sku: "DL-5440",
+        systemQty: "20 PCS",
+        countedQty: "15 PCS",
+        variance: "-5 PCS",
+        variancePct: -25.0,
+      },
+      {
+        name: "iPhone 13",
+        cat: "Mobile Phones",
+        sku: "IP13-128",
+        systemQty: "10 PCS",
+        countedQty: "6 PCS",
+        variance: "-4 PCS",
+        variancePct: -40.0,
+      },
+      {
+        name: 'Dell 24" Monitor',
+        cat: "Monitors",
+        sku: "DM-24",
+        systemQty: "8 PCS",
+        countedQty: "7 PCS",
+        variance: "-1 PCS",
+        variancePct: -12.5,
+      },
     ],
   },
   new_receipt_awaiting_approval: {
-    receipt: { number: "RCPT-000157", submittedOn: "May 22, 2025 9:18 AM", submittedBy: "John Michael", submittedByRole: "Inventory Officer", supplier: "Dell Technologies", warehouse: "Main Warehouse", type: "Purchase Receipt", expectedDeliveryDate: "May 22, 2025" },
+    receipt: {
+      number: "RCPT-000157",
+      submittedOn: "May 22, 2025 9:18 AM",
+      submittedBy: "John Michael",
+      submittedByRole: "Inventory Officer",
+      supplier: "Dell Technologies",
+      warehouse: "Main Warehouse",
+      type: "Purchase Receipt",
+      expectedDeliveryDate: "May 22, 2025",
+    },
     items: [
-      { name: "Dell Latitude 5440", cat: "Laptops", sku: "DL-5440", qty: 20, unit: "PCS", unitCost: 650000, totalCost: 13000000 },
-      { name: 'Dell 24" Monitor', cat: "Monitors", sku: "DM-24", qty: 10, unit: "PCS", unitCost: 120000, totalCost: 1200000 },
-      { name: "Dell Wireless Mouse", cat: "Accessories", sku: "WM-500", qty: 25, unit: "PCS", unitCost: 15000, totalCost: 375000 },
+      {
+        name: "Dell Latitude 5440",
+        cat: "Laptops",
+        sku: "DL-5440",
+        qty: 20,
+        unit: "PCS",
+        unitCost: 650000,
+        totalCost: 13000000,
+      },
+      {
+        name: 'Dell 24" Monitor',
+        cat: "Monitors",
+        sku: "DM-24",
+        qty: 10,
+        unit: "PCS",
+        unitCost: 120000,
+        totalCost: 1200000,
+      },
+      {
+        name: "Dell Wireless Mouse",
+        cat: "Accessories",
+        sku: "WM-500",
+        qty: 25,
+        unit: "PCS",
+        unitCost: 15000,
+        totalCost: 375000,
+      },
     ],
-    totals: { items: 3, qty: "55 PCS", amount: 14575000, taxPct: 7.5, taxAmount: 1093125 },
-    reference: { poNumber: "PO-2025-05-078", invoiceNumber: "INV-2025-05078", deliveryNote: "DN-2025-05078" },
+    totals: {
+      items: 3,
+      qty: "55 PCS",
+      amount: 14575000,
+      taxPct: 7.5,
+      taxAmount: 1093125,
+    },
+    reference: {
+      poNumber: "PO-2025-05-078",
+      invoiceNumber: "INV-2025-05078",
+      deliveryNote: "DN-2025-05078",
+    },
     notes: "New laptops for Q2 project deployment.",
     workflowSteps: [
-      { label: "Submitted", status: "done", date: "May 22, 2025 9:18 AM", by: "John Michael" },
-      { label: "Pending Approval", status: "current", by: "Michael Johnson", byRole: "Warehouse Manager" },
+      {
+        label: "Submitted",
+        status: "done",
+        date: "May 22, 2025 9:18 AM",
+        by: "John Michael",
+      },
+      {
+        label: "Pending Approval",
+        status: "current",
+        by: "Michael Johnson",
+        byRole: "Warehouse Manager",
+      },
       { label: "Approved", status: "pending" },
     ],
   },
@@ -223,15 +539,25 @@ const DEMO_DIALOG_DATA = {
       endsAt: "May 25, 2025 02:00 AM",
       id: "MAINT-2025-05-24-001",
       initiatedBy: "System Administrator",
-      reason: "Database optimization, security updates and system performance improvements.",
+      reason:
+        "Database optimization, security updates and system performance improvements.",
       impactLevel: "Medium",
       durationLabel: "3 hours",
-      statusNote: "The system will remain accessible, but some operations may be slower than usual.",
+      statusNote:
+        "The system will remain accessible, but some operations may be slower than usual.",
     },
     features: [
       { icon: RefreshCwIcon, label: "Transactions", note: "May be delayed" },
-      { icon: BoxesIcon, label: "Inventory Updates", note: "May be restricted" },
-      { icon: FileBarChart2Icon, label: "Reporting", note: "May be unavailable" },
+      {
+        icon: BoxesIcon,
+        label: "Inventory Updates",
+        note: "May be restricted",
+      },
+      {
+        icon: FileBarChart2Icon,
+        label: "Reporting",
+        note: "May be unavailable",
+      },
       { icon: PlugZapIcon, label: "Integrations", note: "May be limited" },
     ],
     actionItems: [
@@ -254,14 +580,52 @@ const DEMO_DIALOG_DATA = {
       totalRows: 262,
       durationLabel: "1 min 32 sec",
     },
-    stats: { imported: 245, importedPct: 93.5, updated: 8, updatedPct: 3.1, skipped: 6, skippedPct: 2.3, failed: 3, failedPct: 1.1 },
+    stats: {
+      imported: 245,
+      importedPct: 93.5,
+      updated: 8,
+      updatedPct: 3.1,
+      skipped: 6,
+      skippedPct: 2.3,
+      failed: 3,
+      failedPct: 1.1,
+    },
     summaryRows: [
-      { kind: "imported", status: "Successfully Imported", description: "New items added to inventory", count: 245, pct: 93.5 },
-      { kind: "updated", status: "Updated", description: "Existing items updated", count: 8, pct: 3.1 },
-      { kind: "skipped", status: "Skipped", description: "Duplicates or unchanged items", count: 6, pct: 2.3 },
-      { kind: "failed", status: "Failed", description: "Errors during import", count: 3, pct: 1.1 },
+      {
+        kind: "imported",
+        status: "Successfully Imported",
+        description: "New items added to inventory",
+        count: 245,
+        pct: 93.5,
+      },
+      {
+        kind: "updated",
+        status: "Updated",
+        description: "Existing items updated",
+        count: 8,
+        pct: 3.1,
+      },
+      {
+        kind: "skipped",
+        status: "Skipped",
+        description: "Duplicates or unchanged items",
+        count: 6,
+        pct: 2.3,
+      },
+      {
+        kind: "failed",
+        status: "Failed",
+        description: "Errors during import",
+        count: 3,
+        pct: 1.1,
+      },
     ],
-    fileSummary: { fileSize: "125.6 KB", fileType: "Microsoft Excel (.xlsx)", sheetsProcessed: 1, itemsPerSheet: 262 },
+    fileSummary: {
+      fileSize: "125.6 KB",
+      fileType: "Microsoft Excel (.xlsx)",
+      sheetsProcessed: 1,
+      itemsPerSheet: 262,
+    },
     nextSteps: [
       "All valid items have been imported to inventory.",
       "You can review the import log for details.",
@@ -332,7 +696,9 @@ const MainLayout = () => {
 
   const handleToggleRead = (notification) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, unread: !n.unread } : n))
+      prev.map((n) =>
+        n.id === notification.id ? { ...n, unread: !n.unread } : n,
+      ),
     );
   };
 
@@ -347,43 +713,76 @@ const MainLayout = () => {
 
   const handleNotificationClick = (notification) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, unread: false } : n))
+      prev.map((n) => (n.id === notification.id ? { ...n, unread: false } : n)),
     );
     setNotifOpen(false);
 
     switch (notification.type) {
       case "low_stock_alert":
-        setActiveDialog({ type: "low_stock_alert", data: DEMO_DIALOG_DATA.low_stock_alert });
+        setActiveDialog({
+          type: "low_stock_alert",
+          data: DEMO_DIALOG_DATA.low_stock_alert,
+        });
         break;
       case "reorder_level_reached":
-        setActiveDialog({ type: "reorder_level_reached", data: DEMO_DIALOG_DATA.reorder_level_reached });
+        setActiveDialog({
+          type: "reorder_level_reached",
+          data: DEMO_DIALOG_DATA.reorder_level_reached,
+        });
         break;
       case "receipt_completed":
-        setActiveDialog({ type: "receipt_completed", data: DEMO_DIALOG_DATA.receipt_completed });
+        setActiveDialog({
+          type: "receipt_completed",
+          data: DEMO_DIALOG_DATA.receipt_completed,
+        });
         break;
       case "transfer_approved":
-        setActiveDialog({ type: "transfer_approved", data: DEMO_DIALOG_DATA.transfer_approved });
+        setActiveDialog({
+          type: "transfer_approved",
+          data: DEMO_DIALOG_DATA.transfer_approved,
+        });
         break;
       case "transfer_completed":
-        setActiveDialog({ type: "transfer_completed", data: DEMO_DIALOG_DATA.transfer_completed });
+        setActiveDialog({
+          type: "transfer_completed",
+          data: DEMO_DIALOG_DATA.transfer_completed,
+        });
         break;
       case "adjustment_pending":
-        setActiveDialog({ type: "adjustment_pending", data: DEMO_DIALOG_DATA.adjustment_pending });
+        setActiveDialog({
+          type: "adjustment_pending",
+          data: DEMO_DIALOG_DATA.adjustment_pending,
+        });
         break;
       case "stock_count_variance":
-        setActiveDialog({ type: "stock_count_variance", data: DEMO_DIALOG_DATA.stock_count_variance });
+        setActiveDialog({
+          type: "stock_count_variance",
+          data: DEMO_DIALOG_DATA.stock_count_variance,
+        });
         break;
       case "new_receipt_awaiting_approval":
-        setActiveDialog({ type: "new_receipt_awaiting_approval", data: DEMO_DIALOG_DATA.new_receipt_awaiting_approval });
+        setActiveDialog({
+          type: "new_receipt_awaiting_approval",
+          data: DEMO_DIALOG_DATA.new_receipt_awaiting_approval,
+        });
         break;
       case "user_created":
-        setActiveDialog({ type: "user_created", data: DEMO_DIALOG_DATA.user_created });
+        setActiveDialog({
+          type: "user_created",
+          data: DEMO_DIALOG_DATA.user_created,
+        });
         break;
       case "system_maintenance":
-        setActiveDialog({ type: "system_maintenance", data: DEMO_DIALOG_DATA.system_maintenance });
+        setActiveDialog({
+          type: "system_maintenance",
+          data: DEMO_DIALOG_DATA.system_maintenance,
+        });
         break;
       case "import_completed":
-        setActiveDialog({ type: "import_completed", data: DEMO_DIALOG_DATA.import_completed });
+        setActiveDialog({
+          type: "import_completed",
+          data: DEMO_DIALOG_DATA.import_completed,
+        });
         break;
       case "import_failed":
         break;
@@ -393,7 +792,10 @@ const MainLayout = () => {
   };
 
   const closeDialog = () => setActiveDialog(null);
-  const goTo = (path) => { closeDialog(); navigate(path); };
+  const goTo = (path) => {
+    closeDialog();
+    navigate(path);
+  };
 
   const initials = user?.name
     ? user.name
@@ -755,7 +1157,9 @@ const MainLayout = () => {
         isOpen={activeDialog?.type === "reorder_level_reached"}
         variant="reorder"
         onClose={closeDialog}
-        {...(activeDialog?.type === "reorder_level_reached" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "reorder_level_reached"
+          ? activeDialog.data
+          : {})}
         onCreateReceipt={() => goTo("/receipts")}
         onAdjustStock={() => goTo("/adjustments")}
         onViewStockHistory={closeDialog}
@@ -763,14 +1167,18 @@ const MainLayout = () => {
       <ReceiptCompletedDialog
         isOpen={activeDialog?.type === "receipt_completed"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "receipt_completed" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "receipt_completed"
+          ? activeDialog.data
+          : {})}
         onViewReceiptDetails={() => goTo("/receipts")}
         onViewInventory={() => goTo("/items")}
       />
       <TransferApprovedDialog
         isOpen={activeDialog?.type === "transfer_approved"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "transfer_approved" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "transfer_approved"
+          ? activeDialog.data
+          : {})}
         onViewDetails={() => goTo("/transfers")}
         onComplete={closeDialog}
         onPrintSlip={closeDialog}
@@ -778,21 +1186,27 @@ const MainLayout = () => {
       <TransferCompletedDialog
         isOpen={activeDialog?.type === "transfer_completed"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "transfer_completed" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "transfer_completed"
+          ? activeDialog.data
+          : {})}
         onViewDetails={() => goTo("/transfers")}
         onPrintSlip={closeDialog}
       />
       <AdjustmentPendingDialog
         isOpen={activeDialog?.type === "adjustment_pending"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "adjustment_pending" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "adjustment_pending"
+          ? activeDialog.data
+          : {})}
         onViewDetails={() => goTo("/adjustments")}
         onApprove={closeDialog}
       />
       <StockCountVarianceDialog
         isOpen={activeDialog?.type === "stock_count_variance"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "stock_count_variance" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "stock_count_variance"
+          ? activeDialog.data
+          : {})}
         onViewFull={() => goTo("/stock-counts")}
         onRequestRecount={closeDialog}
         onReviewApprove={closeDialog}
@@ -800,7 +1214,9 @@ const MainLayout = () => {
       <NewReceiptApprovalDialog
         isOpen={activeDialog?.type === "new_receipt_awaiting_approval"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "new_receipt_awaiting_approval" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "new_receipt_awaiting_approval"
+          ? activeDialog.data
+          : {})}
         onViewDetails={() => goTo("/receipts")}
         onPrint={closeDialog}
         onApprove={closeDialog}
@@ -815,14 +1231,18 @@ const MainLayout = () => {
       <SystemMaintenanceDialog
         isOpen={activeDialog?.type === "system_maintenance"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "system_maintenance" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "system_maintenance"
+          ? activeDialog.data
+          : {})}
         onContactSupport={closeDialog}
         onViewHistory={closeDialog}
       />
       <ImportCompletedDialog
         isOpen={activeDialog?.type === "import_completed"}
         onClose={closeDialog}
-        {...(activeDialog?.type === "import_completed" ? activeDialog.data : {})}
+        {...(activeDialog?.type === "import_completed"
+          ? activeDialog.data
+          : {})}
         onDownloadErrorReport={closeDialog}
         onViewImportLog={() => goTo("/data-import")}
       />

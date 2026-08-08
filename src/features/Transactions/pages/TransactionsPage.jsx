@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-import apiClient, { tokenStorage } from "../../../shared/api/axiosClient.js";
 import {
   listAllItems,
   listAllSuppliers,
@@ -11,13 +10,7 @@ import {
   createTransactionByType,
 } from "../api/TransactionApi.js";
 import { normalizeTransaction } from "../utils/normalize.js";
-import {
-  iconPaths,
-  AUTO_LOGIN_EMAIL,
-  AUTO_LOGIN_PASSWORD,
-  PER_PAGE,
-  txTypes,
-} from "../constants.js";
+import { iconPaths, PER_PAGE, txTypes } from "../constants.js";
 import { Upload } from "lucide-react";
 import { Icon } from "../components/icons/Icon.jsx";
 import { PlusIcon } from "../components/icons/SmallIcons.jsx";
@@ -34,10 +27,6 @@ import { TransactionDetailsModal } from "../components/Transactiondetailsmodal .
 const TRANSACTIONS_MAX_PAGES = 50;
 
 export default function TransactionsPage() {
-  const [token, setToken] = useState(null);
-  const [authError, setAuthError] = useState("");
-  const [currentUserName, setCurrentUserName] = useState("");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [transactionDetails, setTransactionDetails] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -68,37 +57,7 @@ export default function TransactionsPage() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await apiClient.post("/auth/login", {
-          email: AUTO_LOGIN_EMAIL,
-          password: AUTO_LOGIN_PASSWORD,
-        });
-        const loginData = data?.data;
-        if (!loginData?.access_token) {
-          throw new Error("Login succeeded, but no access token was returned.");
-        }
-        tokenStorage.set(loginData.access_token);
-        if (cancelled) return;
-        setToken(loginData.access_token);
-        setCurrentUserName(loginData.user?.name || AUTO_LOGIN_EMAIL);
-      } catch (e) {
-        if (cancelled) return;
-        setAuthError(
-          e.message ||
-            "Could not connect to the API. Check your network access to the production server.",
-        );
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const loadData = useCallback(async () => {
-    if (!token) return;
     setDataLoading(true);
     setDataError("");
     setPartialWarning("");
@@ -115,7 +74,7 @@ export default function TransactionsPage() {
           listAllTransactions(TRANSACTIONS_MAX_PAGES),
         ]);
 
-      setTransactionsRaw(transactionsRaw)
+      setTransactionsRaw(transactionsRaw);
       setCatalogItems(itemsRaw);
       setSuppliers(suppliersRaw);
       setUnits(unitsRaw);
@@ -146,10 +105,12 @@ export default function TransactionsPage() {
     } finally {
       setDataLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    loadData();
+    (() => {
+      loadData();
+    })();
   }, [loadData]);
 
   /* date-aware filtering */
@@ -266,69 +227,6 @@ export default function TransactionsPage() {
   const pendingCount = transactions.filter(
     (t) => t.status === "Pending",
   ).length;
-
-  if (!token) {
-    return (
-      <div
-        style={{
-          fontFamily: "Inter,system-ui,sans-serif",
-          fontSize: 13,
-          color: "#1e2740",
-        }}
-      >
-        <div style={{ marginBottom: 20 }}>
-          <h1
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              margin: 0,
-            }}
-          >
-            Transactions
-          </h1>
-          <p
-            style={{
-              color: "#6b7591",
-              fontSize: 12.5,
-              marginTop: 3,
-              margin: "3px 0 0",
-            }}
-          >
-            View and track all inventory transactions across your organization.
-          </p>
-        </div>
-        {authError ? (
-          <div
-            style={{
-              padding: "12px 14px",
-              background: "#fff1f0",
-              border: "1px solid #ffd3ce",
-              borderRadius: 10,
-              fontSize: 12.5,
-              color: "#c0392b",
-            }}
-          >
-            {authError}
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: "40px 20px",
-              textAlign: "center",
-              color: "#9aa1b4",
-              fontSize: 12.5,
-              background: "#fff",
-              border: "1px solid #e4e7ef",
-              borderRadius: 10,
-            }}
-          >
-            Connecting to the inventory system…
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div
