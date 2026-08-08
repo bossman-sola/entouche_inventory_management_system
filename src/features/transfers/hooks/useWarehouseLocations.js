@@ -7,7 +7,10 @@ import {
 import apiClient from "../../../shared/api/axiosClient.js";
 
 
-async function fetchAllPages(path, maxPages = 20) {
+async function fetchAllPages(
+  path,
+  maxPages = 20
+) {
   let page = 1;
   let all = [];
 
