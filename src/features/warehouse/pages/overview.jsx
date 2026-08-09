@@ -1,24 +1,34 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Icon, icons } from '../components/ui/Icon.jsx';
-import { DateRangePicker } from '../components/DateRangePicker.jsx';
-import { StatCardsRow } from '../components/StatCardsRow.jsx';
-import { InventoryByLocationCard } from '../components/InventoryByLocationCard.jsx';
-import { CapacityUtilizationCard } from '../components/CapacityUtilizationCard (1).jsx';
-import { LocationStatusCard } from '../components/LocationStatusCard.jsx';
-import { LocationSummaryCard } from '../components/LocationSummaryCard.jsx';
-import { RecentMovementsCard } from '../components/RecentMovementsCard.jsx';
-import { apiErrorMessage } from '../../../lib/format.js';
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Icon, icons } from "../components/ui/Icon.jsx";
+import { DateRangePicker } from "../components/DateRangePicker.jsx";
+import { StatCardsRow } from "../components/StatCardsRow.jsx";
+import { InventoryByLocationCard } from "../components/InventoryByLocationCard.jsx";
+import { CapacityUtilizationCard } from "../components/CapacityUtilizationCard (1).jsx";
+import { LocationStatusCard } from "../components/LocationStatusCard.jsx";
+import { LocationSummaryCard } from "../components/LocationSummaryCard.jsx";
+import { RecentMovementsCard } from "../components/RecentMovementsCard.jsx";
+import { apiErrorMessage } from "../../../lib/format.js";
 import {
   fetchAllItems,
   fetchStockBalances,
   fetchAllLocations,
   aggregateQuantityByLocation,
   buildLocationQtyMap,
-} from '../../../lib/warehouseData.js';
-import { warehousesApi } from '../../warehouse/api/warehousesApi.js';
+  buildLocationValueMap,
+} from "../../../lib/warehouseData.js";
+import { warehousesApi } from "../../warehouse/api/warehousesApi.js";
+import { locationsApi } from "../../warehouse/api/locationsApi.js";
 
-const emptyWarehouseForm = { name: '', code: '', address: '', city: '', state: '', country: '', status: 'active' };
+const emptyWarehouseForm = {
+  name: "",
+  code: "",
+  address: "",
+  city: "",
+  state: "",
+  country: "",
+  status: "active",
+};
 
 function mapServerErrorsToForm(apiErrors) {
   const fieldErrors = {};
@@ -31,25 +41,36 @@ function mapServerErrorsToForm(apiErrors) {
 function suggestWarehouseCode(existingWarehouses) {
   const nums = existingWarehouses
     .map((w) => {
-      const m = String(w.code || '').match(/^WH-(\d+)$/i);
+      const m = String(w.code || "").match(/^WH-(\d+)$/i);
       return m ? parseInt(m[1], 10) : null;
     })
     .filter((n) => n !== null);
-  const next = (nums.length ? Math.max(...nums) : existingWarehouses.length) + 1;
-  return `WH-${String(next).padStart(3, '0')}`;
+  const next =
+    (nums.length ? Math.max(...nums) : existingWarehouses.length) + 1;
+  return `WH-${String(next).padStart(3, "0")}`;
 }
 
 function duplicateCodeError(err) {
-  const raw = err?.message || '';
+  const raw = err?.message || "";
   if (!/duplicate entry/i.test(raw) || !/code/i.test(raw)) return null;
   const match = raw.match(/Duplicate entry '([^']+)'/i);
   const value = match ? match[1] : null;
-  return `${value ? `"${value}"` : 'That code'} is already in use by another warehouse - try a different code.`;
+  return `${value ? `"${value}"` : "That code"} is already in use by another warehouse - try a different code.`;
+}
+
+function inDateRange(dateValue, range) {
+  if (!range?.start || !range?.end) return true;
+  if (!dateValue) return false;
+  const d = new Date(dateValue);
+  const start = new Date(range.start);
+  const end = new Date(range.end);
+  end.setHours(23, 59, 59, 999);
+  return d >= start && d <= end;
 }
 
 export default function WarehouseOverviewPage() {
   const navigate = useNavigate();
-  const [range, setRange] = useState(null); 
+  const [range, setRange] = useState(null);
 
   const [items, setItems] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -67,7 +88,7 @@ export default function WarehouseOverviewPage() {
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [toast, setToast] = useState(null);
 
-  function showToast(message, type = 'success') {
+  function showToast(message, type = "success") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   }
@@ -91,7 +112,10 @@ export default function WarehouseOverviewPage() {
     try {
       const { warehouses: whs, locations: locs } = await fetchAllLocations();
       setWarehouses(whs);
-      setLocations(locs);
+      const dedupedLocs = Array.from(
+        new Map((locs || []).map((l) => [l.id, l])).values(),
+      );
+      setLocations(dedupedLocs);
     } catch (err) {
       setLocationsError(apiErrorMessage(err, "Couldn't load locations."));
       setWarehouses([]);
@@ -102,12 +126,14 @@ export default function WarehouseOverviewPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    (() => load())();
   }, [load]);
 
   function openWarehouseModal() {
-  
-    setWarehouseForm({ ...emptyWarehouseForm, code: suggestWarehouseCode(warehouses) });
+    setWarehouseForm({
+      ...emptyWarehouseForm,
+      code: suggestWarehouseCode(warehouses),
+    });
     setWarehouseFormErrors({});
     setWarehouseModalOpen(true);
   }
@@ -118,8 +144,8 @@ export default function WarehouseOverviewPage() {
 
   function validateWarehouseForm() {
     const errs = {};
-    if (!warehouseForm.name.trim()) errs.name = 'Warehouse name is required';
-    if (!warehouseForm.code.trim()) errs.code = 'Code is required';
+    if (!warehouseForm.name.trim()) errs.name = "Warehouse name is required";
+    if (!warehouseForm.code.trim()) errs.code = "Code is required";
     return errs;
   }
 
@@ -130,54 +156,117 @@ export default function WarehouseOverviewPage() {
 
     setSavingWarehouse(true);
     try {
-      
       const payload = Object.fromEntries(
-        Object.entries(warehouseForm).filter(([, v]) => v !== '' && v != null)
+        Object.entries(warehouseForm).filter(([, v]) => v !== "" && v != null),
       );
       await warehousesApi.create(payload);
-      showToast('Warehouse created');
+      showToast("Warehouse created");
       setWarehouseModalOpen(false);
-      await load(); 
+      await load();
     } catch (err) {
       const dupMessage = duplicateCodeError(err);
       const fieldErrors = mapServerErrorsToForm(err.errors);
       if (dupMessage) {
         setWarehouseFormErrors((prev) => ({ ...prev, code: dupMessage }));
-        showToast(dupMessage, 'error');
+        showToast(dupMessage, "error");
       } else if (Object.keys(fieldErrors).length) {
         setWarehouseFormErrors((prev) => ({ ...prev, ...fieldErrors }));
-        showToast(Object.values(fieldErrors)[0], 'error');
+        showToast(Object.values(fieldErrors)[0], "error");
       } else {
-        showToast(apiErrorMessage(err, "Couldn't create this warehouse."), 'error');
+        showToast(
+          apiErrorMessage(err, "Couldn't create this warehouse."),
+          "error",
+        );
       }
     } finally {
       setSavingWarehouse(false);
     }
   }
 
-  const totalQuantity = balances.reduce((sum, b) => sum + (b.balance?.total_on_hand || 0), 0);
-  const totalValue = balances.reduce((sum, b) => {
+  async function handleToggleLocationStatus(location) {
+    const nextStatus = location.status === "active" ? "inactive" : "active";
+    try {
+      await locationsApi.toggleStatus(location.id, nextStatus);
+      showToast(`${location.name} marked ${nextStatus}`);
+      await load();
+    } catch (err) {
+      showToast(
+        apiErrorMessage(err, "Couldn't update this location."),
+        "error",
+      );
+    }
+  }
+
+  async function handleDeleteLocation(location) {
+    if (!window.confirm(`Delete "${location.name}"? This can't be undone.`))
+      return;
+    try {
+      await locationsApi.remove(location.id);
+      showToast(`${location.name} deleted`);
+      await load();
+    } catch (err) {
+      showToast(
+        apiErrorMessage(err, "Couldn't delete this location."),
+        "error",
+      );
+    }
+  }
+
+  const filteredBalances = balances.filter((b) =>
+    inDateRange(b.item?.updated_at || b.item?.created_at, range),
+  );
+
+  const totalQuantity = filteredBalances.reduce(
+    (sum, b) => sum + (b.balance?.total_on_hand || 0),
+    0,
+  );
+  const totalValue = filteredBalances.reduce((sum, b) => {
     const qty = b.balance?.total_on_hand || 0;
-    const cost = parseFloat(b.item.unit_cost) || 0;
+    const cost = parseFloat(b.item?.unit_cost) || 0;
     return sum + qty * cost;
   }, 0);
 
   const locationsById = new Map(locations.map((l) => [l.id, l]));
-  const byLocation = aggregateQuantityByLocation(balances, locationsById);
+  const byLocation = aggregateQuantityByLocation(
+    filteredBalances,
+    locationsById,
+  );
   const byLocationTotal = byLocation.reduce((s, r) => s + r.qty, 0);
-  const qtyByLocationId = buildLocationQtyMap(balances);
+  const qtyByLocationId = buildLocationQtyMap(filteredBalances);
+  const valueByLocationId = buildLocationValueMap(filteredBalances);
 
-  const activeLocations = locations.filter((l) => l.status === 'active').length;
+  const activeLocations = locations.filter((l) => l.status === "active").length;
   const inactiveLocations = locations.length - activeLocations;
 
+  const capacityLocations = locations.filter(
+    (l) => l.capacity != null && l.capacity > 0,
+  );
+  const totalCapacity = capacityLocations.reduce(
+    (sum, l) => sum + Number(l.capacity),
+    0,
+  );
+
+  const totalCapacityQty = capacityLocations.reduce(
+    (sum, l) => sum + (l.quantity_on_hand || 0),
+    0,
+  );
+
+  const utilizationPct =
+    totalCapacity > 0
+      ? Math.round((totalCapacityQty / totalCapacity) * 1000) / 10
+      : null;
+
   return (
-    <div className="p-3 sm:p-6 bg-gray-50 min-h-screen">
+    <div className=" bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start items-stretch justify-between mb-6 gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Warehouse Overview</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Warehouse Overview
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Real-time overview of your warehouse locations and inventory distribution
+            Real-time overview of your warehouse locations and inventory
+            distribution
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -195,9 +284,17 @@ export default function WarehouseOverviewPage() {
       {error && (
         <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
           <p className="text-sm text-red-600 font-medium flex items-center gap-2">
-            <Icon d={icons.warning} size={16} className="text-red-500 shrink-0" /> {error}
+            <Icon
+              d={icons.warning}
+              size={16}
+              className="text-red-500 shrink-0"
+            />{" "}
+            {error}
           </p>
-          <button onClick={load} className="text-xs font-semibold text-red-600 hover:text-red-700 whitespace-nowrap">
+          <button
+            onClick={load}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 whitespace-nowrap"
+          >
             Retry
           </button>
         </div>
@@ -206,9 +303,17 @@ export default function WarehouseOverviewPage() {
       {locationsError && (
         <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
           <p className="text-sm text-red-600 font-medium flex items-center gap-2">
-            <Icon d={icons.warning} size={16} className="text-red-500 shrink-0" /> {locationsError}
+            <Icon
+              d={icons.warning}
+              size={16}
+              className="text-red-500 shrink-0"
+            />{" "}
+            {locationsError}
           </p>
-          <button onClick={load} className="text-xs font-semibold text-red-600 hover:text-red-700 whitespace-nowrap">
+          <button
+            onClick={load}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 whitespace-nowrap"
+          >
             Retry
           </button>
         </div>
@@ -217,6 +322,7 @@ export default function WarehouseOverviewPage() {
       {/* Stat cards */}
       <StatCardsRow
         locations={locations}
+        utilizationPct={utilizationPct}
         warehouses={warehouses}
         totalQuantity={totalQuantity}
         totalValue={totalValue}
@@ -231,14 +337,19 @@ export default function WarehouseOverviewPage() {
           loading={locationsLoading || loading}
           byLocation={byLocation}
           byLocationTotal={byLocationTotal}
-          onViewAll={() => navigate('/locations')}
+          onViewAll={() => navigate("/locations")}
         />
-        <CapacityUtilizationCard />
+        <CapacityUtilizationCard
+          loading={locationsLoading}
+          locations={locations}
+          onViewAll={() => navigate("/locations")}
+        />
         <LocationStatusCard
           loading={locationsLoading}
           locations={locations}
           activeLocations={activeLocations}
           inactiveLocations={inactiveLocations}
+          onViewAll={() => navigate("/locations")}
         />
       </div>
 
@@ -247,10 +358,13 @@ export default function WarehouseOverviewPage() {
           loading={locationsLoading}
           locations={locations}
           qtyByLocationId={qtyByLocationId}
+          valueByLocationId={valueByLocationId}
+          onToggleStatus={handleToggleLocationStatus}
+          onDelete={handleDeleteLocation}
         />
         <RecentMovementsCard />
       </div>
-      
+
       {warehouseModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
@@ -260,8 +374,12 @@ export default function WarehouseOverviewPage() {
             <div className="p-5 sm:p-6">
               <div className="flex items-start justify-between mb-5">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">New Warehouse</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">Add a new warehouse to your organization.</p>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    New Warehouse
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Add a new warehouse to your organization.
+                  </p>
                 </div>
                 <button
                   onClick={closeWarehouseModal}
@@ -279,11 +397,20 @@ export default function WarehouseOverviewPage() {
                   </label>
                   <input
                     value={warehouseForm.name}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        name: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Main Warehouse"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  {warehouseFormErrors.name && <p className="text-xs text-red-500 mt-1">{warehouseFormErrors.name}</p>}
+                  {warehouseFormErrors.name && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {warehouseFormErrors.name}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -292,18 +419,34 @@ export default function WarehouseOverviewPage() {
                   </label>
                   <input
                     value={warehouseForm.code}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, code: e.target.value.toUpperCase() })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        code: e.target.value.toUpperCase(),
+                      })
+                    }
                     placeholder="e.g. WH-001"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  {warehouseFormErrors.code && <p className="text-xs text-red-500 mt-1">{warehouseFormErrors.code}</p>}
+                  {warehouseFormErrors.code && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {warehouseFormErrors.code}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
                   <select
                     value={warehouseForm.status}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, status: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        status: e.target.value,
+                      })
+                    }
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="active">Active</option>
@@ -312,41 +455,73 @@ export default function WarehouseOverviewPage() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address
+                  </label>
                   <input
                     value={warehouseForm.address}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, address: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        address: e.target.value,
+                      })
+                    }
                     placeholder="e.g. 12 Industrial Avenue"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  {warehouseFormErrors.address && <p className="text-xs text-red-500 mt-1">{warehouseFormErrors.address}</p>}
+                  {warehouseFormErrors.address && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {warehouseFormErrors.address}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    City
+                  </label>
                   <input
                     value={warehouseForm.city}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, city: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        city: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Lagos"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    State
+                  </label>
                   <input
                     value={warehouseForm.state}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, state: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        state: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Lagos"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Country
+                  </label>
                   <input
                     value={warehouseForm.country}
-                    onChange={(e) => setWarehouseForm({ ...warehouseForm, country: e.target.value })}
+                    onChange={(e) =>
+                      setWarehouseForm({
+                        ...warehouseForm,
+                        country: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Nigeria"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
@@ -365,7 +540,7 @@ export default function WarehouseOverviewPage() {
                   disabled={savingWarehouse}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
-                  {savingWarehouse ? 'Saving…' : 'Save Warehouse'}
+                  {savingWarehouse ? "Saving…" : "Save Warehouse"}
                 </button>
               </div>
             </div>
@@ -376,7 +551,7 @@ export default function WarehouseOverviewPage() {
       {toast && (
         <div
           className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white ${
-            toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'
+            toast.type === "error" ? "bg-red-600" : "bg-green-600"
           }`}
         >
           {toast.message}

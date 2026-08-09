@@ -24,10 +24,15 @@ export const getAdjType = (a) => a.adjustment_type ?? a.type ?? null;
 export const getStatus = (a) => a.status ?? "draft";
 export const getReason = (a) => a.reason ?? "-";
 export const getDate = (a) => a.adjustment_date ?? a.created_at ?? null;
-export const getReference = (a) => a.reference_number ?? a.reference ?? `#${a.id}`;
-export const getWarehouseName = (a) => a.warehouse?.name ?? a.warehouse_name ?? "-";
-export const getLocationName = (a) => a.warehouse_location?.name ?? a.location?.name ?? a.warehouse_location_name ?? "-";
-export const getAdjustedByName = (a) => a.created_by?.name ?? a.user?.name ?? a.creator?.name ?? a.adjusted_by?.name ?? "-";
+export const getReference = (a) => {
+  if (a.reference_number) return a.reference_number;
+  if (a.reference) return a.reference;
+  const num = Number(a.id) || 0;
+  return `ADJ-${String(num).padStart(6, "0")}`;
+};
+export const getWarehouseName = (a) => a.warehouse?.name ?? a.warehouse_name ?? "—";
+export const getLocationName = (a) => a.warehouse_location?.name ?? a.location?.name ?? a.warehouse_location_name ?? "—";
+export const getAdjustedByName = (a) => a.created_by?.name ?? a.user?.name ?? a.creator?.name ?? a.adjusted_by?.name ?? "—";
 
 export const getItemRows = (a) => (Array.isArray(a.items) ? a.items : []);
 export const getItemName = (row) => row.item?.name ?? row.name ?? row.item_name ?? "Item";
@@ -43,4 +48,18 @@ export function formatDate(value) {
 
 export function totalQtyForAdjustment(a) {
   return getItemRows(a).reduce((sum, row) => sum + Math.abs(Number(getItemQty(row)) || 0), 0);
+}
+
+export const getFirstItemName = (a) => getItemName(getItemRows(a)[0] || {});
+export const getItemCount = (a) => getItemRows(a).length;
+export const getItemUnitCost = (row) => Number(row.item?.unit_cost ?? row.unit_cost ?? 0) || 0;
+
+
+export function signedQtyForAdjustment(a) {
+  return getItemRows(a).reduce((sum, row) => sum + (Number(getItemQty(row)) || 0), 0);
+}
+
+
+export function valueImpactForAdjustment(a) {
+  return getItemRows(a).reduce((sum, row) => sum + (Number(getItemQty(row)) || 0) * getItemUnitCost(row), 0);
 }

@@ -1,4 +1,6 @@
-import apiClient from "../../../shared/api/axiosClient.js"
+import apiClient, {
+  tokenStorage,
+} from "../../../shared/api/axiosClient.js";
 
 /**
  * POST /auth/login
@@ -6,16 +8,29 @@ import apiClient from "../../../shared/api/axiosClient.js"
  * @returns {Promise<{user: object, access_token: string, token_type: string}>}
  */
 export async function login({ email, password }) {
-  const { data } = await apiClient.post("/auth/login", { email, password })
-  return data.data // { user, access_token, token_type }
+  const response = await apiClient.post("/auth/login", {
+    email,
+    password,
+  });
+
+  const loginData = response.data?.data;
+
+  if (!loginData?.access_token) {
+    throw new Error("Login succeeded, but no access token was returned.");
+  }
+
+  tokenStorage.set(loginData.access_token);
+
+  return loginData;
 }
 
-/**
- * POST /auth/logout
- */
 export async function logout() {
-  const { data } = await apiClient.post("/auth/logout")
-  return data
+  try {
+    const response = await apiClient.post("/auth/logout");
+    return response.data;
+  } finally {
+    tokenStorage.clear();
+  }
 }
 
 /**
@@ -23,8 +38,8 @@ export async function logout() {
  * @returns {Promise<{access_token: string, token_type: string}>}
  */
 export async function refreshToken() {
-  const { data } = await apiClient.post("/auth/refresh")
-  return data.data
+  const { data } = await apiClient.post("/auth/refresh");
+  return data.data;
 }
 
 /**
@@ -32,6 +47,6 @@ export async function refreshToken() {
  * @returns {Promise<object>} the current authenticated user
  */
 export async function getCurrentUser() {
-  const { data } = await apiClient.get("/auth/me")
-  return data.data
+  const { data } = await apiClient.get("/auth/me");
+  return data.data;
 }

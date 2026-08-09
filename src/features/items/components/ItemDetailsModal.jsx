@@ -234,12 +234,15 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
                   <p className="text-sm text-slate-400 font-medium">Loading stock balance...</p>
                 ) : stockBalance && stockBalance.by_location?.length > 0 ? (
                   <div className="space-y-4">
-                    {stockBalance.by_location.map((loc, idx) => (
-                      <div key={idx} className="flex justify-between text-[13px] font-bold text-[#1E2740]">
-                        <span>{loc.warehouse_name || loc.location || `Location ${idx + 1}`}</span>
-                        <span>{loc.quantity ?? loc.on_hand ?? 0} units</span>
-                      </div>
-                    ))}
+                    {stockBalance.by_location.map((loc, idx) => {
+                      console.log("Location Data:", loc); // Debugging line to check the structure of loc
+                      return (
+                        <div key={idx} className="flex justify-between text-[13px] font-bold text-[#1E2740]">
+                          <span>{loc.warehouse_name || `Location ${idx + 1}`}</span>
+                          <span>{loc.quantity ?? loc.on_hand ?? 0} units</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-y-8">

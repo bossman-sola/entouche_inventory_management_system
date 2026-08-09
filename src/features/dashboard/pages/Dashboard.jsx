@@ -64,6 +64,7 @@ const TYPE_FAMILY = {
   adjustment_out: 'Adjustment',
 };
 const TYPE_COLORS = { Receipt: '#16A369', Transfer: '#4F6EF7', Adjustment: '#C27A0A' };
+const TYPE_ROUTES = { Receipt: '/receipts', Transfer: '/transfers', Adjustment: '/adjustments' };
 
 function baseType(rawType) {
   const key = String(rawType || '').toLowerCase().trim();
@@ -407,7 +408,16 @@ const Dashboard = () => {
             <>
               <ResponsiveContainer width="100%" height="78%">
                 <PieChart>
-                  <Pie data={stats.byType} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                  <Pie
+                    data={stats.byType}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    onClick={(entry) => navigate(TYPE_ROUTES[entry.name] || '/transactions')}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {stats.byType.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
@@ -417,7 +427,11 @@ const Dashboard = () => {
               </ResponsiveContainer>
               <div className="flex items-center justify-center gap-4 flex-wrap">
                 {stats.byType.map((entry) => (
-                  <div key={entry.name} className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6B7591]">
+                  <div
+                    key={entry.name}
+                    onClick={() => navigate(TYPE_ROUTES[entry.name] || '/transactions')}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-[#6B7591] cursor-pointer hover:text-[#1E2740]"
+                  >
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: entry.color }} />
                     {entry.name} ({entry.value})
                   </div>
@@ -457,6 +471,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
 
 export default Dashboard;

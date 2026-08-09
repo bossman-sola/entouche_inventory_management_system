@@ -9,6 +9,12 @@ const statusStyle = {
 function fmtNaira(n) {
   return '₦' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 
 const TimelineDot = ({ done }) => (
   <div style={{
@@ -45,8 +51,8 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
     <>
       <style>{`
         .rcd-overlay {
-          position: absolute; inset: 0; z-index: 9998;
-          background: rgba(20,25,45,0.45);
+          position: fixed; inset: 0; z-index: 9998;
+          background: rgba(15,20,40,0.5);
           display: flex; align-items: flex-start; justify-content: center;
           padding: 24px 16px; overflow-y: auto;
           font-family: Inter, system-ui, sans-serif;
@@ -159,13 +165,13 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               </div>
               <div className="rcd-meta">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                {receipt.date}
+                {fmtDateTime(receipt.date)}
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2" style={{ marginLeft: 6 }}><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a8 8 0 0 1 16 0v1" /></svg>
                 {receipt.by}
               </div>
             </div>
             <div><div className="rcd-stat-label">Supplier</div><div className="rcd-stat-val">{receipt.supplier}</div></div>
-            <div><div className="rcd-stat-label">Reference / PO No.</div><div className="rcd-stat-val">{receipt.ref}</div></div>
+            <div><div className="rcd-stat-label">PO Number from Vendor.</div><div className="rcd-stat-val">{receipt.vendor_po_number}</div></div>
             <div><div className="rcd-stat-label">Total Items</div><div className="rcd-stat-val">{totItems}</div></div>
             <div><div className="rcd-stat-label">Total Quantity</div><div className="rcd-stat-val">{totQty}</div></div>
             <div><div className="rcd-stat-label">Total Value</div><div className="rcd-stat-val">{fmtNaira(totCost)}</div></div>
@@ -182,10 +188,11 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               </div>
               <div className="rcd-field-grid">
                 <div><div className="rcd-flabel">Receipt Number</div><div className="rcd-fval">{receipt.no}</div></div>
-                <div><div className="rcd-flabel">Receipt Date</div><div className="rcd-fval">{receipt.date}</div></div>
-                <div><div className="rcd-flabel">Reference / PO No.</div><div className="rcd-fval">{receipt.ref}</div></div>
+                <div><div className="rcd-flabel">Receipt Date</div><div className="rcd-fval">{fmtDateTime(receipt.date)}</div></div>
+                <div><div className="rcd-flabel">PO Number from Vendor</div><div className="rcd-fval">{receipt.vendor_po_number}</div></div>
+                <div><div className="rcd-flabel">API PO Number </div><div className="rcd-fval">{receipt.api_po_number}</div></div>
                 <div><div className="rcd-flabel">Supplier</div><div className="rcd-fval link">{receipt.supplier}</div></div>
-                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.by}</div></div>
+                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.received_by}</div></div>
                 <div><div className="rcd-flabel">Delivery Note No.</div><div className="rcd-fval">{receipt.deliveryNoteNo}</div></div>
               </div>
               <div className="rcd-notes-block">
@@ -202,7 +209,7 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
                 Delivery &amp; Location
               </div>
               <div className="rcd-field-grid">
-                <div><div className="rcd-flabel">Delivery Date</div><div className="rcd-fval">{receipt.deliveryDate}</div></div>
+                <div><div className="rcd-flabel">Delivery Date</div><div className="rcd-fval">{fmtDateTime(receipt.deliveryDate)}</div></div>
                 <div><div className="rcd-flabel">Warehouse</div><div className="rcd-fval">{receipt.warehouse}</div></div>
                 <div><div className="rcd-flabel">Receiving Location</div><div className="rcd-fval">{receipt.receivingLocation}</div></div>
                 <div><div className="rcd-flabel">Storage Location</div><div className="rcd-fval">{receipt.storageLocation}</div></div>

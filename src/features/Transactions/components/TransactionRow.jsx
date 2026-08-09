@@ -42,9 +42,10 @@ export const TransactionRow = ({ t, isMenuOpen, onToggleMenu }) => {
           onMouseEnter={e => e.currentTarget.style.background = "#f4f6fb"}
           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
         >
-          <DotsIcon />
+          <EyeIcon />
+          {/* <DotsIcon /> */}
         </div>
-        {isMenuOpen && (
+        {/* {isMenuOpen && (
           <div onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 8, top: 32, zIndex: 50, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 8, boxShadow: "0 8px 24px rgba(20,25,50,0.14)", minWidth: 150, padding: 4, textAlign: "left" }}>
             <div onClick={() => onToggleMenu(null)}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, color: "#1e2740", fontWeight: 500 }}
@@ -54,7 +55,7 @@ export const TransactionRow = ({ t, isMenuOpen, onToggleMenu }) => {
               <EyeIcon /> View Details
             </div>
           </div>
-        )}
+        )} */}
       </td>
     </tr>
   );

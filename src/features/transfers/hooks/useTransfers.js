@@ -1,57 +1,256 @@
-import { useState, useCallback, useEffect } from "react";
-import { apiRequest, fetchAllPages } from "../api/client.js";
-export function useTransfers(token) {
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
+import * as TransferApi from "../api/TransfersApi.js";
+
+
+function errorMessage(err, fallback) {
+  return (
+    err?.response?.data?.message ||
+    err?.message ||
+    fallback
+  );
+}
+
+
+export function useTransfers() {
   const [transfers, setTransfers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError("");
-    try {
-      const data = await fetchAllPages("/transfers", token);
-      setTransfers(data);
-    } catch (err) {
-      setError(err.message || "Couldn't load transfers");
-    } finally {
-      setLoading(false);
+
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialData() {
+      try {
+        const response =
+          await TransferApi.listTransfers();
+
+        if (cancelled) {
+          return;
+        }
+
+        setTransfers(
+          response?.transfers ?? []
+        );
+
+        setError("");
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
+        setError(
+          errorMessage(
+            err,
+            "Couldn't load transfers"
+          )
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
-  }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+    loadInitialData();
 
-  const createTransfer = useCallback(async (payload) => {
-    const json = await apiRequest("/transfers", token, { method: "POST", body: JSON.stringify(payload) });
-    await load();
-    return json?.data;
-  }, [token, load]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const runAction = useCallback(async (id, action, body) => {
-    const json = await apiRequest(`/transfers/${id}/${action}`, token, {
-      method: "POST",
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    await load();
-    return json?.data;
-  }, [token, load]);
 
-  const removeTransfer = useCallback(async (id) => {
-    await apiRequest(`/transfers/${id}`, token, { method: "DELETE" });
-    await load();
-  }, [token, load]);
+  /* =======================================================
+     MANUAL RELOAD
+  ======================================================= */
+
+  const reload = useCallback(
+    async (params = {}) => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response =
+          await TransferApi.listTransfers(
+            params
+          );
+
+        setTransfers(
+          response?.transfers ?? []
+        );
+
+        return response;
+      } catch (err) {
+        setError(
+          errorMessage(
+            err,
+            "Couldn't load transfers"
+          )
+        );
+
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+
+  /* =======================================================
+     CREATE
+  ======================================================= */
+
+  const createTransfer = useCallback(
+    async (payload) => {
+      const created =
+        await TransferApi.createTransfer(
+          payload
+        );
+
+      await reload();
+
+      return created;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
+
+  const submitTransfer = useCallback(
+    async (id) => {
+      const result =
+        await TransferApi.submitTransfer(
+          id
+        );
+
+      await reload();
+
+      return result;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     APPROVE
+  ======================================================= */
+
+  const approveTransfer = useCallback(
+    async (id) => {
+      const result =
+        await TransferApi.approveTransfer(
+          id
+        );
+
+      await reload();
+
+      return result;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     REJECT
+  ======================================================= */
+
+  const rejectTransfer = useCallback(
+    async (id, reason) => {
+      const result =
+        await TransferApi.rejectTransfer(
+          id,
+          reason
+        );
+
+      await reload();
+
+      return result;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     COMPLETE
+  ======================================================= */
+
+  const completeTransfer = useCallback(
+    async (id) => {
+      const result =
+        await TransferApi.completeTransfer(
+          id
+        );
+
+      await reload();
+
+      return result;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     CANCEL
+  ======================================================= */
+
+  const cancelTransfer = useCallback(
+    async (id) => {
+      const result =
+        await TransferApi.cancelTransfer(
+          id
+        );
+
+      await reload();
+
+      return result;
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     DELETE
+  ======================================================= */
+
+  const removeTransfer = useCallback(
+    async (id) => {
+      await TransferApi.deleteTransfer(id);
+
+      await reload();
+    },
+    [reload]
+  );
+
+
+  /* =======================================================
+     RETURN
+  ======================================================= */
 
   return {
     transfers,
     loading,
     error,
-    reload: load,
+    reload,
+
     createTransfer,
-    submitTransfer: (id) => runAction(id, "submit"),
-    approveTransfer: (id) => runAction(id, "approve"),
-    rejectTransfer: (id, reason) => runAction(id, "reject", { reason }),
-    completeTransfer: (id) => runAction(id, "complete"),
-    cancelTransfer: (id) => runAction(id, "cancel"),
+    submitTransfer,
+    approveTransfer,
+    rejectTransfer,
+    completeTransfer,
+    cancelTransfer,
     removeTransfer,
   };
 }
