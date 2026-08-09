@@ -26,15 +26,37 @@ const requestedByLabel = (t, usersById) => {
     "-"
   );
 };
-const formatDate = (d) =>
-  d
-    ? new Date(d).toLocaleDateString("en-US", {
+const formatDate = (dateValue) => {
+  if (!dateValue) return "-";
+
+  // Handle backend date-only values such as "2026-08-08"
+  // without UTC timezone conversion.
+  const dateOnly = String(dateValue).split("T")[0];
+
+  const [year, month, day] = dateOnly
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) {
+    return "-";
+  }
+
+  const localDate = new Date(
+    year,
+    month - 1,
+    day
+  );
+
+  return localDate.toLocaleDateString(
+    "en-US",
+    {
       month: "short",
       day: "numeric",
       year: "numeric",
-    })
-    : "-";
-const formatTime = (d) =>
+    }
+  );
+};
+    const formatTime = (d) =>
   d
     ? new Date(d).toLocaleTimeString("en-US", {
       hour: "2-digit",

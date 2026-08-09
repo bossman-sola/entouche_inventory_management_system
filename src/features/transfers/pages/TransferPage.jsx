@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react"; 
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
+import { useItemsUsers } from "../hooks/useItemsUsers.js";
 import { useTransfers } from "../hooks/useTransfers.js";
+
 import { Icon, icons } from "../components/icons.jsx";
 import NewTransferModal from "../components/NewTransferModal.jsx";
 import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
@@ -10,7 +13,6 @@ import TransferSidebar from "../components/TransferSidebar.jsx";
 import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
 
 export default function TransfersPage() {
-  const { locations, loading: locationsLoading, error: locationsError } = useWarehouseLocations();
   const {
     locations,
     loading: locationsLoading,
