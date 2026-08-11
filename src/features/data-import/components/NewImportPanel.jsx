@@ -68,7 +68,7 @@ export function NewImportPanel({
                 className="text-blue-500 shrink-0"
               />
               <p className="text-sm text-blue-700">
-                Users import isn't wired up yet — the API only supports listing
+                Users import isn't wired up yet - the API only supports listing
                 users, not creating them.
               </p>
             </div>

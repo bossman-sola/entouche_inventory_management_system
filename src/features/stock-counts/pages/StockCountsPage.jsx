@@ -9,6 +9,7 @@ import StockCountFilters from "../components/StockCountFilters.jsx";
 import StockCountTable from "../components/StockCountTable.jsx";
 import AdvancedStockCountFilters from "../components/AdvancedStockCountFilters.jsx";
 import * as StockCountApi from "../api/StockCountApi.js";
+import { StockCountDetails } from "./StockCountDetails.jsx";
 
 /* =========================================================
    STAT CARD
@@ -129,6 +130,8 @@ function getNumber(...values) {
 
 export default function StockCountsPage() {
     const [modalOpen, setModalOpen] = useState(false);
+
+    const [selectedCountId, setSelectedCountId] = useState(null);
 
     const {
         stockCounts = [],
@@ -345,6 +348,21 @@ export default function StockCountsPage() {
         }
     }
 
+    if (selectedCountId) {
+        return (
+            <StockCountDetails
+                countId={selectedCountId}
+                onBack={() => {
+                    setSelectedCountId(null);
+                    reload();
+                }}
+                onOpenDetails={(countId) => {
+                    setSelectedCountId(countId);
+                }}
+            />
+        );
+    }
+
     /* =======================================================
        RENDER
     ======================================================= */
@@ -554,10 +572,7 @@ export default function StockCountsPage() {
                         }}
 
                         onView={(count) => {
-                            console.log(
-                                "View stock count:",
-                                count
-                            );
+                            setSelectedCountId(count.id);
                         }}
 
                         onOpenActions={(count) => {

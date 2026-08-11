@@ -1345,7 +1345,7 @@ export default function AddNewReceipt({
                     Choose Files
                   </button>
                   <div className="anr-attach-sub">
-                    Not available yet — no backend endpoint for receipt
+                    Not available yet - no backend endpoint for receipt
                     attachments.
                   </div>
                 </div>

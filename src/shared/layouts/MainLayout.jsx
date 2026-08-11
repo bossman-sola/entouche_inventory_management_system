@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../features/auth/hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications.js";
 import Logo from "../../assets/icons/Logo.svg?react";
 import DashboardIcon from "../../assets/icons/Dashboard.svg?react";
 import HomeIcon from "../../assets/icons/Home.svg?react";
@@ -14,6 +15,10 @@ import AuditIcon from "../../assets/icons/Audit.svg?react";
 import SettingsIcon from "../../assets/icons/Settings.svg?react";
 import Notifications from "./Notifications";
 import AlertDialog from "./dialogs/Alertdialog";
+import { api } from "../api/entoucheApi.js";
+import {
+  mapApiTransferApproved,
+} from "../api/mappers.js";
 import ReceiptCompletedDialog from "./dialogs/ReceiptCompletedDialog";
 import TransferApprovedDialog from "./dialogs/TransferApprovedDialog";
 import TransferCompletedDialog from "./dialogs/TransferCompletedDialog";
@@ -41,103 +46,6 @@ import {
   Settings as SettingsGear,
   LogOut,
 } from "lucide-react";
-
-const DEMO_NOTIFICATIONS = [
-  {
-    id: "n1",
-    type: "low_stock_alert",
-    title: "Low Stock Alert",
-    description: "Dell Latitude 5440 is low on stock at Storage Area.",
-    timeAgo: "2 min ago",
-    unread: true,
-    itemId: "LAP-001",
-  },
-  {
-    id: "n2",
-    type: "receipt_completed",
-    title: "Receipt Completed",
-    description:
-      "Receipt RCPT-000156 has been completed and added to inventory.",
-    timeAgo: "15 min ago",
-    unread: true,
-    receiptId: "RCPT-000156",
-  },
-  {
-    id: "n3",
-    type: "transfer_approved",
-    title: "Transfer Approved",
-    description:
-      "Transfer TRF-000089 has been approved and is ready for completion.",
-    timeAgo: "32 min ago",
-    unread: true,
-    transferId: "TRF-000089",
-  },
-  {
-    id: "n4",
-    type: "reorder_level_reached",
-    title: "Reorder Level Reached",
-    description: "HP LaserJet Pro has reached reorder level at Storage Area.",
-    timeAgo: "1 hr ago",
-    unread: true,
-    itemId: "HPLJ-M404",
-  },
-  {
-    id: "n5",
-    type: "adjustment_pending",
-    title: "Adjustment Pending",
-    description:
-      "Adjustment ADJ-000045 for item iPhone 13 is awaiting approval.",
-    timeAgo: "1 hr ago",
-    unread: true,
-    adjustmentId: "ADJ-000045",
-  },
-  {
-    id: "n6",
-    type: "stock_count_variance",
-    title: "Stock Count Variance",
-    description:
-      "Stock Count SC-000123 has variance exceeding the allowed limit.",
-    timeAgo: "2 hr ago",
-    unread: false,
-    stockCountId: "SC-000123",
-  },
-  {
-    id: "n7",
-    type: "system_maintenance",
-    title: "System Maintenance Scheduled",
-    description: "System maintenance planned for July 25, 2026 at 02:00 AM.",
-    timeAgo: "2 hr ago",
-    unread: false,
-  },
-  {
-    id: "n8",
-    type: "new_receipt_awaiting_approval",
-    title: "New Receipt Awaiting Approval",
-    description:
-      "Receipt RCPT-000157 has been submitted and is awaiting approval.",
-    timeAgo: "3 hr ago",
-    unread: false,
-    receiptId: "RCPT-000157",
-  },
-  {
-    id: "n9",
-    type: "import_completed",
-    title: "Import Completed",
-    description:
-      "Import IMP-000045 has been completed successfully. 245 items were imported.",
-    timeAgo: "Just now",
-    unread: true,
-  },
-  {
-    id: "n10",
-    type: "user_created",
-    title: "User Created",
-    description:
-      "New user Michael Johnson has been created and account is active.",
-    timeAgo: "5 min ago",
-    unread: true,
-  },
-];
 
 const DEMO_DIALOG_DATA = {
   low_stock_alert: {
@@ -656,6 +564,276 @@ const DEMO_DIALOG_DATA = {
   },
 };
 
+function percentage(value, total) {
+  if (!total) return 0;
+
+  return Number(
+    ((Number(value || 0) / Number(total)) * 100)
+      .toFixed(1)
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function buildImportCompletedDialogData(importRecord) {
+  const successful =
+    Number(
+      importRecord.successful_rows ??
+      importRecord.imported_rows ??
+      0
+    );
+
+  const updated =
+    Number(
+      importRecord.updated_rows ?? 0
+    );
+
+  const skipped =
+    Number(
+      importRecord.skipped_rows ?? 0
+    );
+
+  const failed =
+    Number(
+      importRecord.failed_rows ?? 0
+    );
+
+  const total =
+    Number(
+      importRecord.total_rows ??
+      successful + updated + skipped + failed
+    );
+
+  return {
+    importInfo: {
+      id:
+        importRecord.import_number ??
+        `IMP-${String(importRecord.id).padStart(6, "0")}`,
+
+      type:
+        importRecord.import_type ?? "—",
+
+      fileName:
+        importRecord.file_name ??
+        importRecord.original_filename ??
+        "—",
+
+      source:
+        "File Upload",
+
+      importedBy:
+        importRecord.uploader?.name ??
+        "—",
+
+      importedByRole:
+        importRecord.uploader?.roles?.[0]?.name ??
+        "",
+
+      warehouse:
+        importRecord.warehouse?.name ??
+        "—",
+
+      completedOn:
+        formatDateTime(
+          importRecord.completed_at ??
+          importRecord.updated_at
+        ),
+
+      totalRows: total,
+
+      durationLabel:
+        importRecord.duration_label ??
+        "—",
+    },
+
+    stats: {
+      imported: successful,
+      importedPct:
+        percentage(successful, total),
+
+      updated,
+      updatedPct:
+        percentage(updated, total),
+
+      skipped,
+      skippedPct:
+        percentage(skipped, total),
+
+      failed,
+      failedPct:
+        percentage(failed, total),
+    },
+
+    summaryRows: [
+      {
+        kind: "imported",
+        status: "Successfully Imported",
+        description:
+          "Rows imported successfully",
+        count: successful,
+        pct:
+          percentage(successful, total),
+      },
+      {
+        kind: "updated",
+        status: "Updated",
+        description:
+          "Existing records updated",
+        count: updated,
+        pct:
+          percentage(updated, total),
+      },
+      {
+        kind: "skipped",
+        status: "Skipped",
+        description:
+          "Rows skipped during import",
+        count: skipped,
+        pct:
+          percentage(skipped, total),
+      },
+      {
+        kind: "failed",
+        status: "Failed",
+        description:
+          "Rows that could not be imported",
+        count: failed,
+        pct:
+          percentage(failed, total),
+      },
+    ],
+
+    fileSummary: {
+      fileSize:
+        importRecord.file_size_label ??
+        importRecord.file_size ??
+        "—",
+
+      fileType:
+        importRecord.file_type ??
+        importRecord.mime_type ??
+        "—",
+
+      sheetsProcessed:
+        importRecord.sheets_processed ??
+        "—",
+
+      itemsPerSheet:
+        total || "—",
+    },
+
+    nextSteps:
+      failed > 0
+        ? [
+          "Review the failed rows.",
+          "Correct the spreadsheet data.",
+          "Upload only the corrected failed rows again.",
+        ]
+        : [
+          "Import completed successfully.",
+          "Review the import log for details.",
+        ],
+  };
+}
+
+async function buildTransferApprovedDialogData(transferId) {
+  const [
+    transfer,
+    items,
+    warehouses,
+  ] = await Promise.all([
+    api.getTransfer(transferId),
+    api.listItems(),
+    api.listWarehouses(),
+  ]);
+
+  const itemRows =
+    Array.isArray(items)
+      ? items
+      : [];
+
+  const warehouseRows =
+    Array.isArray(warehouses)
+      ? warehouses
+      : [];
+
+  const itemsById = Object.fromEntries(
+    itemRows.map((item) => [
+      String(item.id),
+      item,
+    ])
+  );
+
+  const warehousesById =
+    Object.fromEntries(
+      warehouseRows.map((warehouse) => [
+        String(warehouse.id),
+        warehouse,
+      ])
+    );
+
+  /*
+   * Locations are nested under warehouses,
+   * so load each warehouse's locations.
+   */
+  const locationGroups =
+    await Promise.all(
+      warehouseRows.map(
+        async (warehouse) => {
+          try {
+            const locations =
+              await api.listWarehouseLocations(
+                warehouse.id
+              );
+
+            return (
+              Array.isArray(locations)
+                ? locations
+                : []
+            ).map((location) => ({
+              ...location,
+              warehouseId:
+                warehouse.id,
+              warehouseName:
+                warehouse.name,
+            }));
+          } catch {
+            return [];
+          }
+        }
+      )
+    );
+
+  const locations =
+    locationGroups.flat();
+
+  const locationsById =
+    Object.fromEntries(
+      locations.map((location) => [
+        String(location.id),
+        location,
+      ])
+    );
+
+  return mapApiTransferApproved(
+    transfer,
+    itemsById,
+    locationsById,
+    warehousesById
+  );
+}
+
+
 const MainLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -664,23 +842,47 @@ const MainLayout = () => {
   const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS);
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotifications();
   const [activeDialog, setActiveDialog] = useState(null); // { type, data } | null
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setNotifOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (
+      profileRef.current &&
+      !profileRef.current.contains(e.target)
+    ) {
+      setProfileOpen(false);
+    }
+
+    if (
+      !activeDialog &&
+      notifRef.current &&
+      !notifRef.current.contains(e.target)
+    ) {
+      setNotifOpen(false);
+    }
+  };
+
+  document.addEventListener(
+    "mousedown",
+    handleClickOutside
+  );
+
+  return () => {
+    document.removeEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+  };
+}, [activeDialog]);
 
   const handleSignOut = async () => {
     setProfileOpen(false);
@@ -688,108 +890,190 @@ const MainLayout = () => {
     navigate("/signin", { replace: true });
   };
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
-
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  };
-
-  const handleToggleRead = (notification) => {
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === notification.id ? { ...n, unread: !n.unread } : n,
-      ),
-    );
-  };
-
-  const handleDeleteNotification = (notification) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
-  };
-
   const handleViewAllNotifications = () => {
     setNotifOpen(false);
     navigate("/notifications");
   };
 
-  const handleNotificationClick = (notification) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, unread: false } : n)),
-    );
-    setNotifOpen(false);
+  const handleNotificationClick =
+    async (notification) => {
+      try {
+        if (notification.unread) {
+          await markAsRead(
+            notification
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Failed to mark notification as read:",
+          err
+        );
+      }
 
-    switch (notification.type) {
-      case "low_stock_alert":
-        setActiveDialog({
-          type: "low_stock_alert",
-          data: DEMO_DIALOG_DATA.low_stock_alert,
-        });
-        break;
-      case "reorder_level_reached":
-        setActiveDialog({
-          type: "reorder_level_reached",
-          data: DEMO_DIALOG_DATA.reorder_level_reached,
-        });
-        break;
-      case "receipt_completed":
-        setActiveDialog({
-          type: "receipt_completed",
-          data: DEMO_DIALOG_DATA.receipt_completed,
-        });
-        break;
-      case "transfer_approved":
-        setActiveDialog({
-          type: "transfer_approved",
-          data: DEMO_DIALOG_DATA.transfer_approved,
-        });
-        break;
-      case "transfer_completed":
-        setActiveDialog({
-          type: "transfer_completed",
-          data: DEMO_DIALOG_DATA.transfer_completed,
-        });
-        break;
-      case "adjustment_pending":
-        setActiveDialog({
-          type: "adjustment_pending",
-          data: DEMO_DIALOG_DATA.adjustment_pending,
-        });
-        break;
-      case "stock_count_variance":
-        setActiveDialog({
-          type: "stock_count_variance",
-          data: DEMO_DIALOG_DATA.stock_count_variance,
-        });
-        break;
-      case "new_receipt_awaiting_approval":
-        setActiveDialog({
-          type: "new_receipt_awaiting_approval",
-          data: DEMO_DIALOG_DATA.new_receipt_awaiting_approval,
-        });
-        break;
-      case "user_created":
-        setActiveDialog({
-          type: "user_created",
-          data: DEMO_DIALOG_DATA.user_created,
-        });
-        break;
-      case "system_maintenance":
-        setActiveDialog({
-          type: "system_maintenance",
-          data: DEMO_DIALOG_DATA.system_maintenance,
-        });
-        break;
-      case "import_completed":
-        setActiveDialog({
-          type: "import_completed",
-          data: DEMO_DIALOG_DATA.import_completed,
-        });
-        break;
-      case "import_failed":
-        break;
-      default:
-        break;
-    }
-  };
+      // setNotifOpen(false);
+
+      switch (notification.type) {
+        case "low_stock_alert":
+          setActiveDialog({
+            type: "low_stock_alert",
+            data:
+              DEMO_DIALOG_DATA.low_stock_alert,
+          });
+          break;
+
+        case "reorder_level_reached":
+          setActiveDialog({
+            type: "reorder_level_reached",
+            data:
+              DEMO_DIALOG_DATA.reorder_level_reached,
+          });
+          break;
+
+        case "receipt_completed":
+          setActiveDialog({
+            type: "receipt_completed",
+            data:
+              DEMO_DIALOG_DATA.receipt_completed,
+          });
+          break;
+
+        case "transfer_approved": {
+          if (!notification.transferId) {
+            console.error(
+              "Transfer notification is missing transfer_id",
+              notification
+            );
+            break;
+          }
+
+          try {
+            const data =
+              await buildTransferApprovedDialogData(
+                notification.transferId
+              );
+
+            setActiveDialog({
+              type: "transfer_approved",
+              data,
+            });
+          } catch (err) {
+            console.error(
+              "Failed to load transfer notification details:",
+              err
+            );
+          }
+
+          break;
+        }
+
+        case "transfer_completed":
+          setActiveDialog({
+            type: "transfer_completed",
+            data:
+              DEMO_DIALOG_DATA.transfer_completed,
+          });
+          break;
+
+        case "adjustment_pending":
+          setActiveDialog({
+            type: "adjustment_pending",
+            data:
+              DEMO_DIALOG_DATA.adjustment_pending,
+          });
+          break;
+
+        case "stock_count_variance":
+          setActiveDialog({
+            type: "stock_count_variance",
+            data:
+              DEMO_DIALOG_DATA.stock_count_variance,
+          });
+          break;
+
+        /*
+         * This one is IMPORTANT because it is actually
+         * present in your current API response.
+         */
+        case "stock_count_submitted":
+          setActiveDialog({
+            type: "stock_count_submitted",
+            data: {
+              title:
+                notification.title,
+              description:
+                notification.description,
+              timeAgo:
+                notification.timeAgo,
+              stockCountId:
+                notification.stockCountId,
+            },
+          });
+          break;
+
+        case "new_receipt_awaiting_approval":
+          setActiveDialog({
+            type:
+              "new_receipt_awaiting_approval",
+            data:
+              DEMO_DIALOG_DATA
+                .new_receipt_awaiting_approval,
+          });
+          break;
+
+        case "user_created":
+          setActiveDialog({
+            type: "user_created",
+            data:
+              DEMO_DIALOG_DATA.user_created,
+          });
+          break;
+
+        case "system_maintenance":
+          setActiveDialog({
+            type: "system_maintenance",
+            data:
+              DEMO_DIALOG_DATA.system_maintenance,
+          });
+          break;
+
+        case "import_completed": {
+          if (!notification.importId) {
+            console.error(
+              "Import notification is missing import_id",
+              notification
+            );
+            break;
+          }
+
+          try {
+            const importRecord =
+              await api.getImport(
+                notification.importId
+              );
+
+            const data =
+              buildImportCompletedDialogData(
+                importRecord
+              );
+
+            setActiveDialog({
+              type: "import_completed",
+              data,
+            });
+          } catch (err) {
+            console.error(
+              "Failed to load import details:",
+              err
+            );
+          }
+
+          break;
+        }
+
+        default:
+          break;
+      }
+    };
 
   const closeDialog = () => setActiveDialog(null);
   const goTo = (path) => {
@@ -799,11 +1083,11 @@ const MainLayout = () => {
 
   const initials = user?.name
     ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : "";
 
   return (
@@ -1051,13 +1335,31 @@ const MainLayout = () => {
 
               <Notifications
                 isOpen={notifOpen}
-                onClose={() => setNotifOpen(false)}
+                onClose={() =>
+                  setNotifOpen(false)
+                }
+
                 notifications={notifications}
-                onMarkAllRead={handleMarkAllRead}
-                onNotificationClick={handleNotificationClick}
-                onToggleRead={handleToggleRead}
-                onDelete={handleDeleteNotification}
-                onViewAll={handleViewAllNotifications}
+
+                onMarkAllRead={
+                  markAllAsRead
+                }
+
+                onNotificationClick={
+                  handleNotificationClick
+                }
+
+                onToggleRead={
+                  markAsRead
+                }
+
+                onDelete={
+                  deleteNotification
+                }
+
+                // onViewAll={
+                //   handleViewAllNotifications
+                // }
               />
             </div>
 
@@ -1255,10 +1557,9 @@ const SidebarLink = ({ to, icon, label, isCollapsed, end = false }) => (
     to={to}
     end={end}
     className={({ isActive }) =>
-      `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group ${
-        isActive
-          ? "bg-[#4F46E5] text-white shadow-xl shadow-indigo-900/40"
-          : "text-[#6B7591] hover:bg-slate-800 hover:text-white"
+      `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group ${isActive
+        ? "bg-[#4F46E5] text-white shadow-xl shadow-indigo-900/40"
+        : "text-[#6B7591] hover:bg-slate-800 hover:text-white"
       }`
     }
   >
@@ -1276,15 +1577,15 @@ const SidebarLink = ({ to, icon, label, isCollapsed, end = false }) => (
 const DropdownItem = ({ icon, label, onClick, danger = false }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13.5px] font-medium transition-colors text-left ${
-      danger
-        ? "text-red-500 hover:bg-red-50"
-        : "text-[#1E2740] hover:bg-gray-50"
-    }`}
+    className={`flex items-center gap-3 w-full px-4 py-2.5 text-[13.5px] font-medium transition-colors text-left ${danger
+      ? "text-red-500 hover:bg-red-50"
+      : "text-[#1E2740] hover:bg-gray-50"
+      }`}
   >
     <span className={danger ? "text-red-500" : "text-gray-400"}>{icon}</span>
     {label}
   </button>
 );
+
 
 export default MainLayout;

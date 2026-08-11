@@ -47,30 +47,30 @@ export async function fetchAllPages(path, params = {}, { maxPages = 10 } = {}) {
   }
 }
 
-/** GET /items — full paginated catalog list. */
+/** GET /items - full paginated catalog list. */
 export async function listAllItems() {
   return fetchAllPages("/items");
 }
 
-/** GET /suppliers — full paginated list. */
+/** GET /suppliers - full paginated list. */
 export async function listAllSuppliers() {
   return fetchAllPages("/suppliers");
 }
 
-/** GET /units — full paginated list. */
+/** GET /units - full paginated list. */
 export async function listAllUnits() {
   return fetchAllPages("/units");
 }
 
-/** GET /warehouses — full paginated list. */
+/** GET /warehouses - full paginated list. */
 export async function listAllWarehouses() {
   return fetchAllPages("/warehouses");
 }
 
 /**
- * GET /transactions — the global, read-only ledger endpoint.
+ * GET /transactions - the global, read-only ledger endpoint.
  * Filterable server-side by item_id, warehouse_id, transaction_type,
- * direction, date_from, date_to (not wired here — TransactionsPage
+ * direction, date_from, date_to (not wired here - TransactionsPage
  * still filters client-side after fetching everything).
  * @param {number} [maxPages=50]
  * @returns {Promise<Array>}
@@ -138,7 +138,7 @@ export async function createStockCount(body) {
 /**
  * Dispatches to the right creation endpoint for a transaction's apiType,
  * so callers (the New Transaction modal flow) don't need their own
- * endpoint-map/switch — that logic now lives in one place.
+ * endpoint-map/switch - that logic now lives in one place.
  * @param {"receipt"|"transfer"|"adjustment"|"stock_count"} apiType
  * @param {Object} body
  */

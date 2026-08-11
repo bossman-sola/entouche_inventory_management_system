@@ -185,7 +185,7 @@ export function normalizeDraftDocument(doc, sourceType, itemsById) {
       total: qty * unitCost,
       user: "-",
       status,
-      // extra fields the table's action menu will need — not present on
+      // extra fields the table's action menu will need - not present on
       // ledger rows, so TransactionsTable must check `sourceType` before
       // reading these
       sourceType, // "adjustment" | "receipt" | "transfer" | "stock_count"

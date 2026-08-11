@@ -1,22 +1,84 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+
 import * as itemsApi from "../api/itemsApi.js";
 import { mapApiItemToUiItem } from "../api/itemsMapper.js";
 
 export const useItems = (query = {}) => {
   const [rawItems, setRawItems] = useState([]);
   const [meta, setMeta] = useState(null);
+
+  const [stats, setStats] = useState({
+    total_items: 0,
+    total_skus: 0,
+    total_categories: 0,
+    items_with_barcode: 0,
+    barcode_percentage: 0,
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  /* =======================================================
+     FETCH ITEMS + GLOBAL STATS
+  ======================================================= */
 
   const fetchItems = useCallback(async (params = {}) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const { items, meta: m } = await itemsApi.listItems(params);
-      setRawItems(items);
-      setMeta(m);
+      const [
+        itemsResponse,
+        statsResponse,
+      ] = await Promise.all([
+        itemsApi.listItems(params),
+        itemsApi.getItemStats(),
+      ]);
+
+      setRawItems(
+        itemsResponse?.items ?? []
+      );
+
+      setMeta(
+        itemsResponse?.meta ?? null
+      );
+
+      setStats({
+        total_items:
+          Number(
+            statsResponse?.total_items ?? 0
+          ),
+
+        total_skus:
+          Number(
+            statsResponse?.total_skus ?? 0
+          ),
+
+        total_categories:
+          Number(
+            statsResponse?.total_categories ?? 0
+          ),
+
+        items_with_barcode:
+          Number(
+            statsResponse?.items_with_barcode ?? 0
+          ),
+
+        barcode_percentage:
+          Number(
+            statsResponse?.barcode_percentage ?? 0
+          ),
+      });
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't load items.");
+      setError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Couldn't load items."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -26,50 +88,116 @@ export const useItems = (query = {}) => {
     fetchItems(query);
   }, [fetchItems, JSON.stringify(query)]);
 
-  // NOTE: the list endpoint doesn't return live stock quantities, so the
-  // table shows 0 / "Out of Stock" until you open an item's details, which
-  // fetches the real balance from GET /items/:id/stock-balance.
-  const items = rawItems.map((item) => mapApiItemToUiItem(item));
+  /* =======================================================
+     MAP API ITEMS TO UI ITEMS
+  ======================================================= */
 
-  const createItem = async (payload, imageFile) => {
-    const created = await itemsApi.createItem(payload);
+  const items = rawItems.map(
+    (item) =>
+      mapApiItemToUiItem(item)
+  );
+
+  /* =======================================================
+     CREATE
+  ======================================================= */
+
+  const createItem = async (
+    payload,
+    imageFile
+  ) => {
+    const created =
+      await itemsApi.createItem(payload);
+
     let withImage = created;
+
     if (imageFile) {
       try {
-        withImage = await itemsApi.uploadItemImage(created.id, imageFile);
+        withImage =
+          await itemsApi.uploadItemImage(
+            created.id,
+            imageFile
+          );
       } catch {
-        // Item was created successfully even if the image upload failed;
-        // surface nothing fatal here, the item just won't have a photo yet.
+        // Item was created even if
+        // the image upload failed.
       }
     }
-    setRawItems((prev) => [...prev, withImage]);
-    return mapApiItemToUiItem(withImage);
+
+    /*
+     * Reload instead of manually appending.
+     *
+     * This keeps:
+     * - pagination
+     * - meta
+     * - stats
+     * - total_stock
+     *
+     * synchronized with the backend.
+     */
+    await fetchItems(query);
+
+    return mapApiItemToUiItem(
+      withImage
+    );
   };
 
-  const updateItem = async (id, payload) => {
-    const updated = await itemsApi.updateItem(id, payload);
-    setRawItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
-    return mapApiItemToUiItem(updated);
+  /* =======================================================
+     UPDATE
+  ======================================================= */
+
+  const updateItem = async (
+    id,
+    payload
+  ) => {
+    const updated =
+      await itemsApi.updateItem(
+        id,
+        payload
+      );
+
+    await fetchItems(query);
+
+    return mapApiItemToUiItem(
+      updated
+    );
   };
+
+  /* =======================================================
+     DELETE
+  ======================================================= */
 
   const deleteItem = async (id) => {
     await itemsApi.deleteItem(id);
-    setRawItems((prev) => prev.filter((it) => it.id !== id));
+
+    await fetchItems(query);
   };
 
+  /* =======================================================
+     TOGGLE STATUS
+  ======================================================= */
+
   const toggleItemStatus = async (id) => {
-    const updated = await itemsApi.toggleItemStatus(id);
-    setRawItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
-    return mapApiItemToUiItem(updated);
+    const updated =
+      await itemsApi.toggleItemStatus(id);
+
+    await fetchItems(query);
+
+    return mapApiItemToUiItem(
+      updated
+    );
   };
 
   return {
     items,
     rawItems,
     meta,
+    stats,
+
     isLoading,
     error,
+
     refetch: fetchItems,
+
     createItem,
     updateItem,
     deleteItem,

@@ -87,7 +87,7 @@ const badgeToneByDirection = (direction) =>
 // This deliberately avoids `import("html2canvas")` / `import("jspdf")`:
 // most bundlers (webpack, Vite) try to statically resolve dynamic imports
 // at build time, so if those packages aren't installed the build itself
-// breaks — which is why Download silently produced nothing before.
+// breaks - which is why Download silently produced nothing before.
 // Loading the UMD build from a CDN at click-time works regardless of
 // whether the packages are installed locally.
 const loadScriptOnce = (src, isReady) =>
@@ -293,7 +293,7 @@ export function TransactionDetailsModal({
       pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
       pdf.save(`${transaction.transaction_number || "transaction"}.pdf`);
     } catch (err) {
-      // Network blocked, CDN unreachable, or capture failed — fall back
+      // Network blocked, CDN unreachable, or capture failed - fall back
       // to the browser's native "Save as PDF" print flow so Download
       // always produces something.
       console.warn("PDF export failed, falling back to print:", err);
@@ -621,7 +621,7 @@ export function TransactionDetailsModal({
 
 /* ------------------------------------------------------------------ */
 /*  Demo wrapper (default export target for previewing in isolation)  */
-/*  Remove this block once you wire the modal into your own app —     */
+/*  Remove this block once you wire the modal into your own app -     */
 /*  it exists only so this file can be previewed standalone.          */
 /* ------------------------------------------------------------------ */
 

@@ -30,7 +30,7 @@ export function printCountSheet(header, items) {
     .join("");
 
   const html = `<!doctype html>
-    <html><head><title>${header?.countNo || "Stock Count"} — Count Sheet</title>
+    <html><head><title>${header?.countNo || "Stock Count"} - Count Sheet</title>
     <style>
       body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
       h1 { font-size: 18px; margin-bottom: 4px; }
@@ -40,7 +40,7 @@ export function printCountSheet(header, items) {
       th { background: #f5f5f5; }
     </style></head>
     <body>
-      <h1>${header?.countNo || "Stock Count"} — Count Sheet</h1>
+      <h1>${header?.countNo || "Stock Count"} - Count Sheet</h1>
       <div class="meta">
         Warehouse: ${header?.warehouse || "-"} &nbsp;•&nbsp;
         Location: ${header?.location || "-"} &nbsp;•&nbsp;

@@ -83,10 +83,12 @@ export default function DataImportPage() {
         authError={authError}
         currentUser={currentUser}
         refLoading={refLoading}
-        onRetry={() => {}}
+        onRetry={loadReferenceData}
       />
 
-      {!isAuthed && authStatus === "error" && <LoginForm onLogin={login} />}
+      {!isAuthed && authStatus === "error" && (
+        <LoginForm onLogin={login} />
+      )}
 
       <StatsGrid
         history={history}
@@ -99,6 +101,7 @@ export default function DataImportPage() {
       <div className="flex flex-col lg:flex-row gap-5">
         <div className="w-full lg:w-[560px] shrink-0 space-y-4">
           <ImportTemplates />
+
           <NewImportPanel
             isAuthed={isAuthed}
             showConfig={true}
@@ -107,12 +110,11 @@ export default function DataImportPage() {
             warehouses={warehouses}
             selectedWarehouseId={selectedWarehouseId}
             setSelectedWarehouseId={setSelectedWarehouseId}
-            setSelectedLocationId={setSelectedLocationId}
             selectedLocationId={selectedLocationId}
+            setSelectedLocationId={setSelectedLocationId}
             fileFormat={fileFormat}
             setFileFormat={setFileFormat}
             encoding={encoding}
-            showConfig={true}
             setEncoding={setEncoding}
             flow={flow}
           />
@@ -125,6 +127,7 @@ export default function DataImportPage() {
             history={history}
             onNewImportClick={() => fileRef.current?.click()}
           />
+
           <ImportHistoryTable
             history={history}
             meta={historyMeta}

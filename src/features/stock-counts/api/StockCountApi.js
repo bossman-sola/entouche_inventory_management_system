@@ -2,7 +2,7 @@ import apiClient from "../../../shared/api/axiosClient.js";
 
 /**
  * ─────────────────────────────────────────────────────────────
- * DATA SHAPES (JSDoc typedefs — for editor intellisense only,
+ * DATA SHAPES (JSDoc typedefs - for editor intellisense only,
  * no build step required since this is plain JS)
  * ─────────────────────────────────────────────────────────────
  */
@@ -96,7 +96,7 @@ import apiClient from "../../../shared/api/axiosClient.js";
  * @property {number} item_id
  * @property {number|null} [warehouse_location_id]
  *
- * NOTE: no quantity here — quantity is recorded afterward, per item,
+ * NOTE: no quantity here - quantity is recorded afterward, per item,
  * via updateStockCountItem().
  */
 
@@ -108,7 +108,7 @@ import apiClient from "../../../shared/api/axiosClient.js";
 
 /**
  * ─────────────────────────────────────────────────────────────
- * API CALLS — these paths/verbs are taken directly from
+ * API CALLS - these paths/verbs are taken directly from
  * routes/api.php, not guessed from REST convention.
  * ─────────────────────────────────────────────────────────────
  */
@@ -134,7 +134,7 @@ export const getStockCountOverview = async () => {
 };
 
 /**
- * Lookup lists for filters/forms — warehouses, locations, users, etc.
+ * Lookup lists for filters/forms - warehouses, locations, users, etc.
  * (GET /stock-counts/lookups).
  * @returns {Promise<Object>}
  */
@@ -229,12 +229,12 @@ export const deleteStockCount = async (id) => {
 };
 
 /**
- * Add one or more items to a stock count (no quantity yet — that's set per
+ * Add one or more items to a stock count (no quantity yet - that's set per
  * item via updateStockCountItem()).
  *
  * NOTE: the real backend route (StockCountController::addItems) validates
  * the body as `{ items: [{ item_id, warehouse_location_id? }, ...] }` —
- * a required array, min 1 — not a single flat object. Posting a bare
+ * a required array, min 1 - not a single flat object. Posting a bare
  * `{ item_id }` 422s. This wraps whatever shape is passed in (a single
  * item payload, or an array of them) into that `items` array.
  * @param {number|string} stockCountId
@@ -296,7 +296,7 @@ export const getStockCountVariance = async (id) => {
 
 /**
  * Submit a stock count for approval (draft/in-progress -> completed,
- * per the real controller — there is no separate /start or /complete step).
+ * per the real controller - there is no separate /start or /complete step).
  * @param {number|string} id
  * @returns {Promise<StockCount>}
  */

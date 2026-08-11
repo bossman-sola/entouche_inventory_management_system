@@ -1,4 +1,3 @@
-import React from "react";
 import { ShoppingCart, FileText, Printer, RefreshCw } from "lucide-react";
 import DialogShell from "./DialogShell";
 import { InfoField, Pill, ItemCell, DialogButton, Banner } from "./primitives";

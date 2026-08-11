@@ -25,16 +25,25 @@ async function unwrap(promise) {
 
 export async function fetchAllPages(path, params = {}) {
   let page = 1;
-  let lastPage = 1;
   const all = [];
-  do {
+
+  while (true) {
     const { data: json } = await apiClient.get(path, {
       params: { ...params, page },
     });
-    all.push(...(json?.data || []));
-    lastPage = json?.meta?.last_page || 1;
+
+    const data = Array.isArray(json?.data) ? json.data : [];
+    all.push(...data);
+
+    const lastPage = json?.meta?.last_page ?? 1;
+
+    if (page >= lastPage) {
+      break;
+    }
+
     page += 1;
-  } while (page <= lastPage);
+  }
+
   return all;
 }
 
@@ -216,6 +225,10 @@ export const api = {
       }),
     );
   },
+  getImport: (id) =>
+    unwrap(
+      apiClient.get(`/imports/${id}`)
+    ),
   downloadImportTemplate: async (type) => {
     const res = await apiClient.get(`/imports/templates/${type}`, {
       responseType: "blob",
@@ -243,4 +256,16 @@ export const api = {
   bulkUpdateSettings: (settings) =>
     unwrap(apiClient.put("/settings", { settings })),
   getSetting: (key) => unwrap(apiClient.get(`/settings/${key}`)),
+
+  // Notifications
+
+  listNotifications: (params) =>
+    unwrap(apiClient.get("/notifications", { params })),
+  markNotificationRead: (id) =>
+    unwrap(apiClient.post(`/notifications/${id}/read`)),
+  markAllNotificationsRead: () =>
+    unwrap(apiClient.post("/notifications/mark-all-read")),
+  deleteNotification: (id) => unwrap(apiClient.delete(`/notifications/${id}`)),
+  getUnreadNotificationCount: () =>
+    unwrap(apiClient.get("/notifications/unread-count")),
 };
