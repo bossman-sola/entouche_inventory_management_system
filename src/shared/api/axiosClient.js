@@ -6,9 +6,17 @@ const STAGING_URL =
 const PRODUCTION_URL =
   "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
 
+const isLocalDevelopment = import.meta.env.DEV;
+
+const isNetlifyStaging =
+  typeof window !== "undefined" &&
+  window.location.hostname === "staging--entouche-inventory.netlify.app";
+
 export const BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? STAGING_URL : PRODUCTION_URL);
+  import.meta.env.VITE_API_URL ||
+  (isLocalDevelopment || isNetlifyStaging
+    ? STAGING_URL
+    : PRODUCTION_URL);
 
 
 const ACCESS_TOKEN_KEY = "entouche_access_token";
