@@ -78,43 +78,111 @@ function DateRangeFilter({ start, end, onChange }) {
   );
 }
 
-function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete }) {
+function RowMenu({
+  adjustment,
+  onSubmit,
+  onApprove,
+  onReject,
+  onCancel,
+  onDelete,
+}) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const buttonRef = useRef(null);
+
   const status = getStatus(adjustment);
 
   const actions = [];
+
   if (status === "draft") {
-    actions.push({ label: "Submit for approval", onClick: onSubmit });
-    actions.push({ label: "Delete draft", onClick: onDelete, danger: true });
-  } else if (status === "pending") {
-    actions.push({ label: "Approve", onClick: onApprove });
-    actions.push({ label: "Reject", onClick: onReject, danger: true });
-    actions.push({ label: "Cancel", onClick: onCancel, danger: true });
+    actions.push({
+      label: "Submit for approval",
+      onClick: onSubmit,
+    });
+
+    actions.push({
+      label: "Delete draft",
+      onClick: onDelete,
+      danger: true,
+    });
+  } else if (status === "pending_approval") {
+    actions.push({
+      label: "Approve",
+      onClick: onApprove,
+    });
+
+    actions.push({
+      label: "Reject",
+      onClick: onReject,
+      danger: true,
+    });
+
+    actions.push({
+      label: "Cancel",
+      onClick: onCancel,
+      danger: true,
+    });
   }
+
+  const handleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const estimatedMenuHeight = 140;
+
+      setOpenUp(spaceBelow < estimatedMenuHeight);
+    }
+
+    setOpen((o) => !o);
+  };
 
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={buttonRef}
+        onClick={handleOpen}
         className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"
       >
         <MoreVertical size={16} />
       </button>
+
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+
+          <div
+            className={`absolute right-0 z-50 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 ${
+              openUp
+                ? "bottom-8"
+                : "top-8"
+            }`}
+          >
             {actions.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
-            ) : actions.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => { setOpen(false); a.onClick(); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${a.danger ? "text-red-600" : "text-gray-700"}`}
-              >
-                {a.label}
-              </button>
-            ))}
+              <p className="px-3 py-2 text-xs text-gray-400">
+                No actions available
+              </p>
+            ) : (
+              actions.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => {
+                    setOpen(false);
+                    a.onClick();
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${
+                    a.danger
+                      ? "text-red-600"
+                      : "text-gray-700"
+                  }`}
+                >
+                  {a.label}
+                </button>
+              ))
+            )}
           </div>
         </>
       )}
@@ -271,8 +339,8 @@ export default function AdjustmentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-visible">
+        <div className="overflow-x-auto overflow-y-visible min-h-[320px]">
           <table className="w-full min-w-[1180px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>

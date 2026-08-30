@@ -5,9 +5,8 @@ import {
   MoreVertical,
   AlertCircle,
 
-  ChevronRight,
 } from "lucide-react";
-import { NOTIFICATION_META } from "./notificationMeta.js";
+import { NOTIFICATION_META } from "../data/notificationMeta";
 
 const DEFAULT_META = {
   label: "Notification",

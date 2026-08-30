@@ -58,6 +58,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     const [addItemsOpen, setAddItemsOpen] = useState(false);
     const [itemSearchResults, setItemSearchResults] = useState([]);
     const [reasonModal, setReasonModal] = useState(null); // { action }
+    const [requestCountOpen, setRequestCountOpen] = useState(false);
 
     const [lookups, setLookups] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
@@ -125,6 +126,30 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     const stats = data?.stats;
     const items = data?.items || [];
     const activity = data?.activity || [];
+    const rawStatus = header?.rawStatus;
+
+    const canEditSetup = rawStatus === "draft";
+    const canCountItems = rawStatus === "in_progress";
+    const canRequestCount = rawStatus === "draft" && items.length > 0;
+    const canSubmitCount =
+        rawStatus === "in_progress" && (stats?.uncountedItems ?? 0) === 0;
+
+    const nextStep = {
+        draft:
+            items.length === 0
+                ? "Add the items that need to be counted. Once items have been added, request the count from the assigned counter."
+                : "Review the items and count details, then request the count from the assigned counter.",
+        requested:
+            "This stock count has been requested. The assigned counter can start the counting process.",
+        in_progress:
+            "Enter the physical quantity for each item. Once all items have been counted, submit the count for review.",
+        pending_review:
+            "This stock count has been submitted and is waiting for review.",
+        completed:
+            "This stock count has been completed.",
+        cancelled:
+            "This stock count has been cancelled.",
+    };
 
     const isVarianceLoading =
         tab === "Summary" && variance === null;
@@ -144,6 +169,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     );
 
     const saveCountedQty = async (item, rawValue) => {
+        if (!canCountItems) return;
         if (rawValue === "" || Number(rawValue) === Number(item.countedQty)) return;
         try {
             await apiUpdateStockCountItem(countId, item.id, {
@@ -157,6 +183,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     };
 
     const removeCountItem = async (item) => {
+        if (!canEditSetup) return;
         if (!window.confirm(`Remove ${item.name} from this count?`)) return;
         try {
             await apiRemoveStockCountItem(countId, item.id);
@@ -176,6 +203,8 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     };
 
     const addSelectedItem = async (catalogItem) => {
+        if (!canEditSetup) return;
+
         try {
             await apiAddStockCountItem(countId, { item_id: catalogItem.id });
             refresh();
@@ -228,7 +257,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     };
 
     return (
-        <div className="mx-auto max-w-[1500px] px-8 py-6">
+        <div className="w-full px-8 py-6">
             <div className="mb-4 flex items-center gap-1.5 text-sm text-gray-400">
                 <button
                     onClick={onBack}
@@ -311,7 +340,11 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                                     );
                                 }
                             }}
-                            onSubmit={() => runTransition("submit")}
+                            onSubmit={() => {
+                                if (rawStatus === "in_progress") {
+                                    runTransition("submit");
+                                }
+                            }}
                             onCancel={() => {
                                 if (
                                     !window.confirm(
@@ -332,15 +365,54 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                             }}
                         />
                     )}
-                    {(header?.rawStatus === "draft" ||
-                        header?.rawStatus === "in_progress") && (
-                            <button
-                                onClick={() => runTransition("submit")}
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                            >
-                                Submit Count
-                            </button>
-                        )}
+                    {rawStatus === "draft" && (
+                        <button
+                            onClick={() => setRequestCountOpen(true)}
+                            disabled={!canRequestCount}
+                            title={
+                                canRequestCount
+                                    ? "Request this stock count"
+                                    : "Add at least one item before requesting the count"
+                            }
+                            className={cx(
+                                "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                                canRequestCount
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "cursor-not-allowed bg-gray-200 text-gray-400",
+                            )}
+                        >
+                            Request Count
+                        </button>
+                    )}
+
+                    {rawStatus === "requested" && (
+                        <button
+                            onClick={() => runTransition("start")}
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                        >
+                            Start Count
+                        </button>
+                    )}
+
+                    {rawStatus === "in_progress" && (
+                        <button
+                            onClick={() => runTransition("submit")}
+                            disabled={!canSubmitCount}
+                            title={
+                                canSubmitCount
+                                    ? "Submit this count for review"
+                                    : "Count all items before submitting"
+                            }
+                            className={cx(
+                                "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                                canSubmitCount
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "cursor-not-allowed bg-gray-200 text-gray-400",
+                            )}
+                        >
+                            Submit Count
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -407,7 +479,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
             </div>
 
             <div className="mt-6 flex gap-8">
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                     <div className="flex gap-6 border-b border-gray-200">
                         {DETAIL_TABS.map((t) => (
                             <button
@@ -441,14 +513,16 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                                         className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
                                     />
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setAddItemsOpen(true)}
-                                        className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                    >
-                                        <Plus size={14} /> Add Items
-                                    </button>
-                                </div>
+                                {canEditSetup && (
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setAddItemsOpen(true)}
+                                            className="flex items-center gap-2 rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            <Plus size={14} /> Add Items
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="overflow-hidden rounded-xl border border-gray-200">
@@ -524,12 +598,22 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                                                     <td className="px-4 py-3">
                                                         <input
                                                             defaultValue={it.countedQty ?? ""}
-                                                            placeholder="Enter qty"
-                                                            onBlur={(e) => saveCountedQty(it, e.target.value)}
+                                                            placeholder={
+                                                                canCountItems ? "Enter qty" : "Not started"
+                                                            }
+                                                            disabled={!canCountItems}
+                                                            onBlur={(e) =>
+                                                                saveCountedQty(it, e.target.value)
+                                                            }
                                                             onKeyDown={(e) => {
                                                                 if (e.key === "Enter") e.target.blur();
                                                             }}
-                                                            className="w-24 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                                                            className={cx(
+                                                                "w-24 rounded-lg border px-2.5 py-1.5 text-sm focus:outline-none",
+                                                                canCountItems
+                                                                    ? "border-gray-300 bg-white focus:border-blue-500"
+                                                                    : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400",
+                                                            )}
                                                         />
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -541,11 +625,13 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                                                                 size={15}
                                                                 className="cursor-pointer hover:text-gray-600"
                                                             />
-                                                            <Trash2
-                                                                size={15}
-                                                                className="cursor-pointer hover:text-red-500"
-                                                                onClick={() => removeCountItem(it)}
-                                                            />
+                                                            {canEditSetup && (
+                                                                <Trash2
+                                                                    size={15}
+                                                                    className="cursor-pointer hover:text-red-500"
+                                                                    onClick={() => removeCountItem(it)}
+                                                                />
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -616,7 +702,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                     )}
                 </div>
 
-                <aside className="w-75 shrink-0 space-y-5">
+                <aside className="w-80 shrink-0 space-y-5">
                     <div className="rounded-xl border border-gray-200 bg-white p-5">
                         <h3 className="text-[15px] font-semibold text-gray-900">
                             Stock Count Information
@@ -699,13 +785,98 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                         <div>
                             <p className="text-sm font-semibold text-blue-700">Next Step</p>
                             <p className="mt-0.5 text-sm text-blue-700">
-                                Review all counted items, add any adjustments if needed, and
-                                submit the count for review.
+                                {nextStep[rawStatus] || "Review the stock count details."}
                             </p>
                         </div>
                     </div>
                 </aside>
             </div>
+
+            {requestCountOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+                        <div className="border-b border-gray-200 px-6 py-5">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">
+                                        Request Stock Count
+                                    </h2>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        Confirm this request before notifying the assigned
+                                        counter.
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={() => setRequestCountOpen(false)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg text-xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                                    aria-label="Close"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="px-6 py-5">
+                            <div className="overflow-hidden rounded-xl border border-gray-200">
+                                {[
+                                    ["Stock Count", header?.countNo],
+                                    ["Assigned Counter", header?.assignedCounter],
+                                    ["Warehouse", header?.warehouse],
+                                    ["Location", header?.location],
+                                    ["Count Type", header?.countType],
+                                    ["Items to Count", stats?.totalItems ?? items.length],
+                                    ["Scheduled", header?.scheduledDate],
+                                ].map(([label, value], index, rows) => (
+                                    <div
+                                        key={label}
+                                        className={cx(
+                                            "grid grid-cols-[1fr_1.25fr] gap-4 px-5 py-3.5 text-sm",
+                                            index !== rows.length - 1 &&
+                                                "border-b border-gray-100",
+                                        )}
+                                    >
+                                        <span className="text-gray-500">{label}</span>
+                                        <span className="text-right font-medium text-gray-900">
+                                            {value || "–"}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 flex gap-3 rounded-xl bg-blue-50 p-4">
+                                <Info
+                                    size={18}
+                                    className="mt-0.5 shrink-0 text-blue-600"
+                                />
+                                <p className="text-sm leading-relaxed text-blue-700">
+                                    The assigned counter will be notified that this stock
+                                    count is ready to begin.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+                            <button
+                                onClick={() => setRequestCountOpen(false)}
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    await runTransition("request");
+                                    setRequestCountOpen(false);
+                                }}
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                            >
+                                Request Count
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <AddItemsModal
                 open={addItemsOpen}

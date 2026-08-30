@@ -268,4 +268,11 @@ export const api = {
   deleteNotification: (id) => unwrap(apiClient.delete(`/notifications/${id}`)),
   getUnreadNotificationCount: () =>
     unwrap(apiClient.get("/notifications/unread-count")),
+
+  // ─── Maintenance ───
+  listMaintenance: (params) =>
+  unwrap(apiClient.get("/maintenance", { params })),
+  
+  scheduleMaintenance: (body) =>
+    unwrap(apiClient.post("/maintenance", body)),
 };

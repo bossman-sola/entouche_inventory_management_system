@@ -40,16 +40,21 @@ export function NewImportPanel({
   } = flow;
 
   const notCreatable = !CREATABLE_TYPES.includes(importType);
+
   const inventoryNeedsDestination =
     importType === "Inventory" && !selectedWarehouseId;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5">
-      <h2 className="font-semibold text-gray-800 mb-1">New Import</h2>
+      <h2 className="font-semibold text-gray-800 mb-1">
+        New Import
+      </h2>
+
       <p className="text-xs text-gray-500 mb-4">
         Upload your file and configure import settings.
       </p>
 
+      {/* Top section */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1 min-w-0">
           <FileDropzone
@@ -94,105 +99,17 @@ export function NewImportPanel({
                 size={16}
                 className="text-red-500 shrink-0"
               />
-              <p className="text-sm text-red-700 font-medium">{parseError}</p>
+              <p className="text-sm text-red-700 font-medium">
+                {parseError}
+              </p>
             </div>
           )}
 
           {validated && parsedData && (
             <ValidationSummary parsedData={parsedData} />
           )}
-          {validated && <ImportErrorsTable errors={errors} />}
-          {validated && <DataPreviewTable parsedData={parsedData} />}
-
-          {file && parsedData && (
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={handleCancel}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
-              >
-                Cancel
-              </button>
-              {!validated ? (
-                <button
-                  onClick={handleValidate}
-                  disabled={validating || !isAuthed}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-blue-600 text-blue-600 rounded-lg text-sm font-semibold hover:bg-blue-50 disabled:opacity-50 transition-colors"
-                >
-                  {validating ? (
-                    <>
-                      <svg
-                        className="animate-spin w-4 h-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeDasharray="40 20"
-                        />
-                      </svg>{" "}
-                      Validating...
-                    </>
-                  ) : (
-                    "Validate File"
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={handleImport}
-                  disabled={
-                    importing ||
-                    notCreatable ||
-                    inventoryNeedsDestination ||
-                    (parsedData?.valid ?? 0) === 0
-                  }
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
-                >
-                  {importing ? (
-                    <>
-                      <svg
-                        className="animate-spin w-4 h-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="white"
-                          strokeWidth="2"
-                          strokeDasharray="40 20"
-                        />
-                      </svg>{" "}
-                      Importing{" "}
-                      {importProgress
-                        ? `${importProgress.current}/${importProgress.total}`
-                        : "..."}
-                    </>
-                  ) : (
-                    `Import ${parsedData?.valid ?? 0} Valid Row${(parsedData?.valid ?? 0) === 1 ? "" : "s"}`
-                  )}
-                </button>
-              )}
-            </div>
-          )}
-
-          {importDone && (
-            <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-              <Icon
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                size={16}
-                className="text-green-600 shrink-0"
-              />
-              <p className="text-sm text-green-700 font-medium">
-                Import finished - records were written to the live API.
-              </p>
-            </div>
-          )}
         </div>
+
         {showConfig && (
           <ImportConfiguration
             importType={importType}
@@ -208,8 +125,73 @@ export function NewImportPanel({
             setEncoding={setEncoding}
             onFieldChange={handleCancel}
           />
-        )}{" "}
+        )}
       </div>
+
+      {/* Full-width tables */}
+      {validated && (
+        <div className="w-full mt-4">
+          <ImportErrorsTable errors={errors} />
+          <DataPreviewTable parsedData={parsedData} />
+        </div>
+      )}
+
+      {/* Actions */}
+      {file && parsedData && (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={handleCancel}
+            className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+          >
+            Cancel
+          </button>
+
+          {!validated ? (
+            <button
+              onClick={handleValidate}
+              disabled={validating || !isAuthed}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-blue-600 text-blue-600 rounded-lg text-sm font-semibold hover:bg-blue-50 disabled:opacity-50 transition-colors"
+            >
+              {validating ? "Validating..." : "Validate File"}
+            </button>
+          ) : (
+            <button
+              onClick={handleImport}
+              disabled={
+                importing ||
+                notCreatable ||
+                inventoryNeedsDestination ||
+                (parsedData?.valid ?? 0) === 0
+              }
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              {importing
+                ? `Importing ${
+                    importProgress
+                      ? `${importProgress.current}/${importProgress.total}`
+                      : "..."
+                  }`
+                : `Import ${parsedData?.valid ?? 0} Valid Row${
+                    (parsedData?.valid ?? 0) === 1 ? "" : "s"
+                  }`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {importDone && (
+        <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+          <Icon
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            size={16}
+            className="text-green-600 shrink-0"
+          />
+
+          <p className="text-sm text-green-700 font-medium">
+            Import finished - records were written to the live API.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

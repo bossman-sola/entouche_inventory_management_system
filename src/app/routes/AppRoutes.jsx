@@ -11,7 +11,7 @@ import User from "../../features/users/pages/users.jsx"
 import Locations from "../../features/warehouse/pages/location.jsx"
 import Data from "../../features/data-import/pages/DataImportPage.jsx"
 import Audit from "../../features/audit-logs/pages/audit.jsx"  
-import Settings from "../../features/settings/pages/settings.jsx"
+import SettingsPage from "../../features/settings/pages/settings.jsx"
 import Reports from "../../features/reports/pages/reports.jsx"
 import SignIn from "../../features/auth/pages/SignIn.jsx"
 import ProtectedRoute from "../../shared/components/ProtectedRoute.jsx"
@@ -46,7 +46,7 @@ function AppRoutes() {
         <Route path="stock-counts" element={<Stock />} />
         <Route path="locations"element={<Locations/>} />
         <Route path="data" element={<Data />} />
-        <Route path="settings" element={<Settings />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="reports" element={<Reports />} />
 
       </Route>

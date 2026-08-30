@@ -148,8 +148,8 @@ export const NOTIFICATION_META = {
     dot: "bg-gray-400",
   },
 
-  stock_count_recount_requested: {
-    label: "Recount Requested",
+  stock_count_requested: {
+    label: "Stock Count Requested",
     icon: AlertTriangle,
     iconBg: "bg-orange-50",
     iconFg: "text-orange-500",

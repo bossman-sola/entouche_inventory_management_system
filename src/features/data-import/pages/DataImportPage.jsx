@@ -98,8 +98,8 @@ export default function DataImportPage() {
         usersTotal={usersTotal}
       />
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        <div className="w-full lg:w-[560px] shrink-0 space-y-4">
+      <div className="flex flex-col xl:flex-row gap-5">
+        <div className="w-full xl:w-[800px] 2xl:w-[850px] shrink-0 space-y-4">
           <ImportTemplates />
 
           <NewImportPanel
