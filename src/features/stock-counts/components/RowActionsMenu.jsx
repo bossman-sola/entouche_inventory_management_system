@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Pencil,
   Copy,
@@ -8,22 +10,138 @@ import {
   Ban,
 } from "lucide-react";
 
-const MenuItem = ({
+/* =========================================================
+   ACTION CONFIG
+========================================================= */
+
+const STATUS_ACTIONS = {
+  draft: [
+    {
+      key: "edit",
+      label: "Edit Stock Count",
+      icon: Pencil,
+    },
+    {
+      key: "duplicate",
+      label: "Duplicate",
+      icon: Copy,
+    },
+    {
+      key: "cancel",
+      label: "Cancel",
+      icon: XCircle,
+      danger: true,
+      divider: true,
+    },
+    {
+      key: "delete",
+      label: "Delete Draft",
+      icon: Trash2,
+      danger: true,
+    },
+  ],
+
+  requested: [
+    {
+      key: "view_assignment",
+      label: "View Assignment",
+      icon: UserRound,
+    },
+    {
+      key: "cancel",
+      label: "Cancel Stock Count",
+      icon: XCircle,
+      danger: true,
+      divider: true,
+    },
+  ],
+
+  "in progress": [
+    {
+      key: "cancel",
+      label: "Cancel Stock Count",
+      icon: XCircle,
+      danger: true,
+    },
+  ],
+
+  submitted: [
+    {
+      key: "request_recount",
+      label: "Request Recount",
+      icon: RotateCcw,
+    },
+    {
+      key: "reject",
+      label: "Reject Count",
+      icon: Ban,
+      danger: true,
+    },
+  ],
+
+  "pending review": [
+    {
+      key: "request_recount",
+      label: "Request Recount",
+      icon: RotateCcw,
+    },
+    {
+      key: "reject",
+      label: "Reject Count",
+      icon: Ban,
+      danger: true,
+    },
+  ],
+
+  completed: [
+    {
+      key: "duplicate",
+      label: "Duplicate Stock Count",
+      icon: Copy,
+    },
+  ],
+
+  cancelled: [
+    {
+      key: "duplicate",
+      label: "Duplicate Stock Count",
+      icon: Copy,
+    },
+  ],
+};
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function normalizeStatus(status) {
+  return String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ");
+}
+
+function MenuItem({
   icon: Icon,
   label,
   onClick,
   danger = false,
-}) => {
+}) {
   return (
     <button
       type="button"
+      role="menuitem"
       onClick={onClick}
       className={`
+        flex
         w-full
-        flex items-center gap-2.5
-        px-3.5 py-2.5
+        items-center
+        gap-2.5
+        px-3.5
+        py-2.5
         text-left
         text-[12.5px]
+        font-medium
         transition-colors
         ${
           danger
@@ -32,40 +150,252 @@ const MenuItem = ({
         }
       `}
     >
-      <Icon size={15} />
+      <Icon size={15} strokeWidth={1.8} />
 
       <span>{label}</span>
     </button>
   );
-};
+}
+
+/* =========================================================
+   ROW ACTIONS MENU
+========================================================= */
 
 export function RowActionsMenu({
   row,
+  anchorRect,
   onClose,
 
+  // Generic table action handler
+  onAction,
+
+  // Details-page handlers
+  onView,
   onEdit,
-  onDuplicate,
-  onCancel,
+  onContinue,
   onDelete,
-  onViewAssignment,
-  onRequestRecount,
+  onPrint,
+  onDuplicate,
+  onSubmit,
+  onCancel,
+  onApprove,
   onReject,
+  onRequestRecount,
+  onExportPdf,
 }) {
-  if (!row) return null;
+  const menuRef = useRef(null);
 
-  const rawStatus = String(
-    row.rawStatus ??
-      row.status ??
+  const normalizedStatus = normalizeStatus(
+    row?.rawStatus ??
+      row?.status ??
       ""
-  )
-    .toLowerCase()
-    .replace(/\s+/g, "_");
+  );
 
-  const handleAction = (callback) => {
+  const actions =
+    STATUS_ACTIONS[normalizedStatus] ?? [];
+
+  /* =======================================================
+     CLICK OUTSIDE / ESCAPE
+  ======================================================= */
+
+  useEffect(() => {
+    const handleMouseDown = (event) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        onClose?.();
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose?.();
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleMouseDown,
+    );
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleMouseDown,
+      );
+
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, [onClose]);
+
+  if (!row || actions.length === 0) {
+    return null;
+  }
+
+  /* =======================================================
+     ACTION ROUTER
+  ======================================================= */
+
+  const runAction = (actionKey) => {
+    /*
+     * Table implementation
+     */
+    if (onAction) {
+      onClose?.();
+      onAction(actionKey, row);
+      return;
+    }
+
+    /*
+     * StockCountDetails implementation
+     */
+    switch (actionKey) {
+      case "edit":
+        onEdit?.(row);
+        break;
+
+      case "duplicate":
+        onDuplicate?.(row);
+        break;
+
+      case "cancel":
+        onCancel?.(row);
+        break;
+
+      case "delete":
+        onDelete?.(row);
+        break;
+
+      case "view_assignment":
+        if (onView) {
+          onView(row);
+        } else {
+          onContinue?.(row);
+        }
+        break;
+
+      case "request_recount":
+        onRequestRecount?.(row);
+        break;
+
+      case "reject":
+        onReject?.(row);
+        break;
+
+      default:
+        console.warn(
+          "Unhandled stock count menu action:",
+          actionKey,
+        );
+    }
+
     onClose?.();
-
-    callback?.(row);
   };
+
+  /* =======================================================
+     MENU CONTENT
+  ======================================================= */
+
+  const menu = (
+    <div
+      ref={menuRef}
+      role="menu"
+      className="
+        w-[220px]
+        overflow-hidden
+        rounded-xl
+        border
+        border-slate-200
+        bg-white
+        py-1.5
+        shadow-[0_12px_35px_rgba(15,23,42,0.16)]
+      "
+    >
+      {actions.map((action) => (
+        <div key={action.key}>
+          {action.divider && (
+            <div className="my-1 border-t border-slate-100" />
+          )}
+
+          <MenuItem
+            icon={action.icon}
+            label={action.label}
+            danger={action.danger}
+            onClick={() =>
+              runAction(action.key)
+            }
+          />
+        </div>
+      ))}
+    </div>
+  );
+
+  /* =======================================================
+     TABLE MODE
+     Uses portal + anchorRect
+  ======================================================= */
+
+  if (anchorRect) {
+    const menuWidth = 220;
+    const viewportPadding = 12;
+
+    const left = Math.min(
+      Math.max(
+        anchorRect.right - menuWidth,
+        viewportPadding,
+      ),
+      window.innerWidth -
+        menuWidth -
+        viewportPadding,
+    );
+
+    const estimatedHeight =
+      actions.length * 42 + 16;
+
+    const spaceBelow =
+      window.innerHeight -
+      anchorRect.bottom -
+      viewportPadding;
+
+    const openAbove =
+      spaceBelow < estimatedHeight;
+
+    const top = openAbove
+      ? Math.max(
+          viewportPadding,
+          anchorRect.top -
+            estimatedHeight -
+            6,
+        )
+      : anchorRect.bottom + 6;
+
+    return createPortal(
+      <div
+        className="fixed z-[100]"
+        style={{
+          left,
+          top,
+        }}
+      >
+        {menu}
+      </div>,
+      document.body,
+    );
+  }
+
+  /* =======================================================
+     DETAILS MODE
+     Dropdown under "More Actions"
+  ======================================================= */
 
   return (
     <div
@@ -73,137 +403,11 @@ export function RowActionsMenu({
         absolute
         right-0
         top-full
-        mt-1.5
         z-50
-        w-[205px]
-        overflow-hidden
-        rounded-xl
-        border border-gray-200
-        bg-white
-        py-1.5
-        shadow-[0_10px_30px_rgba(15,23,42,0.12)]
+        mt-2
       "
     >
-      {/* Draft */}
-      {rawStatus === "draft" && (
-        <>
-          <MenuItem
-            icon={Pencil}
-            label="Edit Stock Count"
-            onClick={() =>
-              handleAction(onEdit)
-            }
-          />
-
-          <MenuItem
-            icon={Copy}
-            label="Duplicate"
-            onClick={() =>
-              handleAction(onDuplicate)
-            }
-          />
-
-          <div className="my-1 border-t border-gray-100" />
-
-          <MenuItem
-            icon={XCircle}
-            label="Cancel"
-            danger
-            onClick={() =>
-              handleAction(onCancel)
-            }
-          />
-
-          <MenuItem
-            icon={Trash2}
-            label="Delete Draft"
-            danger
-            onClick={() =>
-              handleAction(onDelete)
-            }
-          />
-        </>
-      )}
-
-      {/* Requested */}
-      {rawStatus === "requested" && (
-        <>
-          <MenuItem
-            icon={UserRound}
-            label="View Assignment"
-            onClick={() =>
-              handleAction(onViewAssignment)
-            }
-          />
-
-          <div className="my-1 border-t border-gray-100" />
-
-          <MenuItem
-            icon={XCircle}
-            label="Cancel Stock Count"
-            danger
-            onClick={() =>
-              handleAction(onCancel)
-            }
-          />
-        </>
-      )}
-
-      {/* In Progress */}
-      {rawStatus === "in_progress" && (
-        <MenuItem
-          icon={XCircle}
-          label="Cancel Stock Count"
-          danger
-          onClick={() =>
-            handleAction(onCancel)
-          }
-        />
-      )}
-
-      {/* Pending Review */}
-      {rawStatus === "pending_review" && (
-        <>
-          <MenuItem
-            icon={RotateCcw}
-            label="Request Recount"
-            onClick={() =>
-              handleAction(onRequestRecount)
-            }
-          />
-
-          <MenuItem
-            icon={Ban}
-            label="Reject Count"
-            danger
-            onClick={() =>
-              handleAction(onReject)
-            }
-          />
-        </>
-      )}
-
-      {/* Completed */}
-      {rawStatus === "completed" && (
-        <MenuItem
-          icon={Copy}
-          label="Duplicate Stock Count"
-          onClick={() =>
-            handleAction(onDuplicate)
-          }
-        />
-      )}
-
-      {/* Cancelled */}
-      {rawStatus === "cancelled" && (
-        <MenuItem
-          icon={Copy}
-          label="Duplicate Stock Count"
-          onClick={() =>
-            handleAction(onDuplicate)
-          }
-        />
-      )}
+      {menu}
     </div>
   );
 }

@@ -369,6 +369,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                             }}
                         />
                     )}
+                    
                     {rawStatus === "draft" && (
                         <button
                             onClick={() => setRequestCountOpen(true)}

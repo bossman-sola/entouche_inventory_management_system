@@ -10,6 +10,12 @@ import StockCountTable from "../components/StockCountTable.jsx";
 import AdvancedStockCountFilters from "../components/AdvancedStockCountFilters.jsx";
 import * as StockCountApi from "../api/StockCountApi.js";
 import { StockCountDetails } from "./StockCountDetails.jsx";
+import { ReasonModal } from "../components/ReasonModal.jsx";
+import {
+    apiDeleteStockCount,
+    apiDuplicateStockCount,
+    apiTransitionStockCount,
+} from "../components/dataLayer.js";
 
 /* =========================================================
    STAT CARD
@@ -131,6 +137,9 @@ function getNumber(...values) {
 export default function StockCountsPage() {
     const [modalOpen, setModalOpen] = useState(false);
 
+    const [reasonModal, setReasonModal] = useState(null);
+    const [actionLoading, setActionLoading] = useState(false);
+
     const [selectedCountId, setSelectedCountId] = useState(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const countFromUrl = searchParams.get("count");
@@ -176,6 +185,137 @@ export default function StockCountsPage() {
 
         return null;
     })();
+
+    const openCountDetails = (count) => {
+        if (!count?.id) return;
+
+        setSelectedCountId(count.id);
+
+        setSearchParams((params) => {
+            params.set("count", String(count.id));
+            return params;
+        });
+    };
+
+    const getCountLabel = (count) =>
+        count?.count_number ??
+        count?.countNo ??
+        `#${count?.id ?? ""}`;
+
+    const handleStockCountAction = async (action, count) => {
+        if (!count?.id || actionLoading) return;
+
+        try {
+            switch (action) {
+                case "edit":
+                    openCountDetails(count);
+                    break;
+
+                case "view_assignment":
+                    openCountDetails(count);
+                    break;
+
+                case "duplicate": {
+                    setActionLoading(true);
+
+                    const copy = await apiDuplicateStockCount(count.id);
+
+                    await reload();
+
+                    if (copy?.id) {
+                        openCountDetails(copy);
+                    }
+
+                    break;
+                }
+
+                case "cancel": {
+                    const confirmed = window.confirm(
+                        `Cancel stock count ${getCountLabel(count)}? This cannot be undone.`
+                    );
+
+                    if (!confirmed) return;
+
+                    setActionLoading(true);
+
+                    await apiTransitionStockCount(count.id, "cancel");
+
+                    await reload();
+                    break;
+                }
+
+                case "delete": {
+                    const confirmed = window.confirm(
+                        `Delete stock count ${getCountLabel(count)}? This cannot be undone.`
+                    );
+
+                    if (!confirmed) return;
+
+                    setActionLoading(true);
+
+                    await apiDeleteStockCount(count.id);
+
+                    await reload();
+                    break;
+                }
+
+                case "request_recount":
+                    setReasonModal({
+                        action: "request-recount",
+                        count,
+                    });
+                    break;
+
+                case "reject":
+                    setReasonModal({
+                        action: "reject",
+                        count,
+                    });
+                    break;
+
+                default:
+                    console.warn(
+                        "Unhandled stock count action:",
+                        action
+                    );
+            }
+        } catch (err) {
+            alert(
+                err?.response?.data?.message ||
+                err?.message ||
+                "That action couldn't be completed. Please try again."
+            );
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleReasonSubmit = async (reason) => {
+        const current = reasonModal;
+
+        if (!current?.count?.id || actionLoading) return;
+
+        try {
+            setActionLoading(true);
+
+            await apiTransitionStockCount(
+                current.count.id,
+                current.action,
+                { reason }
+            );
+
+            setReasonModal(null);
+            await reload();
+        } catch (err) {
+            alert(
+                err?.response?.data?.message ||
+                err?.message ||
+                "That action couldn't be completed. Please try again."
+            );
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
     const activeCountId =
         selectedCountId ?? selectedCountFromUrl;
@@ -409,6 +549,7 @@ export default function StockCountsPage() {
             />
         );
     }
+    
 
     /* =======================================================
        RENDER
@@ -618,55 +759,9 @@ export default function StockCountsPage() {
                             });
                         }}
 
-                        onView={(count) => {
-                            setSelectedCountId(count.id);
+                        onView={openCountDetails}
 
-                            setSearchParams((params) => {
-                                params.set("count", String(count.id));
-                                return params;
-                            });
-                        }}
-
-                        onOpenActions={(action, count) => {
-                            console.log(
-                                "Stock count action:",
-                                action,
-                                count
-                            );
-
-                            switch (action) {
-                                case "edit":
-                                    console.log("Edit", count);
-                                    break;
-
-                                case "duplicate":
-                                    console.log("Duplicate", count);
-                                    break;
-
-                                case "cancel":
-                                    console.log("Cancel", count);
-                                    break;
-
-                                case "delete":
-                                    console.log("Delete", count);
-                                    break;
-
-                                case "view_assignment":
-                                    setSelectedCountId(count.id);
-                                    break;
-
-                                case "request_recount":
-                                    console.log("Request recount", count);
-                                    break;
-
-                                case "reject":
-                                    console.log("Reject", count);
-                                    break;
-
-                                default:
-                                    break;
-                            }
-                        }}
+                        onOpenActions={handleStockCountAction}
                     />
 
                 </main>
@@ -776,6 +871,27 @@ export default function StockCountsPage() {
                 locationsLoading={loading}
                 users={users}
                 usersLoading={loading}
+            />
+
+            <ReasonModal
+                open={!!reasonModal}
+                title={
+                    reasonModal?.action === "reject"
+                        ? "Reject Stock Count"
+                        : "Request Recount"
+                }
+                label={
+                    reasonModal?.action === "reject"
+                        ? "Rejection reason"
+                        : "Recount reason (optional)"
+                }
+                required={reasonModal?.action === "reject"}
+                onClose={() => {
+                    if (!actionLoading) {
+                        setReasonModal(null);
+                    }
+                }}
+                onSubmit={handleReasonSubmit}
             />
         </>
     );

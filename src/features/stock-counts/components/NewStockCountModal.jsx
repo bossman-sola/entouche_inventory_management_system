@@ -1,17 +1,20 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import * as StockCountApi from "../api/StockCountApi.js";
 
 import {
-  CalendarDays,
   ChevronDown,
-  Clock3,
   FileText,
   Info,
   Loader2,
   Plus,
+  Save,
   X,
 } from "lucide-react";
-
 
 /* =========================================================
    OPTIONS
@@ -35,7 +38,6 @@ const PRIORITIES = [
   },
 ];
 
-
 const DEFAULT_COUNT_TYPES = [
   {
     value: "Cycle Count",
@@ -55,17 +57,43 @@ const DEFAULT_COUNT_TYPES = [
   },
 ];
 
+/* =========================================================
+   DATE HELPER
+========================================================= */
 
-const today = () =>
-  new Date().toISOString().slice(0, 10);
+/*
+ * count_date is a local/business calendar date.
+ * Do not use toISOString() here because that converts
+ * the current time to UTC first and can produce the
+ * wrong date for the user's timezone.
+ */
+function getLocalDate() {
+  const now = new Date();
 
+  const year = now.getFullYear();
+
+  const month = String(
+    now.getMonth() + 1,
+  ).padStart(2, "0");
+
+  const day = String(
+    now.getDate(),
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 /* =========================================================
    MODAL WRAPPER
 ========================================================= */
 
-function Modal({ open, children }) {
-  if (!open) return null;
+function Modal({
+  open,
+  children,
+}) {
+  if (!open) {
+    return null;
+  }
 
   return (
     <div
@@ -91,7 +119,6 @@ function Modal({ open, children }) {
     </div>
   );
 }
-
 
 /* =========================================================
    FIELD LABEL
@@ -121,12 +148,13 @@ function FieldLabel({
   );
 }
 
-
 /* =========================================================
    HELPER TEXT
 ========================================================= */
 
-function HelperText({ children }) {
+function HelperText({
+  children,
+}) {
   return (
     <p
       className="
@@ -140,7 +168,6 @@ function HelperText({ children }) {
     </p>
   );
 }
-
 
 /* =========================================================
    SELECT FIELD
@@ -157,8 +184,10 @@ function SelectField({
     <div className="relative">
       <select
         value={value}
-        onChange={(e) =>
-          onChange(e.target.value)
+        onChange={(event) =>
+          onChange(
+            event.target.value,
+          )
         }
         disabled={disabled}
         className="
@@ -187,14 +216,22 @@ function SelectField({
           {placeholder}
         </option>
 
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-          >
-            {option.label}
-          </option>
-        ))}
+        {options.map(
+          (option) => (
+            <option
+              key={
+                option.value
+              }
+              value={
+                option.value
+              }
+            >
+              {
+                option.label
+              }
+            </option>
+          ),
+        )}
       </select>
 
       <ChevronDown
@@ -212,9 +249,8 @@ function SelectField({
   );
 }
 
-
 /* =========================================================
-   NEW STOCK COUNT MODAL
+   STOCK COUNT MODAL
 ========================================================= */
 
 export default function NewStockCountModal({
@@ -235,8 +271,20 @@ export default function NewStockCountModal({
   usersError = null,
 
   countTypes = DEFAULT_COUNT_TYPES,
-}) {
 
+  /*
+   * Details page passes mapped lookup data
+   * through this prop.
+   */
+  lookups = null,
+
+  /*
+   * EDIT MODE
+   */
+  isEditing = false,
+  initialForm = null,
+  onSave,
+}) {
   /* =======================================================
      FORM STATE
   ======================================================= */
@@ -264,12 +312,14 @@ export default function NewStockCountModal({
   const [
     scheduledDate,
     setScheduledDate,
-  ] = useState(today());
+  ] = useState(
+    getLocalDate(),
+  );
 
   const [
     startTime,
     setStartTime,
-  ] = useState("23:00");
+  ] = useState("");
 
   const [
     assignedCounter,
@@ -291,65 +341,150 @@ export default function NewStockCountModal({
     setSaveError,
   ] = useState("");
 
+  /* =======================================================
+     LOOKUP SOURCES
+
+     Supports both:
+     - raw API arrays from StockCountsPage
+     - mapped lookups from dataLayer / Details
+  ======================================================= */
+
+  const sourceWarehouses =
+    lookups?.warehouses ??
+    warehouses ??
+    [];
+
+  const sourceLocations =
+    lookups?.locations ??
+    lookups?.warehouse_locations ??
+    locations ??
+    [];
+
+  const sourceUsers =
+    lookups?.users ??
+    lookups?.counters ??
+    users ??
+    [];
 
   /* =======================================================
      WAREHOUSE OPTIONS
   ======================================================= */
 
-  const warehouseOptions = useMemo(() => {
-    return warehouses.map((warehouse) => ({
-      value: String(warehouse.id),
-      label: warehouse.name,
-    }));
-  }, [warehouses]);
+  const warehouseOptions =
+    useMemo(() => {
+      return sourceWarehouses.map(
+        (warehouse) => ({
+          value: String(
+            warehouse.value ??
+            warehouse.id,
+          ),
 
+          label:
+            warehouse.label ??
+            warehouse.name ??
+            warehouse.warehouse_name ??
+            `Warehouse ${warehouse.id ??
+            warehouse.value ??
+            ""
+            }`,
+        }),
+      );
+    }, [
+      sourceWarehouses,
+    ]);
 
   /* =======================================================
      LOCATION OPTIONS
   ======================================================= */
 
-  const locationOptions = useMemo(() => {
-    if (!warehouseId) {
-      return [];
-    }
+  const locationOptions =
+    useMemo(() => {
+      if (!warehouseId) {
+        return [];
+      }
 
-    return locations
-      .filter((location) => {
-        const locationWarehouseId =
-          location.warehouse_id ??
-          location.warehouseId ??
-          location.warehouse?.id;
+      return sourceLocations
+        .filter(
+          (location) => {
+            const locationWarehouseId =
+              location.warehouseId ??
+              location.warehouse_id ??
+              location.warehouse?.id;
 
-        return (
-          String(locationWarehouseId) ===
-          String(warehouseId)
+            /*
+             * dataLayer lookups may already
+             * be mapped. If warehouse info
+             * isn't included, don't remove
+             * that location from the list.
+             */
+            if (
+              locationWarehouseId ===
+              undefined ||
+              locationWarehouseId ===
+              null
+            ) {
+              return true;
+            }
+
+            return (
+              String(
+                locationWarehouseId,
+              ) ===
+              String(
+                warehouseId,
+              )
+            );
+          },
+        )
+        .map(
+          (location) => ({
+            value: String(
+              location.value ??
+              location.id,
+            ),
+
+            label:
+              location.label ??
+              location.name ??
+              location.location_name ??
+              `Location ${location.id ??
+              location.value ??
+              ""
+              }`,
+          }),
         );
-      })
-      .map((location) => ({
-        value: String(location.id),
-        label: location.name,
-      }));
-  }, [
-    locations,
-    warehouseId,
-  ]);
-
+    }, [
+      sourceLocations,
+      warehouseId,
+    ]);
 
   /* =======================================================
      USER OPTIONS
   ======================================================= */
 
-  const userOptions = useMemo(() => {
-    return users.map((user) => ({
-      value: String(user.id),
-      label:
-        user.name ??
-        user.full_name ??
-        user.email ??
-        `User ${user.id}`,
-    }));
-  }, [users]);
+  const userOptions =
+    useMemo(() => {
+      return sourceUsers.map(
+        (user) => ({
+          value: String(
+            user.value ??
+            user.id,
+          ),
 
+          label:
+            user.label ??
+            user.name ??
+            user.full_name ??
+            user.email ??
+            `User ${user.id ??
+            user.value ??
+            ""
+            }`,
+        }),
+      );
+    }, [
+      sourceUsers,
+    ]);
 
   /* =======================================================
      PRIORITY META
@@ -358,22 +493,135 @@ export default function NewStockCountModal({
   const priorityMeta =
     PRIORITIES.find(
       (item) =>
-        item.value === priority
+        item.value ===
+        priority,
     );
 
+  /* =======================================================
+     LOAD FORM
+
+     CREATE:
+     resets to defaults.
+
+     EDIT:
+     loads the values passed from
+     StockCountDetails.openEdit().
+  ======================================================= */
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (
+      isEditing &&
+      initialForm
+    ) {
+      setWarehouseId(
+        initialForm.warehouse !==
+          undefined &&
+          initialForm.warehouse !==
+          null
+          ? String(
+            initialForm.warehouse,
+          )
+          : "",
+      );
+
+      setLocationId(
+        initialForm.location !==
+          undefined &&
+          initialForm.location !==
+          null
+          ? String(
+            initialForm.location,
+          )
+          : "",
+      );
+
+      setCountType(
+        initialForm.countType ??
+        initialForm.count_type ??
+        "",
+      );
+
+      setPriority(
+        String(
+          initialForm.priority ??
+          "medium",
+        ).toLowerCase(),
+      );
+
+      setScheduledDate(
+        (
+          initialForm.scheduledDate ??
+          initialForm.count_date ??
+          getLocalDate()
+        )
+          .toString()
+          .slice(0, 10),
+      );
+
+      setStartTime(
+        initialForm.startTime ??
+        initialForm.start_time ??
+        "",
+      );
+
+      setAssignedCounter(
+        initialForm.assignedCounter !==
+          undefined &&
+          initialForm.assignedCounter !==
+          null
+          ? String(
+            initialForm.assignedCounter,
+          )
+          : initialForm.assigned_to !==
+            undefined &&
+            initialForm.assigned_to !==
+            null
+            ? String(
+              initialForm.assigned_to,
+            )
+            : "",
+      );
+
+      setNotes(
+        initialForm.notes ??
+        "",
+      );
+
+      setSaveError("");
+
+      return;
+    }
+
+    resetForm();
+  }, [
+    open,
+    isEditing,
+    initialForm,
+  ]);
 
   /* =======================================================
      WAREHOUSE CHANGE
+
+     Only clear location when the USER
+     changes the warehouse.
+
+     This is important in edit mode so
+     the prefilled location is not lost.
   ======================================================= */
 
-  function handleWarehouseChange(value) {
-    setWarehouseId(value);
+  function handleWarehouseChange(
+    value,
+  ) {
+    setWarehouseId(
+      value,
+    );
 
-    // A location belongs to a warehouse.
-    // Reset the location whenever the warehouse changes.
     setLocationId("");
   }
-
 
   /* =======================================================
      RESET FORM
@@ -381,16 +629,27 @@ export default function NewStockCountModal({
 
   function resetForm() {
     setWarehouseId("");
+
     setLocationId("");
+
     setCountType("");
-    setPriority("medium");
-    setScheduledDate(today());
-    setStartTime("23:00");
+
+    setPriority(
+      "medium",
+    );
+
+    setScheduledDate(
+      getLocalDate(),
+    );
+
+    setStartTime("");
+
     setAssignedCounter("");
+
     setNotes("");
+
     setSaveError("");
   }
-
 
   /* =======================================================
      CLOSE MODAL
@@ -405,7 +664,6 @@ export default function NewStockCountModal({
 
     onClose?.();
   }
-
 
   /* =======================================================
      VALIDATION
@@ -428,43 +686,69 @@ export default function NewStockCountModal({
       return "Select an assigned counter.";
     }
 
-    if (notes.length > 500) {
+    if (
+      notes.length > 500
+    ) {
       return "Notes cannot exceed 500 characters.";
     }
 
     return null;
   }
 
-
   /* =======================================================
-     CREATE STOCK COUNT
+     BUILD FORM VALUES
+
+     Includes both the display-oriented
+     names used by dataLayer and the raw
+     backend names.
   ======================================================= */
 
-  async function handleCreate() {
-    const validationError =
-      validate();
-
-    if (validationError) {
-      setSaveError(
-        validationError
+  function buildForm() {
+    const warehouseValue =
+      Number(
+        warehouseId,
       );
 
-      return;
-    }
+    const locationValue =
+      locationId
+        ? Number(
+          locationId,
+        )
+        : null;
 
+    const counterValue =
+      Number(
+        assignedCounter,
+      );
 
-    /* -----------------------------------------------------
-       Payload must match StockCountApi / backend
-    ----------------------------------------------------- */
+    return {
+      /*
+       * dataLayer names
+       */
+      warehouse:
+        warehouseValue,
 
-    const payload = {
+      location:
+        locationValue,
+
+      countType,
+
+      scheduledDate,
+
+      startTime:
+        startTime || "",
+
+      assignedCounter:
+        counterValue,
+
+      /*
+       * backend/API names
+       */
       warehouse_id:
-        Number(warehouseId),
+        warehouseValue,
 
       warehouse_location_id:
-        locationId
-          ? Number(locationId)
-          : null,
+        locationValue,
 
       count_type:
         countType,
@@ -475,52 +759,171 @@ export default function NewStockCountModal({
         scheduledDate,
 
       start_time:
-        startTime || null,
+        startTime ||
+        null,
 
       assigned_to:
-        Number(assignedCounter),
+        counterValue,
 
       notes:
-        notes.trim() || null,
+        notes.trim() ||
+        null,
     };
+  }
 
+  /* =======================================================
+     EXTRACT API ERROR
+  ======================================================= */
+
+  function getErrorMessage(
+    err,
+    fallback,
+  ) {
+    const message =
+      err?.response?.data
+        ?.message;
+
+    const errors =
+      err?.response?.data
+        ?.errors;
+
+    if (message) {
+      return message;
+    }
+
+    if (
+      errors &&
+      typeof errors ===
+      "object"
+    ) {
+      const combined =
+        Object.values(
+          errors,
+        )
+          .flat()
+          .filter(Boolean)
+          .join(" ");
+
+      if (combined) {
+        return combined;
+      }
+    }
+
+    return (
+      err?.message ??
+      fallback
+    );
+  }
+
+  /* =======================================================
+     SUBMIT
+
+     CREATE:
+       createStockCount()
+
+     EDIT:
+       onSave()
+       → StockCountDetails.handleEditSave()
+       → apiUpdateStockCount()
+       → PUT /stock-counts/{id}
+  ======================================================= */
+
+  async function handleSubmit() {
+    const validationError =
+      validate();
+
+    if (
+      validationError
+    ) {
+      setSaveError(
+        validationError,
+      );
+
+      return;
+    }
+
+    const form =
+      buildForm();
 
     try {
       setSaving(true);
+
       setSaveError("");
+
+      /* ===============================================
+         EDIT MODE
+      =============================================== */
+
+      if (isEditing) {
+        if (
+          typeof onSave !==
+          "function"
+        ) {
+          throw new Error(
+            "No save handler was provided for editing this stock count.",
+          );
+        }
+
+        await onSave(
+          form,
+        );
+
+        return;
+      }
+
+      /* ===============================================
+         CREATE MODE
+      =============================================== */
+
+      const payload = {
+        warehouse_id:
+          form.warehouse_id,
+
+        warehouse_location_id:
+          form.warehouse_location_id,
+
+        count_type:
+          form.count_type,
+
+        priority:
+          form.priority,
+
+        count_date:
+          form.count_date,
+
+        start_time:
+          form.start_time,
+
+        assigned_to:
+          form.assigned_to,
+
+        notes:
+          form.notes,
+      };
 
       const created =
         await StockCountApi.createStockCount(
-          payload
+          payload,
         );
 
       resetForm();
 
-      onCreated?.(created);
-
-    } catch (err) {
-
-      const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.errors
-          ? Object.values(
-              err?.response?.data?.errors ?? {}
-            )
-              .flat()
-              .join(" ")
-          : null;
-
-      setSaveError(
-        message ||
-          err?.message ||
-          "Couldn't create the stock count."
+      onCreated?.(
+        created,
       );
-
+    } catch (err) {
+      setSaveError(
+        getErrorMessage(
+          err,
+          isEditing
+            ? "Couldn't save the stock count."
+            : "Couldn't create the stock count.",
+        ),
+      );
     } finally {
       setSaving(false);
     }
   }
-
 
   /* =======================================================
      RENDER
@@ -528,7 +931,6 @@ export default function NewStockCountModal({
 
   return (
     <Modal open={open}>
-
       {/* =================================================
           HEADER
       ================================================= */}
@@ -544,7 +946,6 @@ export default function NewStockCountModal({
           py-7
         "
       >
-
         <div
           className="
             flex
@@ -552,7 +953,6 @@ export default function NewStockCountModal({
             gap-4
           "
         >
-
           <div
             className="
               flex
@@ -571,9 +971,7 @@ export default function NewStockCountModal({
             />
           </div>
 
-
           <div>
-
             <h2
               className="
                 text-[24px]
@@ -582,9 +980,10 @@ export default function NewStockCountModal({
                 text-slate-800
               "
             >
-              New Stock Count
+              {isEditing
+                ? "Edit Stock Count"
+                : "New Stock Count"}
             </h2>
-
 
             <p
               className="
@@ -593,18 +992,21 @@ export default function NewStockCountModal({
                 text-slate-500
               "
             >
-              Create a new stock count to record physical inventory.
+              {isEditing
+                ? "Update the information for this stock count."
+                : "Create a new stock count to record physical inventory."}
             </p>
-
           </div>
-
         </div>
-
 
         <button
           type="button"
-          onClick={closeModal}
-          disabled={saving}
+          onClick={
+            closeModal
+          }
+          disabled={
+            saving
+          }
           className="
             flex
             h-11
@@ -615,16 +1017,16 @@ export default function NewStockCountModal({
             bg-slate-50
             text-slate-500
             transition-colors
+
             hover:bg-slate-100
+
             disabled:cursor-not-allowed
             disabled:opacity-50
           "
         >
           <X size={20} />
         </button>
-
       </div>
-
 
       {/* =================================================
           BODY
@@ -638,7 +1040,6 @@ export default function NewStockCountModal({
           py-7
         "
       >
-
         {/* ===============================================
             ERROR
         =============================================== */}
@@ -649,8 +1050,8 @@ export default function NewStockCountModal({
           locationsError ||
           usersError
         ) && (
-          <div
-            className="
+            <div
+              className="
               mb-5
               rounded-xl
               border
@@ -661,14 +1062,13 @@ export default function NewStockCountModal({
               text-[13px]
               text-red-700
             "
-          >
-            {saveError ||
-              warehousesError ||
-              locationsError ||
-              usersError}
-          </div>
-        )}
-
+            >
+              {saveError ||
+                warehousesError ||
+                locationsError ||
+                usersError}
+            </div>
+          )}
 
         {/* ===============================================
             COUNT INFORMATION
@@ -685,7 +1085,6 @@ export default function NewStockCountModal({
           Count Information
         </h3>
 
-
         <div
           className="
             grid
@@ -695,19 +1094,19 @@ export default function NewStockCountModal({
             md:grid-cols-2
           "
         >
-
           {/* =============================================
               WAREHOUSE
           ============================================= */}
 
           <div>
-
             <FieldLabel required>
               Warehouse
             </FieldLabel>
 
             <SelectField
-              value={warehouseId}
+              value={
+                warehouseId
+              }
               onChange={
                 handleWarehouseChange
               }
@@ -723,22 +1122,21 @@ export default function NewStockCountModal({
                 warehousesLoading
               }
             />
-
           </div>
-
 
           {/* =============================================
               LOCATION
           ============================================= */}
 
           <div>
-
             <FieldLabel>
               Location
             </FieldLabel>
 
             <SelectField
-              value={locationId}
+              value={
+                locationId
+              }
               onChange={
                 setLocationId
               }
@@ -746,8 +1144,8 @@ export default function NewStockCountModal({
                 !warehouseId
                   ? "Select warehouse first"
                   : locationsLoading
-                  ? "Loading locations..."
-                  : "Select location"
+                    ? "Loading locations..."
+                    : "Select location"
               }
               options={
                 locationOptions
@@ -759,56 +1157,60 @@ export default function NewStockCountModal({
             />
 
             <HelperText>
-              Specific area or zone for this count (optional).
+              Specific area for this
+              count (optional).
             </HelperText>
-
           </div>
-
 
           {/* =============================================
               COUNT TYPE
           ============================================= */}
 
           <div>
-
             <FieldLabel required>
               Count Type
             </FieldLabel>
 
             <SelectField
-              value={countType}
+              value={
+                countType
+              }
               onChange={
                 setCountType
               }
               placeholder="Select count type"
-              options={countTypes}
+              options={
+                countTypes
+              }
             />
 
             <HelperText>
-              Choose the type of stock count you want to perform.
+              Choose the type of
+              stock count you want
+              to perform.
             </HelperText>
-
           </div>
-
 
           {/* =============================================
               PRIORITY
           ============================================= */}
 
           <div>
-
             <FieldLabel>
               Priority
             </FieldLabel>
 
-
             <div className="relative">
-
               <select
-                value={priority}
-                onChange={(e) =>
+                value={
+                  priority
+                }
+                onChange={(
+                  event,
+                ) =>
                   setPriority(
-                    e.target.value
+                    event.target
+                      .value,
                   )
                 }
                 className="
@@ -830,7 +1232,6 @@ export default function NewStockCountModal({
                   focus:ring-blue-100
                 "
               >
-
                 {PRIORITIES.map(
                   (item) => (
                     <option
@@ -845,11 +1246,9 @@ export default function NewStockCountModal({
                         item.label
                       }
                     </option>
-                  )
+                  ),
                 )}
-
               </select>
-
 
               <span
                 className={`
@@ -863,10 +1262,11 @@ export default function NewStockCountModal({
                   rounded-full
                   border
                   border-black/10
-                  ${priorityMeta?.dot ?? ""}
+                  ${priorityMeta?.dot ??
+                  ""
+                  }
                 `}
               />
-
 
               <ChevronDown
                 size={16}
@@ -879,145 +1279,86 @@ export default function NewStockCountModal({
                   text-slate-400
                 "
               />
-
             </div>
 
-
             <HelperText>
-              Set the priority level for this count.
+              Set the priority level
+              for this count.
             </HelperText>
-
           </div>
-
 
           {/* =============================================
               SCHEDULED DATE
           ============================================= */}
 
           <div>
-
             <FieldLabel required>
               Scheduled Date
             </FieldLabel>
 
-
-            <div className="relative">
-
-              <input
-                type="date"
-                value={
-                  scheduledDate
-                }
-                onChange={(e) =>
-                  setScheduledDate(
-                    e.target.value
-                  )
-                }
-                className="
-                  h-12
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-200
-                  px-4
-                  pr-11
-                  text-[14px]
-                  text-slate-800
-                  outline-none
-
-                  focus:border-blue-500
-                  focus:ring-2
-                  focus:ring-blue-100
-                "
-              />
-
-
-              <CalendarDays
-                size={18}
-                className="
-                  pointer-events-none
-                  absolute
-                  right-4
-                  top-1/2
-                  -translate-y-1/2
-                  text-slate-400
-                "
-              />
-
-            </div>
-
+            <input
+              type="date"
+              value={scheduledDate}
+              onChange={(event) =>
+                setScheduledDate(event.target.value)
+              }
+              className="
+    h-12
+    w-full
+    rounded-xl
+    border
+    border-slate-200
+    px-4
+    text-[14px]
+    text-slate-800
+    outline-none
+    focus:border-blue-500
+    focus:ring-2
+    focus:ring-blue-100
+  "
+            />
           </div>
-
 
           {/* =============================================
               START TIME
           ============================================= */}
 
           <div>
-
             <FieldLabel>
               Start Time
             </FieldLabel>
 
-
-            <div className="relative">
-
-              <input
-                type="time"
-                value={
-                  startTime
-                }
-                onChange={(e) =>
-                  setStartTime(
-                    e.target.value
-                  )
-                }
-                className="
-                  h-12
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-200
-                  px-4
-                  pr-11
-                  text-[14px]
-                  text-slate-800
-                  outline-none
-
-                  focus:border-blue-500
-                  focus:ring-2
-                  focus:ring-blue-100
-                "
-              />
-
-
-              <Clock3
-                size={18}
-                className="
-                  pointer-events-none
-                  absolute
-                  right-4
-                  top-1/2
-                  -translate-y-1/2
-                  text-slate-400
-                "
-              />
-
-            </div>
-
+            <input
+              type="time"
+              value={startTime}
+              onChange={(event) =>
+                setStartTime(event.target.value)
+              }
+              className="
+    h-12
+    w-full
+    rounded-xl
+    border
+    border-slate-200
+    px-4
+    text-[14px]
+    text-slate-800
+    outline-none
+    focus:border-blue-500
+    focus:ring-2
+    focus:ring-blue-100
+  "
+            />
           </div>
-
 
           {/* =============================================
               ASSIGNED COUNTER
           ============================================= */}
 
           <div className="md:col-span-2">
-
             <FieldLabel required>
               Assigned Counter
             </FieldLabel>
-
 
             <SelectField
               value={
@@ -1039,15 +1380,12 @@ export default function NewStockCountModal({
               }
             />
 
-
             <HelperText>
-              Person responsible for conducting this count.
+              Person responsible for
+              conducting this count.
             </HelperText>
-
           </div>
-
         </div>
-
 
         {/* ===============================================
             NOTES
@@ -1061,7 +1399,6 @@ export default function NewStockCountModal({
             pt-7
           "
         >
-
           <h3
             className="
               mb-5
@@ -1073,20 +1410,22 @@ export default function NewStockCountModal({
             Notes
           </h3>
 
-
           <FieldLabel>
             Notes (Optional)
           </FieldLabel>
 
-
           <div className="relative">
-
             <textarea
-              value={notes}
+              value={
+                notes
+              }
               maxLength={500}
-              onChange={(e) =>
+              onChange={(
+                event,
+              ) =>
                 setNotes(
-                  e.target.value
+                  event.target
+                    .value,
                 )
               }
               placeholder="Add any additional notes or instructions for this stock count..."
@@ -1112,7 +1451,6 @@ export default function NewStockCountModal({
               "
             />
 
-
             <span
               className="
                 absolute
@@ -1124,9 +1462,7 @@ export default function NewStockCountModal({
             >
               {notes.length} / 500
             </span>
-
           </div>
-
 
           {/* =============================================
               INFORMATION PANEL
@@ -1146,7 +1482,6 @@ export default function NewStockCountModal({
               py-4
             "
           >
-
             <Info
               size={21}
               className="
@@ -1156,9 +1491,7 @@ export default function NewStockCountModal({
               "
             />
 
-
             <div>
-
               <p
                 className="
                   text-[14px]
@@ -1166,9 +1499,10 @@ export default function NewStockCountModal({
                   text-blue-800
                 "
               >
-                What happens next?
+                {isEditing
+                  ? "Editing this stock count"
+                  : "What happens next?"}
               </p>
-
 
               <p
                 className="
@@ -1177,17 +1511,14 @@ export default function NewStockCountModal({
                   text-blue-600
                 "
               >
-                After creating the stock count, you can add items and begin the counting process.
+                {isEditing
+                  ? "Save your changes to update this stock count. Existing count items will not be removed."
+                  : "After creating the stock count, you can add items and begin the counting process."}
               </p>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
 
       {/* =================================================
           FOOTER
@@ -1204,7 +1535,6 @@ export default function NewStockCountModal({
           py-5
         "
       >
-
         {/* CANCEL */}
 
         <button
@@ -1236,13 +1566,12 @@ export default function NewStockCountModal({
           Cancel
         </button>
 
-
-        {/* CREATE */}
+        {/* CREATE / SAVE */}
 
         <button
           type="button"
           onClick={
-            handleCreate
+            handleSubmit
           }
           disabled={
             saving
@@ -1267,11 +1596,14 @@ export default function NewStockCountModal({
             disabled:opacity-60
           "
         >
-
           {saving ? (
             <Loader2
               size={17}
               className="animate-spin"
+            />
+          ) : isEditing ? (
+            <Save
+              size={17}
             />
           ) : (
             <Plus
@@ -1279,15 +1611,15 @@ export default function NewStockCountModal({
             />
           )}
 
-
           {saving
-            ? "Creating..."
-            : "Create Stock Count"}
-
+            ? isEditing
+              ? "Saving..."
+              : "Creating..."
+            : isEditing
+              ? "Save Changes"
+              : "Create Stock Count"}
         </button>
-
       </div>
-
     </Modal>
   );
 }
