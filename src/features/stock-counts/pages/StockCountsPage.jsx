@@ -1,5 +1,5 @@
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Icon } from "../components/icon.jsx";
 import { icons } from "../components/icon.js";
 import NewStockCountModal from "../components/NewStockCountModal.jsx";
@@ -132,7 +132,8 @@ export default function StockCountsPage() {
     const [modalOpen, setModalOpen] = useState(false);
 
     const [selectedCountId, setSelectedCountId] = useState(null);
-
+    const [searchParams, setSearchParams] = useSearchParams();
+    const countFromUrl = searchParams.get("count");
     const {
         stockCounts = [],
         meta,
@@ -143,11 +144,46 @@ export default function StockCountsPage() {
         reload,
     } = useStockCounts();
 
+    const selectedCountFromUrl = (() => {
+        if (!countFromUrl) {
+            return null;
+        }
+
+        const matchingCount = stockCounts.find((count) => {
+            const id = String(count.id ?? "");
+
+            const number = String(
+                count.count_number ??
+                count.countNo ??
+                count.stock_count_number ??
+                count.reference ??
+                ""
+            );
+
+            return (
+                id === String(countFromUrl) ||
+                number === String(countFromUrl)
+            );
+        });
+
+        if (matchingCount?.id) {
+            return matchingCount.id;
+        }
+
+        if (/^\d+$/.test(String(countFromUrl))) {
+            return Number(countFromUrl);
+        }
+
+        return null;
+    })();
+
+    const activeCountId =
+        selectedCountId ?? selectedCountFromUrl;
+
     const [search, setSearch] = useState("");
     const [warehouseFilter, setWarehouseFilter] = useState("");
     const [locationFilter, setLocationFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
-
 
     /* =======================================================
        LOOKUPS FOR MODAL
@@ -348,16 +384,27 @@ export default function StockCountsPage() {
         }
     }
 
-    if (selectedCountId) {
+    if (activeCountId) {
         return (
             <StockCountDetails
-                countId={selectedCountId}
+                countId={activeCountId}
                 onBack={() => {
                     setSelectedCountId(null);
+
+                    setSearchParams((params) => {
+                        params.delete("count");
+                        return params;
+                    });
+
                     reload();
                 }}
                 onOpenDetails={(countId) => {
                     setSelectedCountId(countId);
+
+                    setSearchParams((params) => {
+                        params.set("count", String(countId));
+                        return params;
+                    });
                 }}
             />
         );
@@ -573,13 +620,52 @@ export default function StockCountsPage() {
 
                         onView={(count) => {
                             setSelectedCountId(count.id);
+
+                            setSearchParams((params) => {
+                                params.set("count", String(count.id));
+                                return params;
+                            });
                         }}
 
-                        onOpenActions={(count) => {
+                        onOpenActions={(action, count) => {
                             console.log(
-                                "Open actions:",
+                                "Stock count action:",
+                                action,
                                 count
                             );
+
+                            switch (action) {
+                                case "edit":
+                                    console.log("Edit", count);
+                                    break;
+
+                                case "duplicate":
+                                    console.log("Duplicate", count);
+                                    break;
+
+                                case "cancel":
+                                    console.log("Cancel", count);
+                                    break;
+
+                                case "delete":
+                                    console.log("Delete", count);
+                                    break;
+
+                                case "view_assignment":
+                                    setSelectedCountId(count.id);
+                                    break;
+
+                                case "request_recount":
+                                    console.log("Request recount", count);
+                                    break;
+
+                                case "reject":
+                                    console.log("Reject", count);
+                                    break;
+
+                                default:
+                                    break;
+                            }
                         }}
                     />
 

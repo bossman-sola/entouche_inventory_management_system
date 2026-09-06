@@ -40,7 +40,7 @@ import {
     StatCard,
     SkeletonRow,
     EmptyState,
-} from "../components/Primitives.jsx";
+} from "../components/primitives.jsx";
 import { RowActionsMenu } from "../components/RowActionsMenu.jsx";
 import { AddItemsModal } from "../components/AddItemsModal.jsx";
 import { ReasonModal } from "../components/ReasonModal.jsx";
@@ -240,7 +240,11 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                 : "Medium",
             scheduledDate: (sc.count_date || "").slice(0, 10),
             startTime: sc.start_time || "",
-            assignedCounter: sc.counted_by || "",
+            assignedCounter: sc.assigned_counter?.name ||
+  sc.assigned_counter_name ||
+  sc.assignedCounter?.name ||
+  sc.assignedCounter ||
+  "-",
             notes: sc.notes || "",
         });
         setEditOpen(true);
@@ -731,9 +735,9 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                             <h3 className="text-[15px] font-semibold text-gray-900">
                                 Count Activity
                             </h3>
-                            <button className="text-xs font-medium text-blue-600 hover:text-blue-700">
+                            {/* <button className="text-xs font-medium text-blue-600 hover:text-blue-700">
                                 View all
-                            </button>
+                            </button> */}
                         </div>
                         <div className="mt-4 space-y-4">
                             {loading ? (

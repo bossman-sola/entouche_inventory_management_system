@@ -155,4 +155,20 @@ export const NOTIFICATION_META = {
     iconFg: "text-orange-500",
     dot: "bg-orange-500",
   },
+
+  maintenance_scheduled: {
+    label: "Scheduled Maintenance",
+    icon: ShieldAlert,
+    iconBg: "bg-blue-50",
+    iconFg: "text-blue-500",
+    dot: "bg-blue-500",
+  },
+
+  maintenance_cancelled: {
+    label: "Maintenance Cancelled",
+    icon: XCircle,
+    iconBg: "bg-gray-50",
+    iconFg: "text-gray-500",
+    dot: "bg-gray-400",
+  },
 };

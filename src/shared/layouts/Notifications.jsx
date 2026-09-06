@@ -16,6 +16,45 @@ const DEFAULT_META = {
   dot: "bg-gray-400",
 };
 
+const formatLocalDateTime = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getNotificationDescription = (notification) => {
+  if (notification.type === "maintenance_scheduled") {
+    const start = formatLocalDateTime(notification.startsAt);
+    const end = formatLocalDateTime(notification.endsAt);
+
+    return `A maintenance window titled '${
+      notification.maintenanceTitle || "Scheduled Maintenance"
+    }' has been scheduled to start at ${start} and end at ${end}.`;
+  }
+
+  if (notification.type === "maintenance_cancelled") {
+    const start = formatLocalDateTime(notification.startsAt);
+
+    return `The maintenance window titled '${
+      notification.maintenanceTitle || "Scheduled Maintenance"
+    }' scheduled to start at ${start} has been cancelled.`;
+  }
+
+  return notification.description;
+};
+
 const NotificationCard = ({
   notification,
   onClick,
@@ -53,7 +92,7 @@ const NotificationCard = ({
         </div>
 
         <p className="text-[12.5px] text-gray-500 mt-1 leading-relaxed pr-2">
-          {notification.description}
+          {getNotificationDescription(notification)}
         </p>
 
         <span

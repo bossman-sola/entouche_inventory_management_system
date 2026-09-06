@@ -220,13 +220,14 @@ export function mapApiNotification(notification) {
     return null;
   }
 
-  const data =
-    notification.data || {};
+  const data = notification.data || {};
 
   return {
     id: notification.id,
+
     importId:
       data.import_id ?? null,
+
     /*
      * IMPORTANT:
      * Do NOT use notification.type here.
@@ -237,6 +238,8 @@ export function mapApiNotification(notification) {
      * The useful business type is inside data.type:
      * "transfer_approved"
      * "stock_count_submitted"
+     * "maintenance_scheduled"
+     * "maintenance_cancelled"
      * etc.
      */
     type: data.type || "notification",
@@ -278,14 +281,38 @@ export function mapApiNotification(notification) {
     itemId:
       data.item_id ?? null,
 
+    importId:
+      data.import_id ?? null,
+
+    // Maintenance fields
+    maintenanceId:
+      data.maintenance_id ?? null,
+
+    maintenanceTitle:
+      data.maintenance_title ?? null,
+
+    maintenanceStatus:
+      data.status ?? null,
+
+    startsAt:
+      data.starts_at ?? null,
+
+    endsAt:
+      data.ends_at ?? null,
+
+    affectedService:
+      data.affected_service ?? null,
+
     /*
      * Keep the complete notification payload available
      * for future dialog logic.
      */
     data,
+
     raw: notification,
   };
 }
+
 export function mapApiReceiptForApproval(r) {
   if (!r) return null;
   const items = (r.items || []).map((it) => {

@@ -21,6 +21,71 @@ import { warehousesApi } from "../../warehouse/api/warehousesApi.js";
 
 const listUsers = api.listUsers;
 
+const formatLocalDateTime = (value) => {
+  if (!value) return "";
+
+  let date;
+
+  /*
+   * Current backend activity format:
+   * "Sep 6, 2026 at 3:35 AM"
+   *
+   * This value represents UTC, but the string itself does not
+   * contain timezone information. We explicitly interpret it
+   * as UTC before converting it to the browser's local timezone.
+   */
+  if (typeof value === "string" && value.includes(" at ")) {
+    date = new Date(`${value.replace(" at ", " ")} UTC`);
+  } else {
+    /*
+     * Proper ISO timestamps such as:
+     * 2026-09-06T03:35:21.000000Z
+     *
+     * JavaScript recognizes the Z as UTC automatically.
+     */
+    date = new Date(value);
+  }
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  const datePart = date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timePart = date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${datePart} at ${timePart}`;
+};
+
+const formatDateOnly = (value) => {
+  if (!value) return "";
+
+  const datePart = String(value).slice(0, 10);
+
+  const [year, month, day] = datePart
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(
+    new Date(year, month - 1, day),
+  );
+};
+
 export async function apiFetchOverview() {
   try {
     const ov = await getStockCountOverview();
@@ -38,7 +103,7 @@ export async function apiFetchOverview() {
         recentActivity: ov.recent_activity ?? ov.recentActivity ?? [],
       };
     }
-  } catch (err) {}
+  } catch (err) { }
 
   try {
     const { stockCounts, meta } = await listStockCounts({ page: 1 });
@@ -73,54 +138,101 @@ export async function apiFetchOverview() {
 
 export async function apiFetchStockCounts(params = {}) {
   const { stockCounts, meta } = await listStockCounts(params);
+
   const rows = (stockCounts || []).map((sc) => {
     const varianceVal =
       sc.total_variance ??
       sc.totalVariance ??
       (sc.items
         ? sc.items.reduce(
-            (a, it) => a + Number(it.variance_quantity || it.variance || 0),
+            (a, it) =>
+              a + Number(it.variance_quantity || it.variance || 0),
             0,
           )
         : 0);
+
     const countedBy =
-      sc.counted_by_name || sc.counted_by || sc.countedBy || "-";
-    const date = sc.count_date || sc.countDate || sc.created_at || sc.createdAt;
-    const d = date ? new Date(date) : null;
+      sc.counted_by_name ||
+      sc.assigned_counter?.name ||
+      sc.countedBy ||
+      "-";
+
+    const countDate = sc.count_date || sc.countDate;
+    const startTime = sc.start_time || sc.startTime;
+
     return {
       id: sc.id,
-      countNo: sc.count_number || sc.countNo || `#${sc.id}`,
+
+      countNo:
+        sc.count_number ||
+        sc.countNo ||
+        `#${sc.id}`,
+
       warehouse:
-        (sc.warehouse && (sc.warehouse.name || sc.warehouse)) ||
+        (sc.warehouse &&
+          (sc.warehouse.name || sc.warehouse)) ||
         sc.warehouse_id ||
         "-",
+
       location:
-        (sc.location && (sc.location.name || sc.location)) ||
+        (sc.location &&
+          (sc.location.name || sc.location)) ||
         sc.warehouse_location_id ||
         "-",
-      countType: sc.count_type || sc.countType || sc.type || "-",
-      items: sc.items ? sc.items.length : (sc.items_count ?? 0),
+
+      countType:
+        sc.count_type ||
+        sc.countType ||
+        sc.type ||
+        "-",
+
+      items: sc.items
+        ? sc.items.length
+        : (sc.items_count ?? 0),
+
       variance: varianceVal,
+
       status: (sc.status || "")
         .replace(/_/g, " ")
         .replace(/^./, (s) => s.toUpperCase()),
 
       rawStatus: sc.status,
+
       rawWarehouseId: sc.warehouse_id,
-      rawWarehouseLocationId: sc.warehouse_location_id,
-      rawCountDate: (sc.count_date || sc.created_at || "").slice(0, 10),
+
+      rawWarehouseLocationId:
+        sc.warehouse_location_id,
+
+      rawCountDate:
+        (countDate || "").slice(0, 10),
+
       countedBy,
-      date: d ? d.toLocaleDateString() : "-",
-      time: d
-        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+      // IMPORTANT:
+      // count_date is a date-only business value.
+      // Do not pass it through new Date().
+      date: formatDateOnly(countDate) || "-",
+
+      // Only show a time if the stock count actually has start_time.
+      time: startTime
+        ? new Date(
+            `1970-01-01T${startTime}`,
+          ).toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          })
         : "",
     };
   });
+
   return {
     rows,
     total: meta?.total ?? rows.length,
     page: meta?.current_page ?? params.page ?? 1,
-    pageSize: meta?.per_page ?? params.pageSize ?? 10,
+    pageSize:
+      meta?.per_page ??
+      params.pageSize ??
+      10,
   };
 }
 
@@ -135,10 +247,14 @@ export async function apiFetchStockCountDetails(id) {
     countType: sc.count_type || sc.countType,
     countScope: sc.count_scope || sc.scope,
     priority: sc.priority,
-    scheduledDate: sc.count_date || sc.countDate,
-    startedTime: sc.started_at || sc.startedAt,
-    assignedCounter:
-      sc.assigned_counter_name || sc.assignedCounter || sc.counted_by,
+    scheduledDate: formatDateOnly(
+      sc.count_date || sc.countDate
+    ),
+
+    startedTime: formatLocalDateTime(
+      sc.started_at || sc.startedAt
+    ),
+   assignedCounter: sc.assigned_counter?.name ?? "-",
     notes: sc.notes || sc.description,
     status: (sc.status || "")
       .replace(/_/g, " ")
@@ -192,7 +308,14 @@ export async function apiFetchStockCountDetails(id) {
   const activity = (sc.activity || []).map((a) => ({
     title: a.title || a.type,
     detail: a.description || a.detail,
-    time: a.time || a.created_at,
+
+    time: formatLocalDateTime(
+      a.timestamp ??
+      a.created_at ??
+      a.createdAt ??
+      a.time
+    ),
+
     done: !!a.done,
   }));
 
@@ -215,7 +338,7 @@ export async function apiFetchLookups() {
         users: mapOpts(lk.users, ["name", "email"]),
       };
     }
-  } catch (err) {}
+  } catch (err) { }
   try {
     const allWarehouses = await warehousesApi.listAll();
     const warehouses = allWarehouses.map((w) => ({

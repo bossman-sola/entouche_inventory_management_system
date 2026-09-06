@@ -36,16 +36,174 @@ export default function MainLayout() {
 
     switch (notification.type) {
       case "low_stock_alert":
-      case "reorder_level_reached":
-      case "receipt_completed":
-      case "transfer_completed":
-      case "adjustment_pending":
-      case "stock_count_variance":
-      case "new_receipt_awaiting_approval":
-      case "user_created":
-      case "system_maintenance":
-        setActiveDialog({ type: notification.type, data: DEMO_DIALOG_DATA[notification.type] });
+        setActiveDialog({
+          type: "low_stock_alert",
+          data: notification,
+        });
         break;
+
+      case "reorder_level_reached":
+        setActiveDialog({
+          type: "reorder_level_reached",
+          data: notification,
+        });
+        break;
+
+      case "receipt_completed":
+        setActiveDialog({
+          type: "receipt_completed",
+          data: notification,
+        });
+        break;
+
+      case "transfer_completed":
+        setActiveDialog({
+          type: "transfer_completed",
+          data: notification,
+        });
+        break;
+      case "adjustment_pending":
+        setActiveDialog({
+          type: "adjustment_pending",
+          data: {
+            title: notification.title,
+            description: notification.description,
+            timeAgo: notification.timeAgo,
+            adjustmentId: notification.adjustmentId,
+            ...notification.data,
+          },
+        });
+        break;
+
+      case "stock_count_created":
+        setActiveDialog({
+          type: "stock_count_created",
+          data: {
+            title: notification.title,
+            description: notification.description,
+            timeAgo: notification.timeAgo,
+            stockCountId: notification.stockCountId,
+          },
+        });
+        break;
+
+      case "stock_count_variance":
+        setActiveDialog({
+          type: "stock_count_variance",
+          data: notification,
+        });
+        break;
+
+      case "new_receipt_awaiting_approval":
+        setActiveDialog({
+          type: "new_receipt_awaiting_approval",
+          data: notification,
+        });
+        break;
+
+      case "user_created":
+        setActiveDialog({
+          type: "user_created",
+          data: notification,
+        });
+        break;
+      case "maintenance_scheduled":
+      case "maintenance_cancelled": {
+        const isCancelled =
+          notification.type === "maintenance_cancelled";
+
+        const start = notification.startsAt
+          ? new Date(notification.startsAt)
+          : null;
+
+        const end = notification.endsAt
+          ? new Date(notification.endsAt)
+          : null;
+
+        const formatLocal = (date) => {
+          if (!date || Number.isNaN(date.getTime())) {
+            return "Not available";
+          }
+
+          return date.toLocaleString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+        };
+
+        const durationMs =
+          start && end ? end.getTime() - start.getTime() : 0;
+
+        const durationMinutes = Math.max(
+          0,
+          Math.round(durationMs / 60000)
+        );
+
+        const hours = Math.floor(durationMinutes / 60);
+        const minutes = durationMinutes % 60;
+
+        const durationLabel =
+          hours && minutes
+            ? `${hours} hr ${minutes} min`
+            : hours
+              ? `${hours} ${hours === 1 ? "hour" : "hours"}`
+              : `${minutes} min`;
+
+        setActiveDialog({
+          type: "system_maintenance",
+
+          data: {
+            maintenance: {
+              startsAt: formatLocal(start),
+              endsAt: formatLocal(end),
+
+              id: notification.maintenanceId
+                ? `MAINT-${notification.maintenanceId}`
+                : "N/A",
+
+              initiatedBy: "System Administrator",
+
+              reason: isCancelled
+                ? `The maintenance window "${notification.maintenanceTitle || "Scheduled Maintenance"
+                }" scheduled for ${formatLocal(start)} was cancelled.`
+                : `The maintenance window "${notification.maintenanceTitle || "Scheduled Maintenance"
+                }" is scheduled from ${formatLocal(start)} to ${formatLocal(end)}.`,
+
+              impactLevel: isCancelled
+                ? "Cancelled"
+                : "Scheduled",
+
+              durationLabel,
+
+              status: isCancelled
+                ? "cancelled"
+                : "scheduled",
+
+              statusNote: isCancelled
+                ? "This scheduled maintenance window has been cancelled."
+                : "Scheduled maintenance is planned. Some features may be unavailable during this time.",
+
+              affectedService:
+                notification.affectedService,
+            },
+
+            features:
+              DEMO_DIALOG_DATA.system_maintenance.features,
+
+            actionItems: isCancelled
+              ? [
+                "This maintenance window has been cancelled.",
+                "No maintenance interruption is expected during this period.",
+              ]
+              : DEMO_DIALOG_DATA.system_maintenance.actionItems,
+          },
+        });
+
+        break;
+      }
 
       case "stock_count_submitted":
         setActiveDialog({
@@ -65,6 +223,10 @@ export default function MainLayout() {
 
       case "import_completed":
         await openImportCompleted(notification);
+        break;
+
+      case "import_failed":
+        await openImportFailed(notification);
         break;
 
       default:
@@ -98,6 +260,27 @@ export default function MainLayout() {
     }
   };
 
+  const openImportFailed = async (notification) => {
+    if (!notification.importId) {
+      console.error(
+        "Import failed notification is missing import_id",
+        notification
+      );
+      return;
+    }
+
+    try {
+      const importRecord = await api.getImport(notification.importId);
+
+      setActiveDialog({
+        type: "import_failed",
+        data: buildImportFailedDialogData(importRecord),
+      });
+    } catch (error) {
+      console.error("Failed to load failed import details:", error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#F8FAFC] font-['Inter'] text-[#1E2740] overflow-hidden selection:bg-indigo-100">
       <MaintenanceBanner maintenance={maintenance} onViewDetails={() => navigate("/settings")} />
@@ -117,6 +300,7 @@ export default function MainLayout() {
             onSignOut={handleSignOut}
             onNavigate={navigate}
             dialogOpen={Boolean(activeDialog)}
+            onC
           />
 
           <main className="flex-1 overflow-y-auto p-7 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -125,7 +309,11 @@ export default function MainLayout() {
         </div>
       </div>
 
-      <NotificationDialogs activeDialog={activeDialog} onClose={() => setActiveDialog(null)} onNavigate={navigate} />
+      <NotificationDialogs
+        activeDialog={activeDialog}
+        onClose={() => setActiveDialog(null)}
+        onNavigate={navigate}
+      />
     </div>
   );
 }
@@ -201,7 +389,176 @@ function buildImportCompletedDialogData(importRecord) {
   };
 }
 
+function buildImportFailedDialogData(importRecord) {
+  const successful = Number(
+    importRecord.successful_rows ??
+    importRecord.imported_rows ??
+    0
+  );
+
+  const updated = Number(importRecord.updated_rows ?? 0);
+  const skipped = Number(importRecord.skipped_rows ?? 0);
+  const failed = Number(importRecord.failed_rows ?? 0);
+
+  const total = Number(
+    importRecord.total_rows ??
+    successful + updated + skipped + failed
+  );
+
+  /*
+   * Aggregate identical errors.
+   *
+   * Example:
+   * "Item name is required." x 12
+   * instead of 12 separate "Import error" rows.
+   */
+  const groupedErrors = {};
+
+  const rawErrors = Array.isArray(importRecord.errors)
+    ? importRecord.errors
+    : [];
+
+  rawErrors.forEach((error) => {
+    const label =
+      error.error_message ||
+      error.message ||
+      error.error_type ||
+      "Import error";
+
+    if (!groupedErrors[label]) {
+      groupedErrors[label] = {
+        label,
+        count: 0,
+      };
+    }
+
+    groupedErrors[label].count += 1;
+  });
+
+  const errorTypes = Object.values(groupedErrors)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  /*
+   * Determine primary issue from actual errors first.
+   */
+  const primaryIssue =
+    errorTypes[0]?.label ||
+    importRecord.error_summary ||
+    "One or more rows failed validation.";
+
+  return {
+    importData: {
+      /*
+       * Display identifier.
+       */
+      id:
+        importRecord.import_number ??
+        `IMP-${String(importRecord.id).padStart(6, "0")}`,
+
+      /*
+       * Actual DB identifier used by API/navigation.
+       */
+      recordId: importRecord.id,
+
+      importType:
+        importRecord.import_type === "items"
+          ? "Items"
+          : importRecord.import_type === "inventory"
+            ? "Inventory"
+            : importRecord.import_type ?? "—",
+
+      uploadedBy:
+        importRecord.uploader?.name ?? "—",
+
+      uploadedByRole:
+        importRecord.uploader?.roles?.[0]?.name ?? "",
+
+      /*
+       * Items imports do not require a warehouse.
+       */
+      warehouse:
+        importRecord.warehouse?.name ??
+        (importRecord.import_type === "items"
+          ? "Not applicable"
+          : "—"),
+
+      failedOn: formatDateTime(
+        importRecord.completed_at ??
+        importRecord.failed_at ??
+        importRecord.updated_at
+      ),
+
+      /*
+       * Your backend calls this `original_name`.
+       * `file_name` is the random stored filename.
+       */
+      fileName:
+        importRecord.original_name ??
+        importRecord.original_filename ??
+        importRecord.file_name ??
+        "—",
+
+      fileSize:
+        importRecord.file_size_label ??
+        formatFileSize(importRecord.file_size),
+
+      totalRows: total,
+      importedRows: successful,
+      updatedRows: updated,
+      failedRows: failed,
+      skippedRows: skipped,
+
+      failureReason:
+        importRecord.error_summary ??
+        (
+          successful > 0
+            ? "The import was partially completed. Some rows could not be processed."
+            : "The import could not be completed successfully."
+        ),
+
+      primaryIssue,
+
+      expectedColumns:
+        importRecord.import_type === "items"
+          ? [
+            "name",
+            "category",
+            "unit",
+            "item_type",
+            "barcode",
+            "reorder_level",
+            "unit_cost",
+            "description",
+            "brand",
+            "supplier",
+          ]
+          : [],
+    },
+
+    errorTypes,
+  };
+}
+
 function formatDateTime(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes);
+
+  if (!size || Number.isNaN(size)) {
+    return "—";
+  }
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

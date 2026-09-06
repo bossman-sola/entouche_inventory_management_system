@@ -229,21 +229,70 @@ export const api = {
     unwrap(
       apiClient.get(`/imports/${id}`)
     ),
-  downloadImportTemplate: async (type) => {
-    const res = await apiClient.get(`/imports/templates/${type}`, {
-      responseType: "blob",
-    });
-    const disposition = res.headers["content-disposition"] || "";
-    const match = /filename="?([^"]+)"?/.exec(disposition);
-    const filename = match ? match[1] : `${type}_template.csv`;
 
-    const blobUrl = window.URL.createObjectURL(res.data);
+  downloadImportErrorReport: async (id) => {
+    const res = await apiClient.get(
+      `/imports/${id}/error-report`,
+      {
+        responseType: "blob",
+      }
+    );
+
+    const disposition =
+      res.headers["content-disposition"] || "";
+
+    const match =
+      /filename="?([^"]+)"?/.exec(disposition);
+
+    const filename = match
+      ? match[1]
+      : `import-${id}-error-report.csv`;
+
+    const blobUrl =
+      window.URL.createObjectURL(res.data);
+
     const a = document.createElement("a");
+
     a.href = blobUrl;
     a.download = filename;
+
     document.body.appendChild(a);
     a.click();
     a.remove();
+
+    window.URL.revokeObjectURL(blobUrl);
+  },
+
+  downloadImportTemplate: async (type) => {
+    const res = await apiClient.get(
+      `/imports/templates/${type}`,
+      {
+        responseType: "blob",
+      }
+    );
+
+    const disposition =
+      res.headers["content-disposition"] || "";
+
+    const match =
+      /filename="?([^"]+)"?/.exec(disposition);
+
+    const filename = match
+      ? match[1]
+      : `${type}_template.csv`;
+
+    const blobUrl =
+      window.URL.createObjectURL(res.data);
+
+    const a = document.createElement("a");
+
+    a.href = blobUrl;
+    a.download = filename;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
     window.URL.revokeObjectURL(blobUrl);
   },
 
@@ -271,8 +320,8 @@ export const api = {
 
   // ─── Maintenance ───
   listMaintenance: (params) =>
-  unwrap(apiClient.get("/maintenance", { params })),
-  
+    unwrap(apiClient.get("/maintenance", { params })),
+
   scheduleMaintenance: (body) =>
     unwrap(apiClient.post("/maintenance", body)),
 };

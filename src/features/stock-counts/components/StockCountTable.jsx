@@ -1,10 +1,18 @@
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
+  Ban,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Eye,
   MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  UserRound,
+  XCircle,
 } from "lucide-react";
-
 
 /* =========================================================
    HELPERS
@@ -17,56 +25,39 @@ function normalizeStatus(status) {
     .replace(/_/g, " ");
 }
 
-
 function formatStatus(status) {
   const normalized = normalizeStatus(status);
 
   const labels = {
     draft: "Draft",
+    requested: "Requested",
     "in progress": "In Progress",
+    submitted: "Submitted",
+    "pending review": "Pending Review",
     completed: "Completed",
     approved: "Approved",
     cancelled: "Cancelled",
-    submitted: "Submitted",
-    "pending review": "Pending Review",
   };
 
   return labels[normalized] ?? status ?? "-";
 }
 
-
 function getStatusClasses(status) {
   const normalized = normalizeStatus(status);
 
   const classes = {
-    draft:
-      "bg-slate-100 text-slate-600",
-
-    "in progress":
-      "bg-blue-50 text-blue-600",
-
-    submitted:
-      "bg-violet-100 text-violet-700",
-
-    "pending review":
-      "bg-amber-100 text-amber-700",
-
-    completed:
-      "bg-emerald-100 text-emerald-700",
-
-    approved:
-      "bg-blue-100 text-blue-700",
-
-    cancelled:
-      "bg-red-100 text-red-600",
+    draft: "bg-slate-100 text-slate-600",
+    requested: "bg-violet-100 text-violet-700",
+    "in progress": "bg-blue-50 text-blue-600",
+    submitted: "bg-violet-100 text-violet-700",
+    "pending review": "bg-amber-100 text-amber-700",
+    completed: "bg-emerald-100 text-emerald-700",
+    approved: "bg-blue-100 text-blue-700",
+    cancelled: "bg-red-100 text-red-600",
   };
 
-  return (
-    classes[normalized] ??
-    "bg-slate-100 text-slate-600"
-  );
+  return classes[normalized] ?? "bg-slate-100 text-slate-600";
 }
-
 
 function getWarehouse(count) {
   return (
@@ -76,7 +67,6 @@ function getWarehouse(count) {
     "-"
   );
 }
-
 
 function getLocation(count) {
   return (
@@ -88,34 +78,20 @@ function getLocation(count) {
   );
 }
 
-
 function getCountType(count) {
-  return (
-    count?.count_type ??
-    count?.type ??
-    "-"
-  );
+  return count?.count_type ?? count?.type ?? "-";
 }
-
 
 function getItemCount(count) {
   if (Array.isArray(count?.items)) {
     return count.items.length;
   }
 
-  return (
-    count?.items_count ??
-    count?.item_count ??
-    0
-  );
+  return count?.items_count ?? count?.item_count ?? 0;
 }
 
-
 function getVariance(count) {
-  if (
-    count?.variance !== undefined &&
-    count?.variance !== null
-  ) {
+  if (count?.variance !== undefined && count?.variance !== null) {
     return Number(count.variance);
   }
 
@@ -123,60 +99,38 @@ function getVariance(count) {
     count?.variance_quantity !== undefined &&
     count?.variance_quantity !== null
   ) {
-    return Number(
-      count.variance_quantity
-    );
+    return Number(count.variance_quantity);
   }
 
-  if (
-    Array.isArray(count?.items)
-  ) {
+  if (Array.isArray(count?.items)) {
     return count.items.reduce(
-      (sum, item) =>
-        sum +
-        Number(
-          item?.variance_quantity ?? 0
-        ),
-      0
+      (sum, item) => sum + Number(item?.variance_quantity ?? 0),
+      0,
     );
   }
 
   return 0;
 }
 
-
 function formatVariance(value) {
   const variance = Number(value) || 0;
 
-  if (variance > 0) {
-    return `+${variance} PCS`;
-  }
-
-  if (variance < 0) {
-    return `${variance} PCS`;
-  }
-
+  if (variance > 0) return `+${variance} PCS`;
+  if (variance < 0) return `${variance} PCS`;
   return "0 PCS";
 }
-
 
 function getVarianceClass(value) {
   const variance = Number(value) || 0;
 
-  if (variance > 0) {
-    return "text-green-600";
-  }
-
-  if (variance < 0) {
-    return "text-red-500";
-  }
-
+  if (variance > 0) return "text-green-600";
+  if (variance < 0) return "text-red-500";
   return "text-slate-500";
 }
 
-
 function getCounter(count) {
   return (
+    count?.assigned_counter?.name ??
     count?.counter?.name ??
     count?.counted_by_user?.name ??
     count?.countedBy?.name ??
@@ -187,51 +141,160 @@ function getCounter(count) {
   );
 }
 
-
 function formatDate(dateValue) {
   if (!dateValue) {
+    return { date: "-", time: "" };
+  }
+
+  // count_date is a business/calendar date.
+  // Do not timezone-convert it with new Date(dateValue).
+  const datePart = String(dateValue).slice(0, 10);
+  const [year, month, day] = datePart.split("-").map(Number);
+
+  if (!year || !month || !day) {
     return {
-      date: "-",
+      date: String(dateValue),
       time: "",
     };
   }
 
-  const parsed =
-    new Date(dateValue);
-
-  if (
-    Number.isNaN(
-      parsed.getTime()
-    )
-  ) {
-    return {
-      date: dateValue,
-      time: "",
-    };
-  }
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 
   return {
-    date:
-      parsed.toLocaleDateString(
-        "en-US",
-        {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }
-      ),
-
-    time:
-      parsed.toLocaleTimeString(
-        "en-US",
-        {
-          hour: "numeric",
-          minute: "2-digit",
-        }
-      ),
+    date: formattedDate,
+    time: "",
   };
 }
 
+/* =========================================================
+   ACTION MENU
+========================================================= */
+
+const STATUS_ACTIONS = {
+  draft: [
+    { key: "edit", label: "Edit Stock Count", icon: Pencil },
+    { key: "duplicate", label: "Duplicate", icon: Copy },
+    { key: "cancel", label: "Cancel", icon: XCircle, danger: true, divider: true },
+    { key: "delete", label: "Delete Draft", icon: Trash2, danger: true },
+  ],
+  requested: [
+    { key: "view_assignment", label: "View Assignment", icon: UserRound },
+    {
+      key: "cancel",
+      label: "Cancel Stock Count",
+      icon: XCircle,
+      danger: true,
+      divider: true,
+    },
+  ],
+  "in progress": [
+    {
+      key: "cancel",
+      label: "Cancel Stock Count",
+      icon: XCircle,
+      danger: true,
+    },
+  ],
+  "pending review": [
+    { key: "request_recount", label: "Request Recount", icon: RotateCcw },
+    { key: "reject", label: "Reject Count", icon: Ban, danger: true },
+  ],
+  completed: [
+    { key: "duplicate", label: "Duplicate Stock Count", icon: Copy },
+  ],
+  cancelled: [
+    { key: "duplicate", label: "Duplicate Stock Count", icon: Copy },
+  ],
+};
+
+function StockCountActionMenu({ count, anchorRect, onAction, onClose }) {
+  const menuRef = useRef(null);
+  const normalizedStatus = normalizeStatus(count?.status);
+  const actions = STATUS_ACTIONS[normalizedStatus] ?? [];
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!menuRef.current?.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    const handleScrollOrResize = () => onClose();
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleScrollOrResize);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleScrollOrResize);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+    };
+  }, [onClose]);
+
+  if (!anchorRect || actions.length === 0) return null;
+
+  const menuWidth = 220;
+  const viewportPadding = 12;
+
+  const left = Math.min(
+    Math.max(anchorRect.right - menuWidth, viewportPadding),
+    window.innerWidth - menuWidth - viewportPadding,
+  );
+
+  const top = anchorRect.bottom + 6;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      className="fixed z-[100] w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-[0_12px_35px_rgba(15,23,42,0.16)]"
+      style={{ left, top }}
+    >
+      {actions.map((action) => {
+        const ActionIcon = action.icon;
+
+        return (
+          <div key={action.key}>
+            {action.divider && (
+              <div className="my-1 border-t border-slate-100" />
+            )}
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onAction(action.key, count);
+                onClose();
+              }}
+              className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-medium transition-colors ${
+                action.danger
+                  ? "text-red-600 hover:bg-red-50"
+                  : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <ActionIcon size={15} strokeWidth={1.8} />
+              <span>{action.label}</span>
+            </button>
+          </div>
+        );
+      })}
+    </div>,
+    document.body,
+  );
+}
 
 /* =========================================================
    COMPONENT
@@ -240,755 +303,332 @@ function formatDate(dateValue) {
 export default function StockCountTable({
   stockCounts = [],
   loading = false,
-
   meta,
-
   page = 1,
   onPageChange,
-
   perPage = 10,
   onPerPageChange,
-
   onView,
   onOpenActions,
 }) {
+  const [openMenu, setOpenMenu] = useState(null);
 
-  const currentPage =
-    meta?.current_page ??
-    page ??
-    1;
-
-  const lastPage =
-    meta?.last_page ??
-    1;
-
-  const total =
-    meta?.total ??
-    stockCounts.length;
-
-  const effectivePerPage =
-    meta?.per_page ??
-    perPage ??
-    10;
+  const currentPage = meta?.current_page ?? page ?? 1;
+  const lastPage = meta?.last_page ?? 1;
+  const total = meta?.total ?? stockCounts.length;
+  const effectivePerPage = meta?.per_page ?? perPage ?? 10;
 
   const from =
     meta?.from ??
-    (
-      total === 0
-        ? 0
-        : (
-            currentPage - 1
-          ) *
-            effectivePerPage +
-          1
-    );
+    (total === 0 ? 0 : (currentPage - 1) * effectivePerPage + 1);
 
   const to =
-    meta?.to ??
-    Math.min(
-      currentPage *
-        effectivePerPage,
-      total
-    );
-
+    meta?.to ?? Math.min(currentPage * effectivePerPage, total);
 
   /* =======================================================
      PAGE NUMBERS
   ======================================================= */
 
   const pageNumbers = [];
+  const startPage = Math.max(1, currentPage - 1);
+  const endPage = Math.min(lastPage, startPage + 2);
 
-  const startPage =
-    Math.max(
-      1,
-      currentPage - 1
-    );
-
-  const endPage =
-    Math.min(
-      lastPage,
-      startPage + 2
-    );
-
-  for (
-    let i = startPage;
-    i <= endPage;
-    i += 1
-  ) {
+  for (let i = startPage; i <= endPage; i += 1) {
     pageNumbers.push(i);
   }
 
+  const handleMoreClick = (event, count) => {
+    event.stopPropagation();
 
-  /* =======================================================
-     RENDER
-  ======================================================= */
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    setOpenMenu((current) => {
+      if (current?.count?.id === count.id) {
+        return null;
+      }
+
+      return {
+        count,
+        anchorRect: rect,
+      };
+    });
+  };
+
+  const handleAction = (action, count) => {
+    /*
+     * Keep action execution in the parent page.
+     * The parent receives both the action key and the stock-count record.
+     *
+     * action values:
+     * edit | duplicate | cancel | delete |
+     * view_assignment | request_recount | reject
+     */
+    onOpenActions?.(action, count);
+  };
 
   return (
-    <div
-      className="
-        mt-3
-        overflow-hidden
-        rounded-xl
-        border
-        border-slate-200
-        bg-white
-      "
-    >
-
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
       {/* =================================================
           TABLE
       ================================================= */}
-
       <div className="overflow-x-auto">
-
-        <table
-          className="
-            w-full
-            min-w-[1150px]
-            border-collapse
-          "
-        >
-
-          {/* ===============================================
-              HEADER
-          =============================================== */}
-
-          <thead
-            className="
-              bg-slate-50
-              border-b
-              border-slate-200
-            "
-          >
+        <table className="w-full min-w-[1150px] border-collapse">
+          <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Count No.
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Warehouse
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Location
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Count Type
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Items
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Variance
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Status
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Counted By
               </th>
-
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500">
                 Date
               </th>
-
               <th className="px-4 py-3 text-center text-[11px] font-semibold text-slate-500">
                 Actions
               </th>
-
             </tr>
           </thead>
 
-
-          {/* ===============================================
-              BODY
-          =============================================== */}
-
           <tbody>
-
             {loading ? (
-
-              Array.from({
-                length: 6,
-              }).map((_, index) => (
-
+              Array.from({ length: 6 }).map((_, index) => (
                 <tr
                   key={index}
-                  className="
-                    border-b
-                    border-slate-100
-                    last:border-b-0
-                  "
+                  className="border-b border-slate-100 last:border-b-0"
                 >
-                  {Array.from({
-                    length: 10,
-                  }).map(
-                    (_, cellIndex) => (
-                      <td
-                        key={
-                          cellIndex
-                        }
-                        className="
-                          px-4
-                          py-4
-                        "
-                      >
-                        <div
-                          className="
-                            h-3
-                            w-20
-                            animate-pulse
-                            rounded
-                            bg-slate-100
-                          "
-                        />
-                      </td>
-                    )
-                  )}
+                  {Array.from({ length: 10 }).map((_, cellIndex) => (
+                    <td key={cellIndex} className="px-4 py-4">
+                      <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                    </td>
+                  ))}
                 </tr>
-
               ))
-
             ) : stockCounts.length === 0 ? (
-
               <tr>
                 <td
                   colSpan={10}
-                  className="
-                    px-4
-                    py-12
-                    text-center
-                    text-sm
-                    text-slate-400
-                  "
+                  className="px-4 py-12 text-center text-sm text-slate-400"
                 >
                   No stock counts found.
                 </td>
               </tr>
-
             ) : (
+              stockCounts.map((count) => {
+                const variance = getVariance(count);
+                const formattedDate = formatDate(
+  count?.count_date ??
+    count?.scheduled_date
+);
 
-              stockCounts.map(
-                (count) => {
+                return (
+                  <tr
+                    key={count.id}
+                    className="border-b border-slate-100 transition-colors last:border-b-0 hover:bg-slate-50/60"
+                  >
+                    {/* Count No */}
+                    <td className="px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={() => onView?.(count)}
+                        className="text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        {count?.count_number ?? `SC-${count.id}`}
+                      </button>
+                    </td>
 
-                  const variance =
-                    getVariance(
-                      count
-                    );
+                    {/* Warehouse */}
+                    <td className="px-4 py-4 text-[12px] text-slate-700">
+                      {getWarehouse(count)}
+                    </td>
 
-                  const formattedDate =
-                    formatDate(
-                      count?.count_date ??
-                      count?.scheduled_date ??
-                      count?.created_at
-                    );
+                    {/* Location */}
+                    <td className="px-4 py-4 text-[12px] text-slate-700">
+                      {getLocation(count)}
+                    </td>
 
-                  return (
-                    <tr
-                      key={count.id}
-                      className="
-                        border-b
-                        border-slate-100
-                        last:border-b-0
-                        hover:bg-slate-50/60
-                        transition-colors
-                      "
+                    {/* Count Type */}
+                    <td className="px-4 py-4 text-[12px] text-slate-700">
+                      {getCountType(count)}
+                    </td>
+
+                    {/* Items */}
+                    <td className="px-4 py-4 text-[12px] text-slate-700">
+                      {getItemCount(count)}
+                    </td>
+
+                    {/* Variance */}
+                    <td
+                      className={`px-4 py-4 text-[12px] font-semibold ${getVarianceClass(
+                        variance,
+                      )}`}
                     >
+                      {formatVariance(variance)}
+                    </td>
 
-                      {/* Count No */}
-                      <td className="px-4 py-4">
+                    {/* Status */}
+                    <td className="px-4 py-4">
+                      <span
+                        className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold ${getStatusClasses(
+                          count?.status,
+                        )}`}
+                      >
+                        {formatStatus(count?.status)}
+                      </span>
+                    </td>
+
+                    {/* Counted By */}
+                    <td className="px-4 py-4 text-[12px] text-slate-700">
+                      {getCounter(count)}
+                    </td>
+
+                    {/* Date */}
+                    <td className="px-4 py-4">
+                      <p className="text-[11px] leading-[14px] text-slate-500">
+                        {formattedDate.date}
+                      </p>
+
+                      {formattedDate.time && (
+                        <p className="text-[10px] leading-[13px] text-slate-400">
+                          {formattedDate.time}
+                        </p>
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-center gap-3">
                         <button
                           type="button"
-                          onClick={() =>
-                            onView?.(
-                              count
-                            )
-                          }
-                          className="
-                            text-[12px]
-                            font-semibold
-                            text-blue-600
-                            hover:text-blue-700
-                          "
+                          onClick={() => onView?.(count)}
+                          className="text-slate-400 transition-colors hover:text-blue-600"
+                          aria-label={`View ${count?.count_number ?? "stock count"}`}
                         >
-                          {count?.count_number ??
-                            `SC-${count.id}`}
+                          <Eye size={15} />
                         </button>
-                      </td>
 
-
-                      {/* Warehouse */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                          text-[12px]
-                          text-slate-700
-                        "
-                      >
-                        {getWarehouse(
-                          count
-                        )}
-                      </td>
-
-
-                      {/* Location */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                          text-[12px]
-                          text-slate-700
-                        "
-                      >
-                        {getLocation(
-                          count
-                        )}
-                      </td>
-
-
-                      {/* Count Type */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                          text-[12px]
-                          text-slate-700
-                        "
-                      >
-                        {getCountType(
-                          count
-                        )}
-                      </td>
-
-
-                      {/* Items */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                          text-[12px]
-                          text-slate-700
-                        "
-                      >
-                        {getItemCount(
-                          count
-                        )}
-                      </td>
-
-
-                      {/* Variance */}
-                      <td
-                        className={`
-                          px-4
-                          py-4
-                          text-[12px]
-                          font-semibold
-                          ${getVarianceClass(
-                            variance
-                          )}
-                        `}
-                      >
-                        {formatVariance(
-                          variance
-                        )}
-                      </td>
-
-
-                      {/* Status */}
-                      <td className="px-4 py-4">
-
-                        <span
-                          className={`
-                            inline-flex
-                            items-center
-                            rounded-full
-                            px-3
-                            py-1
-                            text-[10px]
-                            font-semibold
-                            whitespace-nowrap
-                            ${getStatusClasses(
-                              count?.status
-                            )}
-                          `}
+                        <button
+                          type="button"
+                          onClick={(event) => handleMoreClick(event, count)}
+                          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                            openMenu?.count?.id === count.id
+                              ? "bg-slate-100 text-slate-700"
+                              : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          }`}
+                          aria-label={`More actions for ${count?.count_number ?? "stock count"}`}
+                          aria-haspopup="menu"
+                          aria-expanded={openMenu?.count?.id === count.id}
                         >
-                          {formatStatus(
-                            count?.status
-                          )}
-                        </span>
-
-                      </td>
-
-
-                      {/* Counted By */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                          text-[12px]
-                          text-slate-700
-                        "
-                      >
-                        {getCounter(
-                          count
-                        )}
-                      </td>
-
-
-                      {/* Date */}
-                      <td
-                        className="
-                          px-4
-                          py-4
-                        "
-                      >
-                        <p
-                          className="
-                            text-[11px]
-                            leading-[14px]
-                            text-slate-500
-                          "
-                        >
-                          {
-                            formattedDate.date
-                          }
-                        </p>
-
-                        {formattedDate.time && (
-                          <p
-                            className="
-                              text-[10px]
-                              leading-[13px]
-                              text-slate-400
-                            "
-                          >
-                            {
-                              formattedDate.time
-                            }
-                          </p>
-                        )}
-                      </td>
-
-
-                      {/* Actions */}
-                      <td className="px-4 py-4">
-
-                        <div
-                          className="
-                            flex
-                            items-center
-                            justify-center
-                            gap-3
-                          "
-                        >
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onView?.(
-                                count
-                              )
-                            }
-                            className="
-                              text-slate-400
-                              hover:text-blue-600
-                              transition-colors
-                            "
-                            aria-label="View stock count"
-                          >
-                            <Eye
-                              size={15}
-                            />
-                          </button>
-
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenActions?.(
-                                count
-                              )
-                            }
-                            className="
-                              text-slate-400
-                              hover:text-slate-700
-                              transition-colors
-                            "
-                            aria-label="More actions"
-                          >
-                            <MoreHorizontal
-                              size={16}
-                            />
-                          </button>
-
-                        </div>
-
-                      </td>
-
-                    </tr>
-                  );
-                }
-              )
-
+                          <MoreHorizontal size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
-
           </tbody>
         </table>
-
       </div>
-
 
       {/* =================================================
           FOOTER / PAGINATION
       ================================================= */}
-
-      <div
-        className="
-          min-h-[48px]
-          flex
-          items-center
-          justify-between
-          gap-4
-          border-t
-          border-slate-100
-          px-4
-          py-2
-        "
-      >
-
-        {/* Result count */}
-        <p
-          className="
-            text-[11px]
-            text-slate-500
-          "
-        >
-          Showing {from} to {to} of{" "}
-          {total} results
+      <div className="flex min-h-[48px] items-center justify-between gap-4 border-t border-slate-100 px-4 py-2">
+        <p className="text-[11px] text-slate-500">
+          Showing {from} to {to} of {total} results
         </p>
 
-
-        {/* Pagination */}
-        <div
-          className="
-            flex
-            items-center
-            gap-3
-          "
-        >
-
-          <div
-            className="
-              flex
-              items-center
-              gap-1
-            "
-          >
-
-            {/* Previous */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled={
-                currentPage <= 1
-              }
-              onClick={() =>
-                onPageChange?.(
-                  currentPage - 1
-                )
-              }
-              className="
-                h-8
-                w-8
-                flex
-                items-center
-                justify-center
-                rounded-md
-                border
-                border-slate-200
-                bg-white
-                text-slate-500
-
-                hover:bg-slate-50
-
-                disabled:cursor-not-allowed
-                disabled:opacity-40
-              "
+              disabled={currentPage <= 1}
+              onClick={() => onPageChange?.(currentPage - 1)}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous page"
             >
-              <ChevronLeft
-                size={15}
-              />
+              <ChevronLeft size={15} />
             </button>
 
-
-            {/* Pages */}
-            {pageNumbers.map(
-              (pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() =>
-                    onPageChange?.(
-                      pageNumber
-                    )
-                  }
-                  className={`
-                    h-8
-                    min-w-8
-                    rounded-md
-                    border
-                    px-2
-                    text-[11px]
-                    font-medium
-                    transition-colors
-
-                    ${
-                      pageNumber ===
-                      currentPage
-                        ? `
-                          border-blue-600
-                          bg-blue-600
-                          text-white
-                        `
-                        : `
-                          border-slate-200
-                          bg-white
-                          text-slate-600
-                          hover:bg-slate-50
-                        `
-                    }
-                  `}
-                >
-                  {pageNumber}
-                </button>
-              )
-            )}
-
-
-            {/* Ellipsis */}
-            {lastPage >
-              endPage + 1 && (
-              <span
-                className="
-                  px-1
-                  text-[11px]
-                  text-slate-400
-                "
+            {pageNumbers.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                onClick={() => onPageChange?.(pageNumber)}
+                className={`h-8 min-w-8 rounded-md border px-2 text-[11px] font-medium transition-colors ${
+                  pageNumber === currentPage
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
               >
-                ...
-              </span>
+                {pageNumber}
+              </button>
+            ))}
+
+            {lastPage > endPage + 1 && (
+              <span className="px-1 text-[11px] text-slate-400">...</span>
             )}
 
-
-            {/* Last page */}
-            {lastPage >
-              endPage && (
+            {lastPage > endPage && (
               <button
                 type="button"
-                onClick={() =>
-                  onPageChange?.(
-                    lastPage
-                  )
-                }
-                className="
-                  h-8
-                  min-w-8
-                  rounded-md
-                  border
-                  border-slate-200
-                  bg-white
-                  px-2
-                  text-[11px]
-                  font-medium
-                  text-slate-600
-                  hover:bg-slate-50
-                "
+                onClick={() => onPageChange?.(lastPage)}
+                className="h-8 min-w-8 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
               >
                 {lastPage}
               </button>
             )}
 
-
-            {/* Next */}
             <button
               type="button"
-              disabled={
-                currentPage >=
-                lastPage
-              }
-              onClick={() =>
-                onPageChange?.(
-                  currentPage + 1
-                )
-              }
-              className="
-                h-8
-                w-8
-                flex
-                items-center
-                justify-center
-                rounded-md
-                border
-                border-slate-200
-                bg-white
-                text-slate-500
-
-                hover:bg-slate-50
-
-                disabled:cursor-not-allowed
-                disabled:opacity-40
-              "
+              disabled={currentPage >= lastPage}
+              onClick={() => onPageChange?.(currentPage + 1)}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next page"
             >
-              <ChevronRight
-                size={15}
-              />
+              <ChevronRight size={15} />
             </button>
-
           </div>
 
-
-          {/* Rows per page */}
           <select
-            value={
-              effectivePerPage
-            }
-            onChange={(e) =>
-              onPerPageChange?.(
-                Number(
-                  e.target.value
-                )
-              )
-            }
-            className="
-              bg-transparent
-              text-[11px]
-              text-slate-600
-              outline-none
-            "
+            value={effectivePerPage}
+            onChange={(event) => onPerPageChange?.(Number(event.target.value))}
+            className="bg-transparent text-[11px] text-slate-600 outline-none"
           >
-            <option value={10}>
-              10 / page
-            </option>
-
-            <option value={20}>
-              20 / page
-            </option>
-
-            <option value={50}>
-              50 / page
-            </option>
+            <option value={10}>10 / page</option>
+            <option value={20}>20 / page</option>
+            <option value={50}>50 / page</option>
           </select>
-
         </div>
-
       </div>
 
+      {openMenu && (
+        <StockCountActionMenu
+          count={openMenu.count}
+          anchorRect={openMenu.anchorRect}
+          onAction={handleAction}
+          onClose={() => setOpenMenu(null)}
+        />
+      )}
     </div>
   );
 }
