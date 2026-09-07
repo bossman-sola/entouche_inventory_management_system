@@ -327,6 +327,11 @@ export default function NewStockCountModal({
   ] = useState("");
 
   const [
+    assignedCounterName,
+    setAssignedCounterName,
+  ] = useState("");
+
+  const [
     notes,
     setNotes,
   ] = useState("");
@@ -462,33 +467,66 @@ export default function NewStockCountModal({
      USER OPTIONS
   ======================================================= */
 
-  const userOptions =
-    useMemo(() => {
-      return sourceUsers.map(
-        (user) => ({
-          value: String(
-            user.value ??
-            user.id,
-          ),
+  const userOptions = useMemo(() => {
+    const options = sourceUsers.map((user) => ({
+      value: String(
+        user.value ??
+        user.id
+      ),
 
-          label:
-            user.label ??
-            user.name ??
-            user.full_name ??
-            user.email ??
-            `User ${user.id ??
-            user.value ??
-            ""
-            }`,
-        }),
-      );
-    }, [
-      sourceUsers,
-    ]);
+      label:
+        user.label ??
+        user.name ??
+        user.full_name ??
+        user.email ??
+        `User ${user.id ?? user.value ?? ""}`,
+    }));
+
+    /*
+     * In edit mode, make sure the currently
+     * assigned counter is available even if
+     * the users lookup doesn't contain them.
+     */
+    if (
+      isEditing &&
+      assignedCounter &&
+      assignedCounterName &&
+      !options.some(
+        (option) =>
+          String(option.value) ===
+          String(assignedCounter)
+      )
+    ) {
+      options.unshift({
+        value: String(assignedCounter),
+        label: assignedCounterName,
+      });
+    }
+
+    return options;
+  }, [
+    sourceUsers,
+    isEditing,
+    assignedCounter,
+    assignedCounterName,
+  ]);
 
   /* =======================================================
      PRIORITY META
   ======================================================= */
+
+  function handleAssignedCounterChange(value) {
+    setAssignedCounter(value);
+
+    const selectedUser = userOptions.find(
+      (user) =>
+        String(user.value) === String(value)
+    );
+
+    setAssignedCounterName(
+      selectedUser?.label ?? ""
+    );
+  }
 
   const priorityMeta =
     PRIORITIES.find(
@@ -586,6 +624,10 @@ export default function NewStockCountModal({
             : "",
       );
 
+      setAssignedCounterName(
+        initialForm.assignedCounterName ?? ""
+      );
+
       setNotes(
         initialForm.notes ??
         "",
@@ -645,6 +687,7 @@ export default function NewStockCountModal({
     setStartTime("");
 
     setAssignedCounter("");
+    setAssignedCounterName("");
 
     setNotes("");
 
@@ -1361,23 +1404,15 @@ export default function NewStockCountModal({
             </FieldLabel>
 
             <SelectField
-              value={
-                assignedCounter
-              }
-              onChange={
-                setAssignedCounter
-              }
+              value={assignedCounter}
+              onChange={handleAssignedCounterChange}
               placeholder={
                 usersLoading
                   ? "Loading users..."
                   : "Select user"
               }
-              options={
-                userOptions
-              }
-              disabled={
-                usersLoading
-              }
+              options={userOptions}
+              disabled={usersLoading}
             />
 
             <HelperText>

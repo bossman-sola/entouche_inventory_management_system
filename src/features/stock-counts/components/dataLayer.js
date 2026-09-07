@@ -1,4 +1,6 @@
 import {
+  requestStockCount,
+  startStockCount,
   listStockCounts,
   createStockCount,
   getStockCount,
@@ -145,10 +147,10 @@ export async function apiFetchStockCounts(params = {}) {
       sc.totalVariance ??
       (sc.items
         ? sc.items.reduce(
-            (a, it) =>
-              a + Number(it.variance_quantity || it.variance || 0),
-            0,
-          )
+          (a, it) =>
+            a + Number(it.variance_quantity || it.variance || 0),
+          0,
+        )
         : 0);
 
     const countedBy =
@@ -216,11 +218,11 @@ export async function apiFetchStockCounts(params = {}) {
       // Only show a time if the stock count actually has start_time.
       time: startTime
         ? new Date(
-            `1970-01-01T${startTime}`,
-          ).toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-          })
+          `1970-01-01T${startTime}`,
+        ).toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        })
         : "",
     };
   });
@@ -254,7 +256,7 @@ export async function apiFetchStockCountDetails(id) {
     startedTime: formatLocalDateTime(
       sc.started_at || sc.startedAt
     ),
-   assignedCounter: sc.assigned_counter?.name ?? "-",
+    assignedCounter: sc.assigned_counter?.name ?? "-",
     notes: sc.notes || sc.description,
     status: (sc.status || "")
       .replace(/_/g, " ")
@@ -452,20 +454,33 @@ export async function apiDuplicateStockCount(id) {
   return copy;
 }
 
-export async function apiTransitionStockCount(id, action, extra) {
+export async function apiTransitionStockCount(id, action, extra = {}) {
   switch (action) {
+    case "request":
+      return requestStockCount(id);
+
+    case "start":
+      return startStockCount(id);
+
     case "submit":
-      return await submitStockCount(id);
+      return submitStockCount(id);
+
     case "approve":
-      return await approveStockCount(id);
+      return approveStockCount(id);
+
     case "reject":
-      return await rejectStockCount(id, extra?.reason || "");
+      return rejectStockCount(id, extra?.reason);
+
     case "request-recount":
-      return await requestStockCountRecount(id, extra?.reason);
+      return requestStockCountRecount(id, extra?.reason);
+
     case "cancel":
-      return await cancelStockCount(id);
+      return cancelStockCount(id);
+
     default:
-      throw new Error(`Unsupported transition action: ${action}`);
+      throw new Error(
+        `Unsupported stock count action: ${action}`
+      );
   }
 }
 

@@ -19,7 +19,8 @@ import {
 import {
     getStockCount,
     getStockCountVariance,
-    searchStockCountItems,
+    getStockCountProgress,
+    searchStockCountItems
 } from "../api/StockCountApi.js";
 import {
     apiFetchStockCountDetails,
@@ -71,6 +72,21 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
         setData(res);
         return res;
     }, [countId]);
+
+    const [progress, setProgress] = useState(null);
+
+    const fetchProgress = useCallback(async () => {
+        try {
+            const result = await getStockCountProgress(countId);
+            setProgress(result);
+        } catch (err) {
+            console.error("Failed to fetch stock count progress:", err);
+        }
+    }, [countId]);
+
+    useEffect(() => {
+        fetchProgress();
+    }, [fetchProgress]);
 
     useEffect(() => {
         let alive = true;
@@ -132,8 +148,9 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     const canCountItems = rawStatus === "in_progress";
     const canRequestCount = rawStatus === "draft" && items.length > 0;
     const canSubmitCount =
-        rawStatus === "in_progress" && (stats?.uncountedItems ?? 0) === 0;
-
+        rawStatus === "in_progress" &&
+        progress != null &&
+        progress.remaining_items === 0;
     const nextStep = {
         draft:
             items.length === 0
@@ -170,15 +187,30 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
 
     const saveCountedQty = async (item, rawValue) => {
         if (!canCountItems) return;
-        if (rawValue === "" || Number(rawValue) === Number(item.countedQty)) return;
+
+        if (
+            rawValue === "" ||
+            Number(rawValue) === Number(item.countedQty)
+        ) {
+            return;
+        }
+
         try {
             await apiUpdateStockCountItem(countId, item.id, {
                 counted_quantity: Number(rawValue),
             });
-            refresh();
+
+            await Promise.all([
+                refresh(),
+                fetchProgress(),
+            ]);
         } catch (err) {
-            alert(err?.response?.data?.message || "Couldn't save that quantity.");
-            refresh(); // reset the input back to the last saved value
+            alert(
+                err?.response?.data?.message ||
+                "Couldn't save that quantity."
+            );
+
+            refresh();
         }
     };
 
@@ -216,11 +248,23 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
     const runTransition = async (action, extra) => {
         try {
             await apiTransitionStockCount(countId, action, extra);
-            refresh();
+
+            await Promise.all([
+                refresh(),
+                fetchProgress(),
+            ]);
         } catch (err) {
+            console.error("Stock count transition failed:", {
+                action,
+                status: err?.response?.status,
+                data: err?.response?.data,
+                message: err?.message,
+            });
+
             alert(
                 err?.response?.data?.message ||
-                "That action couldn't be completed. Please try again.",
+                err?.message ||
+                "That action couldn't be completed. Please try again."
             );
         }
     };
@@ -232,20 +276,46 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
         const sc = await getStockCount(countId);
         if (!sc) return;
         setEditForm({
-            warehouse: sc.warehouse_id,
-            location: sc.warehouse_location_id || "",
-            countType: sc.count_type || "",
-            priority: sc.priority
-                ? sc.priority[0].toUpperCase() + sc.priority.slice(1)
-                : "Medium",
-            scheduledDate: (sc.count_date || "").slice(0, 10),
-            startTime: sc.start_time || "",
-            assignedCounter: sc.assigned_counter?.name ||
-  sc.assigned_counter_name ||
-  sc.assignedCounter?.name ||
-  sc.assignedCounter ||
-  "-",
-            notes: sc.notes || "",
+            warehouse:
+                sc.warehouse?.id ??
+                sc.warehouse_id ??
+                "",
+
+            location:
+                sc.location?.id ??
+                sc.warehouse_location?.id ??
+                sc.warehouse_location_id ??
+                "",
+
+            countType:
+                sc.count_type ?? "",
+
+            priority:
+                sc.priority ?? "medium",
+
+            scheduledDate:
+                sc.count_date
+                    ? String(sc.count_date).slice(0, 10)
+                    : "",
+
+            startTime:
+                sc.start_time
+                    ? String(sc.start_time).slice(0, 5)
+                    : "",
+
+            // ID used when saving
+            assignedCounter:
+                sc.assigned_counter?.id ??
+                sc.counted_by ??
+                "",
+
+            // Name used for display
+            assignedCounterName:
+                sc.assigned_counter?.name ??
+                "",
+
+            notes:
+                sc.notes ?? "",
         });
         setEditOpen(true);
     };
@@ -369,7 +439,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                             }}
                         />
                     )}
-                    
+
                     {rawStatus === "draft" && (
                         <button
                             onClick={() => setRequestCountOpen(true)}
@@ -427,28 +497,31 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                     iconBg="bg-blue-50"
                     iconColor="text-blue-600"
                     label="Total Items"
-                    value={stats?.totalItems}
-                    footer={stats ? `${stats.totalItems} to count` : undefined}
+                    value={progress?.total_items ?? 0}
+                    footer={`${progress?.total_items ?? 0} to count`}
                     footerColor="text-gray-400"
                 />
+
                 <StatCard
                     icon={CheckCircle2}
                     iconBg="bg-emerald-50"
                     iconColor="text-emerald-600"
                     label="Counted Items"
-                    value={stats?.countedItems}
-                    footer={stats ? `${stats.countedPct}%` : undefined}
+                    value={progress?.counted_items ?? 0}
+                    footer={`${progress?.percentage ?? 0}%`}
                     footerColor="text-gray-400"
                 />
+
                 <StatCard
                     icon={Clock}
                     iconBg="bg-amber-50"
                     iconColor="text-amber-600"
                     label="Uncounted Items"
-                    value={stats?.uncountedItems}
-                    footer={stats ? `${stats.uncountedPct}%` : undefined}
+                    value={progress?.remaining_items ?? 0}
+                    footer={`${100 - (progress?.percentage ?? 0)}%`}
                     footerColor="text-gray-400"
                 />
+
                 <StatCard
                     icon={AlertTriangle}
                     iconBg="bg-red-50"
@@ -466,18 +539,24 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                     }
                     footerColor="text-red-400"
                 />
+
                 <div className="rounded-xl border border-gray-200 bg-white p-5">
                     <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50">
                         <SlidersHorizontal size={18} className="text-violet-600" />
                     </div>
+
                     <p className="text-sm text-gray-500">Progress</p>
+
                     <p className="mt-1 text-[28px] font-semibold leading-none text-gray-900">
-                        {stats?.progressPct != null ? `${stats.progressPct}%` : "–"}
+                        {progress ? `${progress.percentage}%` : "–"}
                     </p>
+
                     <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
                         <div
                             className="h-full rounded-full bg-blue-600"
-                            style={{ width: `${stats?.progressPct || 0}%` }}
+                            style={{
+                                width: `${progress?.percentage ?? 0}%`,
+                            }}
                         />
                     </div>
                 </div>
@@ -838,7 +917,7 @@ export function StockCountDetails({ countId, onBack, onOpenDetails }) {
                                         className={cx(
                                             "grid grid-cols-[1fr_1.25fr] gap-4 px-5 py-3.5 text-sm",
                                             index !== rows.length - 1 &&
-                                                "border-b border-gray-100",
+                                            "border-b border-gray-100",
                                         )}
                                     >
                                         <span className="text-gray-500">{label}</span>

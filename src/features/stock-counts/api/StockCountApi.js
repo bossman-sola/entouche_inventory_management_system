@@ -36,7 +36,7 @@ import apiClient from "../../../shared/api/axiosClient.js";
  * @property {string|null} started_at
  * @property {string|null} completed_at
  * @property {string|null} approved_at
- * @property {"draft"|"in_progress"|"completed"|"approved"|"cancelled"} status
+ * @property {"draft"|"requested"|"in_progress"|"pending_review"|"completed"|"cancelled"|"rejected"} status
  * @property {string|null} notes
  * @property {string|null} rejection_reason
  * @property {string} created_at
@@ -351,4 +351,20 @@ export const requestStockCountRecount = async (id, reason) => {
 export const cancelStockCount = async (id) => {
   const { data } = await apiClient.post(`/stock-counts/${id}/cancel`);
   return data?.data;
+};
+
+export const requestStockCount = async (id) => {
+    const { data } = await apiClient.post(
+        `/stock-counts/${id}/request`
+    );
+
+    return data?.data;
+};
+
+export const startStockCount = async (id) => {
+    const { data } = await apiClient.post(
+        `/stock-counts/${id}/start`
+    );
+
+    return data?.data;
 };
