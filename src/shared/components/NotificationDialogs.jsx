@@ -281,6 +281,28 @@ Thank you.`
           handleDownloadImportErrorReport
         }
       />
+
+      {activeDialog?.type === "stock_count_event" && (
+        <StockCountEventDialog
+          isOpen
+          onClose={onClose}
+          title={activeDialog.data?.title}
+          description={activeDialog.data?.description}
+          timeAgo={activeDialog.data?.timeAgo}
+          stockCountId={activeDialog.data?.stockCountId}
+          onViewFull={() => {
+            const id = activeDialog.data?.stockCountId;
+
+            if (!id) return;
+
+            onClose();
+
+            onNavigate(
+              `/stock-counts?count=${id}`
+            );
+          }}
+        />
+      )}
     </>
   );
 }

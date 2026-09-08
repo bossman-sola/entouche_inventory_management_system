@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  X,
-  MoreVertical,
-  AlertCircle,
-
-} from "lucide-react";
+import { X, MoreVertical, AlertCircle, Loader2 } from "lucide-react";
 import { NOTIFICATION_META } from "../data/notificationMeta";
 
 const DEFAULT_META = {
@@ -67,7 +62,7 @@ const NotificationCard = ({
 
   return (
     <div
-      onClick={() => onClick(notification)}
+      onClick={() => onClick?.(notification)}
       className="relative flex gap-3 px-5 py-4 border-b border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 bg-white"
     >
       <div
@@ -81,10 +76,14 @@ const NotificationCard = ({
           <span className="text-[13.5px] font-bold text-[#1E2740] leading-snug">
             {notification.title}
           </span>
+
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span
-              className={`w-1.5 h-1.5 rounded-full ${notification.unread ? meta.dot : "bg-gray-300"}`}
+              className={`w-1.5 h-1.5 rounded-full ${
+                notification.unread ? meta.dot : "bg-gray-300"
+              }`}
             />
+
             <span className="text-[11px] text-gray-400 whitespace-nowrap">
               {notification.timeAgo}
             </span>
@@ -111,11 +110,13 @@ const NotificationCard = ({
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={() => setMenuOpen((o) => !o)}
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
           className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
         >
           <MoreVertical size={14} />
         </button>
+
         <AnimatePresence>
           {menuOpen && (
             <motion.div
@@ -126,17 +127,20 @@ const NotificationCard = ({
               className="absolute right-0 top-7 w-40 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-10"
             >
               <button
+                type="button"
                 onClick={() => {
-                  onToggleRead(notification);
+                  onToggleRead?.(notification);
                   setMenuOpen(false);
                 }}
                 className="w-full text-left px-3 py-2 text-[12.5px] text-[#1E2740] hover:bg-gray-50"
               >
                 Mark as {notification.unread ? "read" : "unread"}
               </button>
+
               <button
+                type="button"
                 onClick={() => {
-                  onDelete(notification);
+                  onDelete?.(notification);
                   setMenuOpen(false);
                 }}
                 className="w-full text-left px-3 py-2 text-[12.5px] text-red-500 hover:bg-red-50"
@@ -159,9 +163,28 @@ const Notifications = ({
   onNotificationClick,
   onToggleRead,
   onDelete,
-  onViewAll,
+
+  // Infinite-scroll props
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }) => {
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const unreadCount = notifications.filter(
+    (notification) => notification.unread,
+  ).length;
+
+  const handleScroll = (event) => {
+    const element = event.currentTarget;
+
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight;
+
+    const nearBottom = distanceFromBottom <= 120;
+
+    if (nearBottom && hasMore && !loadingMore) {
+      onLoadMore?.();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -176,29 +199,38 @@ const Notifications = ({
             onClick={onClose}
             className="fixed inset-0 bg-black/40 z-20"
           />
+
           {/* Drawer */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            transition={{
+              duration: 0.3,
+              ease: "easeInOut",
+            }}
             className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-white shadow-2xl z-30 overflow-hidden flex flex-col"
           >
+            {/* Header */}
             <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
               <div className="flex items-start justify-between">
                 <h3 className="text-[17px] font-bold text-[#1E2740]">
                   Notifications
                 </h3>
+
                 <div className="flex items-center gap-3">
                   {unreadCount > 0 && (
                     <button
+                      type="button"
                       onClick={onMarkAllRead}
                       className="text-[12px] font-semibold text-[#4F46E5] hover:text-indigo-700 whitespace-nowrap"
                     >
                       Mark all as read
                     </button>
                   )}
+
                   <button
+                    type="button"
                     onClick={onClose}
                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
                   >
@@ -206,40 +238,54 @@ const Notifications = ({
                   </button>
                 </div>
               </div>
+
               <p className="text-[12px] text-gray-400 mt-1">
                 Stay updated on important activities and alerts.
               </p>
             </div>
 
-            {/* List */}
-            <div className="overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {/* Notification List */}
+            <div
+              onScroll={handleScroll}
+              className="overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            >
               {notifications.length === 0 ? (
                 <div className="px-5 py-14 text-center text-[13px] text-gray-400">
                   You're all caught up - no notifications yet.
                 </div>
               ) : (
-                notifications.map((n) => (
-                  <NotificationCard
-                    key={n.id}
-                    notification={n}
-                    onClick={onNotificationClick}
-                    onToggleRead={onToggleRead}
-                    onDelete={onDelete}
-                  />
-                ))
+                <>
+                  {notifications.map((notification) => (
+                    <NotificationCard
+                      key={notification.id}
+                      notification={notification}
+                      onClick={onNotificationClick}
+                      onToggleRead={onToggleRead}
+                      onDelete={onDelete}
+                    />
+                  ))}
+
+                  {loadingMore && (
+                    <div className="flex items-center justify-center gap-2 py-4 text-[12px] text-gray-400">
+                      <Loader2
+                        size={15}
+                        className="animate-spin"
+                      />
+                      Loading more notifications...
+                    </div>
+                  )}
+
+                  {!hasMore &&
+                    !loadingMore &&
+                    notifications.length > 0 && (
+                      <div className="py-4 text-center text-[11px] text-gray-300">
+                        You've reached the end.
+                      </div>
+                    )}
+                </>
               )}
             </div>
-
-            {/* {notifications.length > 0 && (
-              <button
-                onClick={onViewAll}
-                className="flex items-center justify-center gap-1.5 py-3.5 text-[12.5px] font-semibold text-[#4F46E5] hover:bg-gray-50 border-t border-gray-100 flex-shrink-0 transition-colors"
-              >
-                View all notifications
-                <ChevronRight size={13} />
-              </button>
-            )} */}
-          </motion.div>{" "}
+          </motion.div>
         </>
       )}
     </AnimatePresence>

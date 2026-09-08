@@ -6,11 +6,30 @@ import {
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
-    { value: "draft", label: "Draft" },
-    { value: "submitted", label: "Submitted" },
-    { value: "pending_review", label: "Pending Review" },
-    { value: "approved", label: "Approved" },
-    { value: "completed", label: "Completed" },
+    {
+        value: "draft",
+        label: "Draft",
+    },
+    {
+        value: "requested",
+        label: "Requested",
+    },
+    {
+        value: "in_progress",
+        label: "In Progress",
+    },
+    {
+        value: "pending_review",
+        label: "Pending Review",
+    },
+    {
+        value: "completed",
+        label: "Completed",
+    },
+    {
+        value: "cancelled",
+        label: "Cancelled",
+    },
 ];
 
 const COUNT_TYPE_OPTIONS = [
@@ -145,10 +164,10 @@ function AdvancedStockCountFiltersContent({
                         Advanced Filters
                     </h2>
 
-                   <button
-          type="button"
-          onClick={onClose}
-          className="
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="
             flex
             h-9
             w-9
@@ -159,9 +178,9 @@ function AdvancedStockCountFiltersContent({
             hover:bg-slate-50
             hover:text-slate-600
           "
-        >
-          <X size={20} />
-        </button>
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
 
                 {/* Body */}
@@ -252,8 +271,8 @@ function AdvancedStockCountFiltersContent({
                                 <input
                                     type="radio"
                                     name="variance"
-                                    value="matches"
-                                    checked={variance === "matches"}
+                                    value="matches_only"
+                                    checked={variance === "matches_only"}
                                     onChange={(e) => setVariance(e.target.value)}
                                     className="h-5 w-5 accent-blue-600"
                                 />
@@ -267,8 +286,8 @@ function AdvancedStockCountFiltersContent({
                                 <input
                                     type="radio"
                                     name="variance"
-                                    value="variance"
-                                    checked={variance === "variance"}
+                                    value="variance_only"
+                                    checked={variance === "variance_only"}
                                     onChange={(e) => setVariance(e.target.value)}
                                     className="h-5 w-5 accent-blue-600"
                                 />
@@ -370,9 +389,9 @@ function AdvancedStockCountFiltersContent({
                     </section>
                 </div>
 
-               {/* Footer */}
-      <div
-        className="
+                {/* Footer */}
+                <div
+                    className="
           flex
           items-center
           justify-between
@@ -381,11 +400,11 @@ function AdvancedStockCountFiltersContent({
           px-6
           py-4
         "
-      >
-        <button
-          type="button"
-          onClick={handleReset}
-          className="
+                >
+                    <button
+                        type="button"
+                        onClick={handleReset}
+                        className="
             h-10
             rounded-xl
             border
@@ -397,14 +416,14 @@ function AdvancedStockCountFiltersContent({
             text-slate-700
             hover:bg-slate-50
           "
-        >
-          Reset
-        </button>
+                    >
+                        Reset
+                    </button>
 
-        <button
-          type="button"
-          onClick={handleApply}
-          className="
+                    <button
+                        type="button"
+                        onClick={handleApply}
+                        className="
             h-10
             rounded-xl
             bg-blue-600
@@ -414,11 +433,11 @@ function AdvancedStockCountFiltersContent({
             text-white
             hover:bg-blue-700
           "
-        >
-          Apply
-        </button>
-      </div>
-    </div>
-  </div>
+                    >
+                        Apply
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

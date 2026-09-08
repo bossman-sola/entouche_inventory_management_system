@@ -308,8 +308,13 @@ export const api = {
 
   // Notifications
 
-  listNotifications: (params) =>
-    unwrap(apiClient.get("/notifications", { params })),
+  listNotifications: async (params) => {
+    const response = await apiClient.get("/notifications", {
+      params,
+    });
+
+    return response.data;
+  },
   markNotificationRead: (id) =>
     unwrap(apiClient.post(`/notifications/${id}/read`)),
   markAllNotificationsRead: () =>

@@ -19,7 +19,9 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [activeDialog, setActiveDialog] = useState(null);
 
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, loadMore,
+    hasMore,
+    loadingMore } = useNotifications();
   const { maintenance } = useMaintenance();
 
   const handleSignOut = async () => {
@@ -75,22 +77,30 @@ export default function MainLayout() {
         });
         break;
 
-      case "stock_count_created":
+      case "stock_count_requested":
+      case "stock_count_started":
+      case "stock_count_submitted":
+      case "stock_count_pending_review":
+      case "stock_count_approved":
+      case "stock_count_rejected":
+      case "stock_count_cancelled":
+      case "stock_count_recount_requested":
+      case "stock_count_variance":
         setActiveDialog({
-          type: "stock_count_created",
+          type: "stock_count_event",
           data: {
+            notificationType: notification.type,
             title: notification.title,
             description: notification.description,
             timeAgo: notification.timeAgo,
-            stockCountId: notification.stockCountId,
-          },
-        });
-        break;
 
-      case "stock_count_variance":
-        setActiveDialog({
-          type: "stock_count_variance",
-          data: notification,
+            stockCountId:
+              notification.stockCountId ??
+              notification.stock_count_id ??
+              notification.data?.stock_count_id,
+
+            ...notification.data,
+          },
         });
         break;
 
@@ -205,17 +215,6 @@ export default function MainLayout() {
         break;
       }
 
-      case "stock_count_submitted":
-        setActiveDialog({
-          type: "stock_count_submitted",
-          data: {
-            title: notification.title,
-            description: notification.description,
-            timeAgo: notification.timeAgo,
-            stockCountId: notification.stockCountId,
-          },
-        });
-        break;
 
       case "transfer_approved":
         await openTransferApproved(notification);
@@ -300,7 +299,9 @@ export default function MainLayout() {
             onSignOut={handleSignOut}
             onNavigate={navigate}
             dialogOpen={Boolean(activeDialog)}
-            onC
+            onLoadMoreNotifications={loadMore}
+            hasMoreNotifications={hasMore}
+            loadingMoreNotifications={loadingMore}
           />
 
           <main className="flex-1 overflow-y-auto p-7 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

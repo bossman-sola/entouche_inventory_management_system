@@ -73,26 +73,56 @@ export function normalizeTransaction(raw, itemMeta, assumedType) {
   );
   const createdAt = createdAtRaw ? new Date(createdAtRaw) : null;
 
-  const from = firstDefined(
-    raw.from_location?.name,
-    raw.source_location?.name,
-    raw.from,
-    "-",
-  );
-  const to = firstDefined(
-    raw.to_location?.name,
-    raw.destination_location?.name,
-    raw.location?.name,
-    raw.to,
-    "-",
-  );
+  const isTransfer =
+    rawType === "transfer_in" ||
+    rawType === "transfer_out" ||
+    raw.reference_type === "App\\Models\\Transfer";
+
+  const from = isTransfer
+    ? firstDefined(
+      raw.transfer?.from_location?.name,
+      raw.transfer?.from_warehouse?.name,
+      "-",
+    )
+    : direction === "out"
+      ? firstDefined(
+        raw.location?.name,
+        raw.warehouse?.name,
+        "-",
+      )
+      : firstDefined(
+        raw.from_location?.name,
+        raw.source_location?.name,
+        raw.from,
+        "-",
+      );
+
+  const to = isTransfer
+    ? firstDefined(
+      raw.transfer?.to_location?.name,
+      raw.transfer?.to_warehouse?.name,
+      "-",
+    )
+    : direction === "in"
+      ? firstDefined(
+        raw.location?.name,
+        raw.warehouse?.name,
+        "-",
+      )
+      : firstDefined(
+        raw.to_location?.name,
+        raw.destination_location?.name,
+        raw.to,
+        "-",
+      );
 
   const userName = firstDefined(
+    raw.performer?.name,
     raw.user?.name,
     raw.created_by_user?.name,
-    raw.performed_by?.name,
     raw.creator?.name,
-    raw.requested_by?.name,
+    raw.requester?.name,
+    raw.requested_by_user?.name,
     "-",
   );
 

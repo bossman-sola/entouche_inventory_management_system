@@ -18,16 +18,6 @@ function errorMessage(err, fallback) {
 
 
 function extractUnreadCount(response, notifications = []) {
-  /*
-   * Supports several reasonable API response shapes:
-   *
-   * { count: 4 }
-   * { unread_count: 4 }
-   * { unreadCount: 4 }
-   * 4
-   *
-   * If none match, fall back to the loaded notifications.
-   */
   if (typeof response === "number") {
     return response;
   }
@@ -47,6 +37,38 @@ function extractUnreadCount(response, notifications = []) {
 }
 
 
+function extractNotificationRows(response) {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  return [];
+}
+
+
+function extractPagination(response) {
+  return {
+    currentPage:
+      Number(
+        response?.meta?.current_page ??
+        response?.current_page ??
+        1
+      ) || 1,
+
+    lastPage:
+      Number(
+        response?.meta?.last_page ??
+        response?.last_page ??
+        1
+      ) || 1,
+  };
+}
+
+
 export function useNotifications() {
   const [notifications, setNotifications] =
     useState([]);
@@ -57,8 +79,17 @@ export function useNotifications() {
   const [loading, setLoading] =
     useState(true);
 
+  const [loadingMore, setLoadingMore] =
+    useState(false);
+
   const [error, setError] =
     useState("");
+
+  const [page, setPage] =
+    useState(1);
+
+  const [lastPage, setLastPage] =
+    useState(1);
 
 
   /* =======================================================
@@ -74,7 +105,10 @@ export function useNotifications() {
           notificationResponse,
           unreadResponse,
         ] = await Promise.all([
-          api.listNotifications(),
+          api.listNotifications({
+            page: 1,
+            per_page: 15,
+          }),
           api.getUnreadNotificationCount(),
         ]);
 
@@ -82,31 +116,31 @@ export function useNotifications() {
           return;
         }
 
-        /*
-         * entoucheApi.unwrap() already removes:
-         *
-         * {
-         *   success,
-         *   message,
-         *   data,
-         *   ...
-         * }
-         *
-         * Therefore notificationResponse here should already
-         * be the array contained in API "data".
-         */
         const rows =
-          Array.isArray(notificationResponse)
-            ? notificationResponse
-            : [];
+          extractNotificationRows(
+            notificationResponse
+          );
 
         const mappedNotifications =
           rows
             .map(mapApiNotification)
             .filter(Boolean);
 
+        const pagination =
+          extractPagination(
+            notificationResponse
+          );
+
         setNotifications(
           mappedNotifications
+        );
+
+        setPage(
+          pagination.currentPage
+        );
+
+        setLastPage(
+          pagination.lastPage
         );
 
         setUnreadCount(
@@ -144,6 +178,94 @@ export function useNotifications() {
 
 
   /* =======================================================
+     LOAD MORE
+  ======================================================= */
+
+  const loadMore =
+    useCallback(async () => {
+      if (
+        loadingMore ||
+        page >= lastPage
+      ) {
+        return;
+      }
+
+      const nextPage =
+        page + 1;
+
+      try {
+        setLoadingMore(true);
+
+        const response =
+          await api.listNotifications({
+            page: nextPage,
+            per_page: 15,
+          });
+
+        const rows =
+          extractNotificationRows(
+            response
+          );
+
+        const mappedNotifications =
+          rows
+            .map(mapApiNotification)
+            .filter(Boolean);
+
+        const pagination =
+          extractPagination(
+            response
+          );
+
+        setNotifications((current) => {
+          const existingIds =
+            new Set(
+              current.map((item) =>
+                String(item.id)
+              )
+            );
+
+          const uniqueNewNotifications =
+            mappedNotifications.filter(
+              (item) =>
+                !existingIds.has(
+                  String(item.id)
+                )
+            );
+
+          return [
+            ...current,
+            ...uniqueNewNotifications,
+          ];
+        });
+
+        setPage(
+          pagination.currentPage
+        );
+
+        setLastPage(
+          pagination.lastPage
+        );
+
+        setError("");
+      } catch (err) {
+        setError(
+          errorMessage(
+            err,
+            "Couldn't load more notifications."
+          )
+        );
+      } finally {
+        setLoadingMore(false);
+      }
+    }, [
+      loadingMore,
+      page,
+      lastPage,
+    ]);
+
+
+  /* =======================================================
      RELOAD
   ======================================================= */
 
@@ -157,22 +279,38 @@ export function useNotifications() {
           notificationResponse,
           unreadResponse,
         ] = await Promise.all([
-          api.listNotifications(),
+          api.listNotifications({
+            page: 1,
+            per_page: 15,
+          }),
           api.getUnreadNotificationCount(),
         ]);
 
         const rows =
-          Array.isArray(notificationResponse)
-            ? notificationResponse
-            : [];
+          extractNotificationRows(
+            notificationResponse
+          );
 
         const mappedNotifications =
           rows
             .map(mapApiNotification)
             .filter(Boolean);
 
+        const pagination =
+          extractPagination(
+            notificationResponse
+          );
+
         setNotifications(
           mappedNotifications
+        );
+
+        setPage(
+          pagination.currentPage
+        );
+
+        setLastPage(
+          pagination.lastPage
         );
 
         setUnreadCount(
@@ -326,9 +464,15 @@ export function useNotifications() {
     notifications,
     unreadCount,
     loading,
+    loadingMore,
     error,
 
+    page,
+    lastPage,
+    hasMore: page < lastPage,
+
     reload,
+    loadMore,
 
     markAsRead,
     markAllAsRead,

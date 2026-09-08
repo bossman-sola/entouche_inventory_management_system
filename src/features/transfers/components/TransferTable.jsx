@@ -56,7 +56,7 @@ const formatDate = (dateValue) => {
     }
   );
 };
-    const formatTime = (d) =>
+const formatTime = (d) =>
   d
     ? new Date(d).toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -221,26 +221,44 @@ export default function TransferTable({
   const [openMenu, setOpenMenu] = useState(null); // { id, anchorEl } | null
   const [busyId, setBusyId] = useState(null);
 
-  const runAction = async (action, transfer) => {
-    setOpenMenu(null);
-    setBusyId(transfer.id);
-    try {
-      if (action === "submit") await onSubmit(transfer.id);
-      else if (action === "approve") await onApprove(transfer.id);
-      else if (action === "complete") await onComplete(transfer.id);
-      else if (action === "cancel") await onCancel(transfer.id);
-      else if (action === "delete") await onDelete(transfer.id);
-      else if (action === "reject") {
-        const reason = window.prompt("Reason for rejecting this transfer?");
-        if (reason === null) return;
-        await onReject(transfer.id, reason);
-      }
-    } catch (err) {
-      window.alert(err.message || "Action failed");
-    } finally {
-      setBusyId(null);
+const runAction = async (action, transfer) => {
+  setOpenMenu(null);
+  setBusyId(transfer.id);
+
+  try {
+    if (action === "submit") {
+      await onSubmit(transfer.id);
+    } else if (action === "approve") {
+      await onApprove(transfer.id);
+    } else if (action === "complete") {
+      await onComplete(transfer.id);
+    } else if (action === "cancel") {
+      await onCancel(transfer.id);
+    } else if (action === "delete") {
+      await onDelete(transfer.id);
+    } else if (action === "reject") {
+      const reason = window.prompt(
+        "Reason for rejecting this transfer?"
+      );
+
+      if (reason === null) return;
+
+      await onReject(
+        transfer.id,
+        reason
+      );
     }
-  };
+  } catch (err) {
+    const message =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Action failed";
+
+    window.alert(message);
+  } finally {
+    setBusyId(null);
+  }
+};
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">

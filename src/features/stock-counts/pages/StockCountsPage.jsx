@@ -207,6 +207,19 @@ export default function StockCountsPage() {
 
         try {
             switch (action) {
+                case "approve": {
+                    setActionLoading(true);
+
+                    await apiTransitionStockCount(
+                        count.id,
+                        "approve"
+                    );
+
+                    await reload();
+
+                    break;
+                }
+
                 case "edit":
                     openCountDetails(count);
                     break;
@@ -374,16 +387,20 @@ export default function StockCountsPage() {
             label: "Draft",
         },
         {
+            value: "requested",
+            label: "Requested",
+        },
+        {
             value: "in_progress",
             label: "In Progress",
         },
         {
-            value: "completed",
-            label: "Completed",
+            value: "pending_review",
+            label: "Pending Review",
         },
         {
-            value: "approved",
-            label: "Approved",
+            value: "completed",
+            label: "Completed",
         },
         {
             value: "cancelled",
@@ -469,6 +486,26 @@ export default function StockCountsPage() {
         endDate: "",
     });
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            reload({
+                page: 1,
+                search: search.trim() || undefined,
+                warehouse_id: warehouseFilter || undefined,
+                warehouse_location_id: locationFilter || undefined,
+                status: statusFilter || undefined,
+            });
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [
+        search,
+        warehouseFilter,
+        locationFilter,
+        statusFilter,
+        reload,
+    ]);
+
     const [exporting, setExporting] = useState(false);
 
     /* =======================================================
@@ -549,7 +586,7 @@ export default function StockCountsPage() {
             />
         );
     }
-    
+
 
     /* =======================================================
        RENDER

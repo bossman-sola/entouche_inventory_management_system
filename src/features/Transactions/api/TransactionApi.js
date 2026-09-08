@@ -80,6 +80,23 @@ export async function listAllTransactions(maxPages = 50) {
 }
 
 /**
+ * GET /transactions/{id}
+ * Fetch one transaction with its full detail payload.
+ * This includes related transfer route data for transfer transactions.
+ *
+ * @param {number|string} id
+ * @returns {Promise<Object>}
+ */
+export async function getTransaction(id) {
+  try {
+    const { data } = await apiClient.get(`/transactions/${id}`);
+    return data?.data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+/**
  * GET /warehouses/{warehouseId}/locations
  * @param {number|string} warehouseId
  * @returns {Promise<Array>}

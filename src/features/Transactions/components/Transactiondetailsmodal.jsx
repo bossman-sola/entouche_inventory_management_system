@@ -172,45 +172,70 @@ function TimelineItem({ dotBg, dotColor, title, subtitle, timestamp, isLast }) {
 export function TransactionDetailsModal({
   transaction,
   open = true,
-  onClose = () => {},
-  onExpand = () => {},
-  onViewRelated = () => {},
-  onBack = () => {},
+  onClose = () => { },
+  onExpand = () => { },
+  onViewRelated = () => { },
+  onBack = () => { },
 }) {
   const printableRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
+
   if (!open || !transaction) return null;
 
-  const typeMeta = getTypeMeta(transaction);
-  const direction = transaction.direction;
-  const item = transaction.item || {};
-  const warehouse = transaction.warehouse || {};
-  const location = transaction.location || {};
-  const performer = transaction.performer || {};
+const typeMeta = getTypeMeta(transaction);
+const direction = transaction.direction;
 
-  const quantity = formatQty(transaction.quantity);
-  const unitCost = formatMoney(transaction.unit_cost);
-  const totalValue = formatMoney(transaction.total_value);
-  const subTotal = Number(transaction.total_value || 0);
-  const grandTotal = subTotal; // tax + discount are 0 by default
+const item = transaction.item || {};
+const warehouse = transaction.warehouse || {};
+const location = transaction.location || {};
+const performer = transaction.performer || {};
+const transfer = transaction.transfer || {};
 
-  const referenceNo = `${typeMeta.prefix}-${String(transaction.id ?? "").padStart(
-    6,
-    "0"
-  )}`;
+const quantity = formatQty(transaction.quantity);
+const unitCost = formatMoney(transaction.unit_cost);
+const totalValue = formatMoney(transaction.total_value);
+const subTotal = Number(transaction.total_value || 0);
+const grandTotal = subTotal;
 
-  const movementFrom =
-    direction === "out"
-      ? { title: warehouse.name || "N/A", subtitle: location.name || "" }
-      : { title: "—", subtitle: formatReference(transaction) || "N/A" };
+const referenceNo =
+  transaction.transaction_number ||
+  `${typeMeta.prefix}-${String(transaction.id ?? "").padStart(6, "0")}`;
 
-  const movementTo =
-    direction === "out"
-      ? { title: "—", subtitle: "N/A" }
-      : { title: location.name || "N/A", subtitle: warehouse.name || "" };
+const isTransfer =
+  transaction.transaction_type === "transfer_in" ||
+  transaction.transaction_type === "transfer_out";
 
+const movementFrom = isTransfer
+  ? {
+      title: transfer.from_warehouse?.name || "N/A",
+      subtitle: transfer.from_location?.name || "N/A",
+    }
+  : direction === "out"
+    ? {
+        title: warehouse.name || "N/A",
+        subtitle: location.name || "N/A",
+      }
+    : {
+        title: "—",
+        subtitle: "N/A",
+      };
+
+const movementTo = isTransfer
+  ? {
+      title: transfer.to_warehouse?.name || "N/A",
+      subtitle: transfer.to_location?.name || "N/A",
+    }
+  : direction === "in"
+    ? {
+        title: warehouse.name || "N/A",
+        subtitle: location.name || "N/A",
+      }
+    : {
+        title: "—",
+        subtitle: "N/A",
+      };
   const timeline = [
     {
       dotBg: "bg-emerald-100",
@@ -223,9 +248,8 @@ export function TransactionDetailsModal({
       dotBg: "bg-indigo-100",
       dotColor: "bg-indigo-500",
       title: "Item Recorded (1 item)",
-      subtitle: `${quantity} ${item.unit_of_measure?.name || "PCS"} of ${
-        item.name || "item"
-      }`,
+      subtitle: `${quantity} ${item.unit?.name || "PCS"} of ${item.name || "item"
+        }`,
       timestamp: formatDateTime(transaction.created_at),
     },
     {
@@ -309,9 +333,8 @@ export function TransactionDetailsModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm overflow-y-auto print:static print:bg-white print:p-0 ${
-        isMaximized ? "p-0" : "p-0 sm:p-4"
-      }`}
+      className={`fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm overflow-y-auto print:static print:bg-white print:p-0 ${isMaximized ? "p-0" : "p-0 sm:p-4"
+        }`}
     >
       <style>{`
         @media print {
@@ -325,11 +348,10 @@ export function TransactionDetailsModal({
       <div
         id="txn-printable"
         ref={printableRef}
-        className={`w-full bg-white shadow-2xl overflow-y-auto transition-all duration-150 ${
-          isMaximized
-            ? "h-screen max-w-none rounded-none"
-            : "sm:max-w-5xl sm:rounded-2xl min-h-screen sm:min-h-0 sm:max-h-[92vh]"
-        }`}
+        className={`w-full bg-white shadow-2xl overflow-y-auto transition-all duration-150 ${isMaximized
+          ? "h-screen max-w-none rounded-none"
+          : "sm:max-w-5xl sm:rounded-2xl min-h-screen sm:min-h-0 sm:max-h-[92vh]"
+          }`}
       >
         {/* ---------------- Header ---------------- */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 sm:px-8 py-5 sm:py-6">
@@ -491,7 +513,7 @@ export function TransactionDetailsModal({
                     {item.category?.name || "Uncategorized"}
                   </p>
                   <p className="text-sm text-slate-500">
-                    Unit: {item.unit_of_measure?.name || "N/A"}
+                    Unit: {item.unit?.name || "N/A"}
                   </p>
                 </div>
               </div>
@@ -499,12 +521,16 @@ export function TransactionDetailsModal({
               <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <p className="text-xs sm:text-sm text-slate-500 leading-tight">
-                    Quantity Received
+                    {direction === "out"
+                      ? "Quantity Moved Out"
+                      : "Quantity Received"}
                   </p>
                   <p className="mt-1 font-bold text-slate-900">
                     {quantity}{" "}
                     <span className="text-emerald-600 text-sm font-semibold">
-                      {item.unit_of_measure?.name || "PCS"}
+                      {item.unit?.abbreviation ||
+                        item.unit?.name ||
+                        "PCS"}
                     </span>
                   </p>
                 </div>

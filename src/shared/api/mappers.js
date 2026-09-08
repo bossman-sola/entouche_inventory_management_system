@@ -569,12 +569,23 @@ export function mapApiTransferApproved(
       fromZone: fromWh.name || "",
       toLocation: toLoc.name || `Location #${transfer.to_location_id}`,
       toZone: toWh.name || "",
+
       approvedOn: fmtDateTime(transfer.approved_at),
+      approvedBy:
+        transfer.approver?.name || "",
+      approvedByRole:
+        transfer.approver?.roles?.[0]?.name
+          ?.replace(/_/g, " ")
+          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
+          
       completedOn: fmtDateTime(transfer.completed_at),
-      approvedBy: "", // approved_by is a raw id, no expansion available
-      approvedByRole: "",
-      completedBy: "",
-      completedByRole: "",
+      completedBy:
+        transfer.completer?.name || "",
+      completedByRole:
+        transfer.completer?.roles?.[0]?.name
+          ?.replace(/_/g, " ")
+          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
+
       purpose: transfer.notes || "",
     },
     items,
@@ -585,8 +596,12 @@ export function mapApiTransferApproved(
     },
     details: {
       requestedOn: fmtDateTime(transfer.created_at),
-      requestedBy: "",
-      requestedByRole: "",
+      requestedBy:
+        transfer.requester?.name || "",
+      requestedByRole:
+        transfer.requester?.roles?.[0]?.name
+          ?.replace(/_/g, " ")
+          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
       reference: transfer.transfer_number || "",
       status: transfer.status === "completed" ? "Completed" : "Approved",
     },

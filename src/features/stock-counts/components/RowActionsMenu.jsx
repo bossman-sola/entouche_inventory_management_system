@@ -8,6 +8,7 @@ import {
   UserRound,
   RotateCcw,
   Ban,
+  CheckCircle2,
 } from "lucide-react";
 
 /* =========================================================
@@ -81,6 +82,12 @@ const STATUS_ACTIONS = {
 
   "pending review": [
     {
+      key: "approve",
+      label: "Approve Count",
+      icon: CheckCircle2,
+      className: "text-green-600",
+    },
+    {
       key: "request_recount",
       label: "Request Recount",
       icon: RotateCcw,
@@ -126,6 +133,7 @@ function MenuItem({
   label,
   onClick,
   danger = false,
+  className = "",
 }) {
   return (
     <button
@@ -148,6 +156,7 @@ function MenuItem({
             ? "text-red-600 hover:bg-red-50"
             : "text-slate-700 hover:bg-slate-50"
         }
+        ${className}
       `}
     >
       <Icon size={15} strokeWidth={1.8} />
@@ -186,9 +195,7 @@ export function RowActionsMenu({
   const menuRef = useRef(null);
 
   const normalizedStatus = normalizeStatus(
-    row?.rawStatus ??
-      row?.status ??
-      ""
+    row?.rawStatus ?? row?.status ?? "",
   );
 
   const actions =
@@ -259,12 +266,24 @@ export function RowActionsMenu({
      * StockCountDetails implementation
      */
     switch (actionKey) {
+      case "view":
+        onView?.(row);
+        break;
+
       case "edit":
         onEdit?.(row);
         break;
 
+      case "continue":
+        onContinue?.(row);
+        break;
+
       case "duplicate":
         onDuplicate?.(row);
+        break;
+
+      case "submit":
+        onSubmit?.(row);
         break;
 
       case "cancel":
@@ -273,6 +292,10 @@ export function RowActionsMenu({
 
       case "delete":
         onDelete?.(row);
+        break;
+
+      case "approve":
+        onApprove?.(row);
         break;
 
       case "view_assignment":
@@ -289,6 +312,14 @@ export function RowActionsMenu({
 
       case "reject":
         onReject?.(row);
+        break;
+
+      case "print":
+        onPrint?.(row);
+        break;
+
+      case "export_pdf":
+        onExportPdf?.(row);
         break;
 
       default:
@@ -330,6 +361,7 @@ export function RowActionsMenu({
             icon={action.icon}
             label={action.label}
             danger={action.danger}
+            className={action.className}
             onClick={() =>
               runAction(action.key)
             }

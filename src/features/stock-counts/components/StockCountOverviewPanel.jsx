@@ -62,17 +62,15 @@ function formatTimeAgo(dateValue) {
     Math.floor(minutes / 60);
 
   if (hours < 24) {
-    return `${hours} ${
-      hours === 1 ? "hour" : "hours"
-    } ago`;
+    return `${hours} ${hours === 1 ? "hour" : "hours"
+      } ago`;
   }
 
   const days =
     Math.floor(hours / 24);
 
-  return `${days} ${
-    days === 1 ? "day" : "days"
-  } ago`;
+  return `${days} ${days === 1 ? "day" : "days"
+    } ago`;
 }
 
 
@@ -95,58 +93,62 @@ export default function StockCountOverviewPanel({
      until the exact /overview JSON shape is confirmed.
   ======================================================= */
 
-  const completed = getNumber(
-    overview?.completed,
-    overview?.completed_count,
-    overview?.status_counts?.completed
-  );
-
-  const pendingReview = getNumber(
-    overview?.pending_review,
-    overview?.pending_review_count,
-    overview?.status_counts?.pending_review
-  );
-
-  const submitted = getNumber(
-    overview?.submitted,
-    overview?.submitted_count,
-    overview?.status_counts?.submitted
-  );
-
-  const draft = getNumber(
-    overview?.draft,
-    overview?.draft_count,
-    overview?.status_counts?.draft
-  );
-
-
-  const statusItems = [
-    {
+  const STATUS_META = {
+    completed: {
       label: "Completed",
-      value: completed,
       color: "#22c55e",
       dotClass: "bg-green-500",
     },
-    {
+    pending_review: {
       label: "Pending Review",
-      value: pendingReview,
       color: "#f59e0b",
       dotClass: "bg-amber-500",
     },
-    {
-      label: "Submitted",
-      value: submitted,
+    in_progress: {
+      label: "In Progress",
       color: "#3b82f6",
       dotClass: "bg-blue-500",
     },
-    {
-      label: "Draft",
-      value: draft,
-      color: "#e2e8f0",
-      dotClass: "bg-slate-200",
+    requested: {
+      label: "Requested",
+      color: "#8b5cf6",
+      dotClass: "bg-violet-500",
     },
-  ];
+    draft: {
+      label: "Draft",
+      color: "#94a3b8",
+      dotClass: "bg-slate-400",
+    },
+    cancelled: {
+      label: "Cancelled",
+      color: "#ef4444",
+      dotClass: "bg-red-500",
+    },
+  };
 
+  const breakdown = Array.isArray(overview?.breakdown)
+    ? overview.breakdown
+    : [];
+
+  const statusItems = breakdown.map((item) => {
+    const key = String(item.label ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+
+    const meta = STATUS_META[key] ?? {
+      label: item.label ?? "Unknown",
+      color: "#94a3b8",
+      dotClass: "bg-slate-400",
+    };
+
+    return {
+      label: meta.label,
+      value: Number(item.value ?? 0),
+      color: meta.color,
+      dotClass: meta.dotClass,
+    };
+  });
 
   const totalStatuses =
     statusItems.reduce(
@@ -167,9 +169,9 @@ export default function StockCountOverviewPanel({
       const percentage =
         totalStatuses > 0
           ? (
-              item.value /
-              totalStatuses
-            ) * 100
+            item.value /
+            totalStatuses
+          ) * 100
           : 0;
 
       const start =
@@ -188,8 +190,8 @@ export default function StockCountOverviewPanel({
   const donutBackground =
     totalStatuses > 0
       ? `conic-gradient(${donutSegments.join(
-          ", "
-        )})`
+        ", "
+      )})`
       : "#e2e8f0";
 
 
@@ -207,7 +209,7 @@ export default function StockCountOverviewPanel({
       const type = String(count?.count_type ?? "")
         .trim()
         .toLowerCase()
-        .replace(/_/g, " " );
+        .replace(/_/g, " ");
 
       if (type === "cycle count") {
         totals.cycleCount += 1;
@@ -283,15 +285,15 @@ export default function StockCountOverviewPanel({
         const aDate =
           new Date(
             a?.updated_at ??
-              a?.created_at ??
-              0
+            a?.created_at ??
+            0
           ).getTime();
 
         const bDate =
           new Date(
             b?.updated_at ??
-              b?.created_at ??
-              0
+            b?.created_at ??
+            0
           ).getTime();
 
         return bDate - aDate;
@@ -317,7 +319,7 @@ export default function StockCountOverviewPanel({
             (item) =>
               Number(
                 item?.variance_quantity ??
-                  0
+                0
               ) !== 0
           );
 
@@ -334,7 +336,7 @@ export default function StockCountOverviewPanel({
 
             time: formatTimeAgo(
               count?.updated_at ??
-                count?.created_at
+              count?.created_at
             ),
 
             icon: CircleAlert,
@@ -360,8 +362,8 @@ export default function StockCountOverviewPanel({
 
             time: formatTimeAgo(
               count?.completed_at ??
-                count?.approved_at ??
-                count?.updated_at
+              count?.approved_at ??
+              count?.updated_at
             ),
 
             icon: CheckCircle2,
@@ -374,7 +376,7 @@ export default function StockCountOverviewPanel({
 
         if (
           status ===
-            "pending review" ||
+          "pending review" ||
           status === "submitted"
         ) {
           return {
@@ -424,7 +426,7 @@ export default function StockCountOverviewPanel({
   ======================================================= */
 
   return (
-    
+
     <aside
       className="
         hidden
@@ -518,12 +520,12 @@ export default function StockCountOverviewPanel({
               const percentage =
                 totalStatuses > 0
                   ? (
-                      (
-                        item.value /
-                        totalStatuses
-                      ) *
-                      100
-                    ).toFixed(1)
+                    (
+                      item.value /
+                      totalStatuses
+                    ) *
+                    100
+                  ).toFixed(1)
                   : "0.0";
 
 

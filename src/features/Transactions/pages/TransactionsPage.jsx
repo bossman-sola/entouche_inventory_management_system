@@ -6,6 +6,7 @@ import {
   listAllUnits,
   listAllWarehouses,
   listAllTransactions,
+  getTransaction,
   listAllReceipts,
   listAllTransfers,
   listAllAdjustments,
@@ -134,7 +135,7 @@ export default function TransactionsPage() {
     } catch (e) {
       setDataError(
         e.message ||
-          "Could not reach the API. Check your connection or CORS access to the production server.",
+        "Could not reach the API. Check your connection or CORS access to the production server.",
       );
     } finally {
       setDataLoading(false);
@@ -171,6 +172,20 @@ export default function TransactionsPage() {
     (warehouseId) => getWarehouseLocations(warehouseId),
     [],
   );
+
+  const handleViewTransaction = async (id) => {
+    if (!id) {
+      setTransactionDetails(null);
+      return;
+    }
+
+    try {
+      const fullTransaction = await getTransaction(id);
+      setTransactionDetails(fullTransaction);
+    } catch (error) {
+      console.error("Failed to load transaction details:", error);
+    }
+  };
 
   // Builds the exact request body each endpoint documents - the four
   // transaction types don't share a shape, so this branches per type
@@ -474,9 +489,12 @@ export default function TransactionsPage() {
         openMenuId={openMenuId}
         onToggleMenu={(id) => {
           setOpenMenuId((prev) => (prev === id ? null : id));
-          setTransactionDetails(
-            id ? transactionsRaw.find((t) => t.id === id) : null,
-          );
+
+          if (id) {
+            handleViewTransaction(id);
+          } else {
+            setTransactionDetails(null);
+          }
         }}
         emptyMessage={
           transactions.length === 0

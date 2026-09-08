@@ -11,6 +11,11 @@ export default function AppHeader({
   markAllAsRead,
   deleteNotification,
   onNotificationClick,
+
+  onLoadMoreNotifications,
+  hasMoreNotifications,
+  loadingMoreNotifications,
+
   onSignOut,
   onNavigate,
   dialogOpen = false,
@@ -46,7 +51,24 @@ export default function AppHeader({
         <div className="relative" ref={notifRef}>
           <button type="button" onClick={() => setNotifOpen((open) => !open)} className="relative cursor-pointer hover:bg-gray-50 p-2 rounded-full transition-colors">
             <Bell size={18} className="text-gray-500" />
-            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 bg-red-500 border-2 border-white text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+            {unreadCount > 0 && (
+              <span
+                className={`
+      absolute top-1 right-1
+      bg-red-500 border-2 border-white
+      text-white font-bold
+      flex items-center justify-center
+      rounded-full
+      leading-none
+      ${unreadCount < 10
+                    ? "w-3.5 h-3.5 text-[8px]"
+                    : "min-w-[18px] h-[18px] px-1 text-[8px]"
+                  }
+    `}
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </button>
           <Notifications
             isOpen={notifOpen}
@@ -56,6 +78,10 @@ export default function AppHeader({
             onNotificationClick={onNotificationClick}
             onToggleRead={markAsRead}
             onDelete={deleteNotification}
+
+            onLoadMore={onLoadMoreNotifications}
+            hasMore={hasMoreNotifications}
+            loadingMore={loadingMoreNotifications}
           />
         </div>
 
