@@ -11,6 +11,9 @@ import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
 import TransferTable from "../components/TransferTable.jsx";
 import TransferSidebar from "../components/TransferSidebar.jsx";
 import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
+import {
+  getTransfer,
+} from "../api/TransfersApi.js";
 
 export default function TransfersPage() {
   const {
@@ -41,8 +44,8 @@ export default function TransfersPage() {
 
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedTransfer, setSelectedTransfer] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [selectedTransfer, setSelectedTransfer] = useState(null);
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -137,6 +140,24 @@ export default function TransfersPage() {
     XLSX.writeFile(workbook, "transfers.xlsx");
   };
 
+  const handleSelectTransfer = async (transfer) => {
+    if (!transfer?.id) return;
+
+    try {
+      const fullTransfer = await getTransfer(transfer.id);
+
+      setSelectedTransfer(fullTransfer);
+    } catch (error) {
+      console.error(
+        "Failed to load transfer details:",
+        error
+      );
+
+      // fallback to the row data
+      setSelectedTransfer(transfer);
+    }
+  };
+
   // Keep the modal's transfer in sync with the underlying list (e.g. after
   // an action mutates status) by always looking it up fresh from `transfers`.
   const activeTransfer = selectedTransfer
@@ -220,7 +241,7 @@ export default function TransfersPage() {
           itemsById={itemsById}
           usersById={usersById}
 
-          onSelectTransfer={setSelectedTransfer}
+          onSelectTransfer={handleSelectTransfer}
           onSubmit={submitTransfer}
           onApprove={approveTransfer}
           onReject={rejectTransfer}
@@ -250,11 +271,11 @@ export default function TransfersPage() {
       <TransferDetailsModal
         open={!!selectedTransfer}
         onClose={() => setSelectedTransfer(null)}
-        transfer={activeTransfer}
+        transfer={selectedTransfer}
 
-        items={items}
-        users={users}
-        locations={locations}
+        locationsById={locationsById}
+        itemsById={itemsById}
+        usersById={usersById}
 
         onSubmit={submitTransfer}
         onApprove={approveTransfer}

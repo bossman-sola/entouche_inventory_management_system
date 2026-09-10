@@ -108,98 +108,314 @@ export const RECEIPT_STATUS_LABEL = {
 
 export function mapApiReceiptItem(it) {
   if (!it) return null;
-  const item = it.item || {};
+
+  const item =
+    it.item || {};
+
   return {
-    id: it.item_id ?? item.id,
-    lineId: it.id,
-    name: item.name || it.item_name || "Unknown item",
-    sku: item.sku || "",
-    cat: item.category?.name || "Uncategorized",
-    unit: item.unit?.abbreviation
-      ? `${item.unit.name} (${item.unit.abbreviation})`
-      : item.unit?.name || "-",
-    qty: Number(it.quantity || 0),
-    cost: Number(it.unit_cost || 0),
-    warehouseLocationId: it.warehouse_location_id ?? null,
+    id:
+      it.item_id ??
+      item.id,
+
+    lineId:
+      it.id,
+
+    name:
+      item.name ||
+      it.item_name ||
+      "Unknown item",
+
+    sku:
+      item.sku ||
+      "",
+
+    cat:
+      item.category?.name ||
+      "Uncategorized",
+
+    unit:
+      item.unit?.abbreviation ||
+      item.unit?.name ||
+      "-",
+
+    qty:
+      Number(
+        it.quantity || 0
+      ),
+
+    cost:
+      Number(
+        it.unit_cost || 0
+      ),
+
+    warehouseLocationId:
+      it.warehouse_location_id ??
+      null,
+
+    location:
+      it.location?.name ||
+      "",
   };
 }
 
 export function mapApiReceipt(r) {
   if (!r) return null;
-  const items = (r.items || []).map(mapApiReceiptItem);
-  const qty = items.reduce((a, it) => a + Number(it.qty || 0), 0);
-  const val = items.reduce(
-    (a, it) => a + Number(it.qty || 0) * Number(it.cost || 0),
-    0,
+
+  const items = (r.items || []).map(
+    mapApiReceiptItem
   );
-  const { poNumber, notes } = unpackReceiptNotes(r.notes);
+
+  const qty = items.reduce(
+    (sum, item) =>
+      sum + Number(item.qty || 0),
+    0
+  );
+
+  const val = items.reduce(
+    (sum, item) =>
+      sum +
+      Number(item.qty || 0) *
+      Number(item.cost || 0),
+    0
+  );
+
+  const {
+    poNumber,
+    notes,
+  } = unpackReceiptNotes(r.notes);
+
+  /*
+   * Actual receiver takes priority.
+   *
+   * Imported receipts usually have no received_by
+   * because the spreadsheet has no receiver column.
+   * In that case the importing/creating user is shown.
+   */
+  const receivedByUser =
+    r.receiver ||
+    r.creator ||
+    null;
+
+  /*
+   * Receipt-item storage location.
+   * Fall back to receipt receiving location if the
+   * individual line does not expose a location.
+   */
+  const firstItemLocation =
+    r.items?.find(
+      (item) => item.location
+    )?.location || null;
+
+  const storageLocation =
+    firstItemLocation?.name ||
+    r.receiving_location?.name ||
+    "";
 
   const timeline = [];
+
   if (r.status === "cancelled") {
     timeline.push({
-      title: "Receipt Cancelled",
-      date: fmtDateTime(r.updated_at),
+      title:
+        "Receipt Cancelled",
+
+      date:
+        fmtDateTime(
+          r.updated_at
+        ),
+
       status: "done",
     });
   }
+
   if (r.received_at) {
     timeline.push({
-      title: "Stock Received",
-      date: fmtDateTime(r.received_at),
-      by: r.receiver?.name,
+      title:
+        "Stock Received",
+
+      date:
+        fmtDateTime(
+          r.received_at
+        ),
+
+      by:
+        receivedByUser?.name ||
+        "",
+
       status: "done",
     });
   }
+
   timeline.push({
-    title: "Receipt Created",
-    date: fmtDateTime(r.created_at),
-    by: r.creator?.name,
+    title:
+      "Receipt Created",
+
+    date:
+      fmtDateTime(
+        r.created_at
+      ),
+
+    by:
+      r.creator?.name ||
+      "",
+
     status: "done",
   });
+
   if (r.status === "draft") {
     timeline.unshift({
-      title: "Awaiting Receiving",
-      date: fmtDateTime(r.created_at),
+      title:
+        "Awaiting Receiving",
+
+      date:
+        fmtDateTime(
+          r.created_at
+        ),
+
       status: "pending",
     });
   }
 
   return {
-    id: r.id,
-    no: r.receipt_number || "",
-    status: RECEIPT_STATUS_LABEL[r.status] || r.status || "Draft",
-    apiStatus: r.status,
-    api_po_number: r.api_po_number || "",
-    vendor_po_number: r.vendor_po_number || "",
-    date: r.receipt_date || "",
-    supplier: r.supplier?.name || "",
-    supplierId: r.supplier_id ?? r.supplier?.id ?? null,
-    by: r.creator?.name || "",
-    received_by: r.received_by || "",
-    receivedById: r.created_by ?? null,
-    warehouse: r.warehouse?.name || "",
-    warehouseId: r.warehouse_id ?? r.warehouse?.id ?? null,
-    receivingLocation: r.receiving_location?.name || "",
+    id:
+      r.id,
+
+    no:
+      r.receipt_number ||
+      "",
+
+    status:
+      RECEIPT_STATUS_LABEL[
+      r.status
+      ] ||
+      r.status ||
+      "Draft",
+
+    apiStatus:
+      r.status,
+
+    api_po_number:
+      r.api_po_number ||
+      "",
+
+    vendor_po_number:
+      r.vendor_po_number ||
+      "",
+
+    date:
+      r.receipt_date ||
+      "",
+
+    supplier:
+      r.supplier?.name ||
+      "",
+
+    supplierId:
+      r.supplier_id ??
+      r.supplier?.id ??
+      null,
+
+    by:
+      r.creator?.name ||
+      "",
+
+    /*
+     * Display name, NOT numeric ID.
+     */
+    receivedBy:
+      receivedByUser?.name ||
+      "",
+
+    receivedByRole:
+      receivedByUser?.roles?.[0]?.name
+        ?.replace(/_/g, " ")
+        ?.replace(
+          /\b\w/g,
+          (c) => c.toUpperCase()
+        ) || "",
+
+    receivedById:
+      r.received_by ??
+      r.created_by ??
+      null,
+
+    warehouse:
+      r.warehouse?.name ||
+      "",
+
+    warehouseId:
+      r.warehouse_id ??
+      r.warehouse?.id ??
+      null,
+
+    receivingLocation:
+      r.receiving_location?.name ||
+      "",
+
     receivingLocationId:
-      r.receiving_location_id ?? r.receiving_location?.id ?? null,
-    storageLocation: r.receiving_location?.name || "",
-    ref: poNumber || "-",
+      r.receiving_location_id ??
+      r.receiving_location?.id ??
+      null,
+
+    storageLocation,
+
+    ref:
+      poNumber ||
+      "-",
+
     poNumber,
+
     notes,
+
     qty,
-    val: "₦" + Math.round(val).toLocaleString("en-NG"),
-    deliveryNoteNo: r.receipt_number || "-",
-    deliveryDate: r.receipt_date || "",
+
+    val:
+      "₦" +
+      Math.round(
+        val
+      ).toLocaleString(
+        "en-NG"
+      ),
+
+    deliveryNoteNo:
+      r.receipt_number ||
+      "-",
+
+    deliveryDate:
+      r.receipt_date ||
+      "",
+
     discount: 0,
+
     otherCharges: 0,
+
     attachments: [],
+
     items,
+
     timeline,
-    receivedAt: r.received_at || null,
-    canEdit: r.status === "draft",
-    canDelete: r.status === "draft",
-    canReceive: r.status === "draft",
-    canCancel: r.status === "draft",
+
+    receivedAt:
+      r.received_at ||
+      null,
+
+    canEdit:
+      r.status === "draft",
+
+    canDelete:
+      r.status === "draft",
+
+    canReceive:
+      r.status ===
+      "approved",
+
+    canCancel:
+      [
+        "draft",
+        "submitted",
+        "approved",
+      ].includes(
+        r.status
+      ),
   };
 }
 
@@ -540,79 +756,146 @@ export function mapApiAdjustmentPending(
   };
 }
 
-export function mapApiTransferApproved(
-  transfer,
-  itemsById = {},
-  locationsById = {},
-  warehousesById = {},
-) {
+export function mapApiTransferApproved(transfer) {
   if (!transfer) return null;
+
   const items = (transfer.items || []).map((it) => {
-    const item = itemsById[it.item_id] || {};
+    const item = it.item || {};
+
     return {
+      id: it.item_id ?? item.id,
       name: item.name || `Item #${it.item_id}`,
       sku: item.sku || "",
-      cat: item.category?.name || "",
+      cat: item.category?.name || "Uncategorized",
       qty: Number(it.quantity || 0),
-      unit: item.unit?.abbreviation || "",
+      unit:
+        item.unit?.abbreviation ||
+        item.unit?.name ||
+        "",
     };
   });
-  const fromLoc = locationsById[transfer.from_location_id] || {};
-  const toLoc = locationsById[transfer.to_location_id] || {};
-  const fromWh = warehousesById[transfer.from_warehouse_id] || {};
-  const toWh = warehousesById[transfer.to_warehouse_id] || {};
+
+  const totalQty = items.reduce(
+    (sum, item) => sum + Number(item.qty || 0),
+    0,
+  );
+
+  const fromLocation =
+    transfer.from_location?.name || "";
+
+  const toLocation =
+    transfer.to_location?.name || "";
+
+  const fromWarehouse =
+    transfer.from_warehouse?.name || "";
+
+  const toWarehouse =
+    transfer.to_warehouse?.name || "";
+
+  const completedByRole =
+    transfer.completer?.roles?.[0]?.name
+      ?.replace(/_/g, " ")
+      ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "";
+
+  const approvedByRole =
+    transfer.approver?.roles?.[0]?.name
+      ?.replace(/_/g, " ")
+      ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "";
+
+  const requestedByRole =
+    transfer.requester?.roles?.[0]?.name
+      ?.replace(/_/g, " ")
+      ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "";
 
   return {
     transfer: {
-      number: transfer.transfer_number || "",
-      fromLocation: fromLoc.name || `Location #${transfer.from_location_id}`,
-      fromZone: fromWh.name || "",
-      toLocation: toLoc.name || `Location #${transfer.to_location_id}`,
-      toZone: toWh.name || "",
+      number:
+        transfer.transfer_number || "",
 
-      approvedOn: fmtDateTime(transfer.approved_at),
+      fromLocation:
+        fromLocation || "—",
+
+      fromZone:
+        fromWarehouse || "",
+
+      toLocation:
+        toLocation || "—",
+
+      toZone:
+        toWarehouse || "",
+
+      approvedOn:
+        fmtDateTime(transfer.approved_at),
+
       approvedBy:
         transfer.approver?.name || "",
-      approvedByRole:
-        transfer.approver?.roles?.[0]?.name
-          ?.replace(/_/g, " ")
-          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
-          
-      completedOn: fmtDateTime(transfer.completed_at),
+
+      approvedByRole,
+
+      completedOn:
+        fmtDateTime(transfer.completed_at),
+
       completedBy:
         transfer.completer?.name || "",
-      completedByRole:
-        transfer.completer?.roles?.[0]?.name
-          ?.replace(/_/g, " ")
-          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
 
-      purpose: transfer.notes || "",
+      completedByRole,
+
+      purpose:
+        transfer.notes || "",
     },
+
     items,
+
     totals: {
       items: items.length,
-      qty: `${items.reduce((a, it) => a + it.qty, 0)} ${items[0]?.unit ?? ""}`.trim(),
+
+      qty:
+        `${totalQty}${items[0]?.unit
+          ? ` ${items[0].unit}`
+          : ""
+        }`,
+
       type: "Stock Transfer",
     },
+
     details: {
-      requestedOn: fmtDateTime(transfer.created_at),
+      requestedOn:
+        fmtDateTime(transfer.created_at),
+
       requestedBy:
         transfer.requester?.name || "",
-      requestedByRole:
-        transfer.requester?.roles?.[0]?.name
-          ?.replace(/_/g, " ")
-          ?.replace(/\b\w/g, (c) => c.toUpperCase()) || "",
-      reference: transfer.transfer_number || "",
-      status: transfer.status === "completed" ? "Completed" : "Approved",
+
+      requestedByRole,
+
+      reference:
+        transfer.transfer_number || "",
+
+      status:
+        transfer.status === "completed"
+          ? "Completed"
+          : "Approved",
     },
+
     summary: {
-      previousLocation: fromLoc.name || "",
+      previousLocation:
+        fromLocation || "—",
+
       previousStock: "—",
-      transferredOut: `${items.reduce((a, it) => a + it.qty, 0)}`,
-      transferredIn: `${items.reduce((a, it) => a + it.qty, 0)}`,
-      newLocation: toLoc.name || "",
+
+      transferredOut:
+        `${totalQty}`,
+
+      transferredIn:
+        `${totalQty}`,
+
+      newLocation:
+        toLocation || "—",
+
       newStock: "—",
     },
+
+    notes:
+      transfer.notes || "",
   };
 }
 

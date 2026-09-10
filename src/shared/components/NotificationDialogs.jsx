@@ -1,3 +1,14 @@
+import React, {
+  useEffect,
+  useState,
+} from "react";
+import {
+  getTransfer,
+} from "../../features/transfers/api/TransfersApi.js";
+
+import {
+  mapApiTransferApproved,
+} from "../api/mappers.js";
 import AlertDialog from "../layouts/dialogs/Alertdialog";
 import ReceiptCompletedDialog from "../layouts/dialogs/ReceiptCompletedDialog";
 import TransferApprovedDialog from "../layouts/dialogs/TransferApprovedDialog";
@@ -21,6 +32,15 @@ export default function NotificationDialogs({
     onClose();
     onNavigate(path);
   };
+  const [
+    completedTransferData,
+    setCompletedTransferData,
+  ] = useState(null);
+
+  const [
+    loadingCompletedTransfer,
+    setLoadingCompletedTransfer,
+  ] = useState(false);
 
   const getImportRecordId = () =>
     activeDialog?.data?.importData?.recordId ??
@@ -57,6 +77,68 @@ export default function NotificationDialogs({
       );
     }
   };
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadCompletedTransfer() {
+    if (
+      activeDialog?.type !== "transfer_completed"
+    ) {
+      setCompletedTransferData(null);
+      return;
+    }
+
+    const transferId =
+      activeDialog?.data?.transferId ??
+      activeDialog?.data?.transfer_id ??
+      activeDialog?.transferId ??
+      null;
+
+    if (!transferId) {
+      console.error(
+        "Transfer completed notification is missing transfer ID.",
+        activeDialog,
+      );
+
+      setCompletedTransferData(null);
+      return;
+    }
+
+    setLoadingCompletedTransfer(true);
+
+    try {
+      const transfer =
+        await getTransfer(transferId);
+
+      if (cancelled) return;
+
+      const mapped =
+        mapApiTransferApproved(transfer);
+
+      setCompletedTransferData(mapped);
+    } catch (error) {
+      if (!cancelled) {
+        console.error(
+          "Failed to load completed transfer:",
+          error,
+        );
+
+        setCompletedTransferData(null);
+      }
+    } finally {
+      if (!cancelled) {
+        setLoadingCompletedTransfer(false);
+      }
+    }
+  }
+
+  loadCompletedTransfer();
+
+  return () => {
+    cancelled = true;
+  };
+}, [activeDialog]);
 
   return (
     <>
@@ -114,17 +196,29 @@ export default function NotificationDialogs({
         onPrintSlip={onClose}
       />
 
-      <TransferCompletedDialog
-        isOpen={activeDialog?.type === "transfer_completed"}
-        onClose={onClose}
-        {...(
-          activeDialog?.type === "transfer_completed"
-            ? activeDialog.data
-            : {}
-        )}
-        onViewDetails={() => goTo("/transfers")}
-        onPrintSlip={onClose}
-      />
+   <TransferCompletedDialog
+  isOpen={
+    activeDialog?.type ===
+    "transfer_completed"
+  }
+  onClose={onClose}
+  {...(completedTransferData || {})}
+  onViewDetails={() => {
+    const transferId =
+      activeDialog?.data?.transferId ??
+      activeDialog?.data?.transfer_id ??
+      activeDialog?.transferId;
+
+    if (transferId) {
+      goTo(
+        `/transfers?transfer=${transferId}`,
+      );
+    } else {
+      goTo("/transfers");
+    }
+  }}
+  onPrintSlip={onClose}
+/>
 
       <AdjustmentPendingDialog
         isOpen={activeDialog?.type === "adjustment_pending"}

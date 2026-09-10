@@ -39,7 +39,7 @@ const TransferApprovedDialog = ({
           <FileText size={18} className="text-gray-400" />
         </div>
         <div className="grid grid-cols-2 gap-x-10 gap-y-3 flex-1">
-          <InfoField label="Transfer Number" value={<span className="flex items-center gap-2">{transfer.number} <Pill tone="blue">Approved</Pill></span>} />
+          <InfoField label="Transfer Number" value={<span className="flex items-center gap-2">{transfer.number || "—"} <Pill tone="blue">Approved</Pill></span>} />
           <InfoField label="From Location" value={<span className="flex items-center gap-2">{transfer.fromLocation} <Pill tone="indigo">{transfer.fromZone}</Pill></span>} />
           <InfoField label="Approved On" value={transfer.approvedOn} />
           <InfoField label="To Location" value={<span className="flex items-center gap-2">{transfer.toLocation} <Pill tone="indigo">{transfer.toZone}</Pill></span>} />
@@ -75,7 +75,7 @@ const TransferApprovedDialog = ({
             </tbody>
           </table>
           <div className="grid grid-cols-3 bg-blue-50 px-4 py-3 border-t border-gray-100">
-            <InfoField label="Total Items" value={totals.items} valueClassName="text-blue-700" />
+            <InfoField label="Total Items" value={totals.items ?? 0} valueClassName="text-blue-700" />
             <InfoField label="Total Quantity" value={totals.qty} valueClassName="text-blue-700" />
             <InfoField label="Transfer Type" value={totals.type} valueClassName="text-blue-700" />
           </div>
