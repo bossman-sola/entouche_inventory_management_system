@@ -12,7 +12,6 @@ import {
   getFirstItemName, getItemCount, signedQtyForAdjustment, valueImpactForAdjustment,
 } from "../components/adjustmentHelpers.js";
 
-
 const StatCard = ({ label, value, sub, subColor, icon, bg, loading }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-4">
     <div className="flex items-center gap-3">
@@ -199,6 +198,11 @@ export default function AdjustmentsPage() {
   const [dateEnd, setDateEnd] = useState(null);
   const [toast, setToast] = useState(null);
 
+  // Rejection dialog state
+  const [rejectingAdjustment, setRejectingAdjustment] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
+
   const {
     adjustments, loading, error, actionError, page, setPage, hasNextPage, reload,
     submitAdjustment, approveAdjustment, rejectAdjustment, cancelAdjustment, deleteAdjustment,
@@ -216,11 +220,60 @@ export default function AdjustmentsPage() {
     showToast(result.message, result.ok ? "success" : "error");
   }
 
-  const handleReject = (id) => {
-    const reason = window.prompt("Reason for rejecting this adjustment:");
-    if (reason === null) return;
-    handleAction(rejectAdjustment, id, reason || "No reason given");
+  const handleReject = (adjustment) => {
+    setRejectingAdjustment(adjustment);
+    setRejectionReason("");
   };
+
+  const handleCloseRejectDialog = () => {
+    if (isRejecting) return;
+
+    setRejectingAdjustment(null);
+    setRejectionReason("");
+  };
+
+ const handleConfirmReject = async () => {
+  if (!rejectingAdjustment) return;
+
+  const reason = rejectionReason.trim();
+
+  if (!reason) {
+    showToast(
+      "Please enter a reason for rejection.",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    setIsRejecting(true);
+
+    const result = await rejectAdjustment(
+      rejectingAdjustment.id,
+      reason
+    );
+
+    if (!result?.ok) {
+      showToast(
+        result?.message ||
+          "Failed to reject adjustment.",
+        "error"
+      );
+      return;
+    }
+
+    showToast(
+      result.message ||
+        "Adjustment rejected successfully.",
+      "success"
+    );
+
+    setRejectingAdjustment(null);
+    setRejectionReason("");
+  } finally {
+    setIsRejecting(false);
+  }
+};
 
   const handleDelete = (id) => {
     if (!window.confirm("Delete this draft adjustment? This can't be undone.")) return;
@@ -420,7 +473,7 @@ export default function AdjustmentsPage() {
                         adjustment={a}
                         onSubmit={() => handleAction(submitAdjustment, a.id)}
                         onApprove={() => handleApprove(a.id)}
-                        onReject={() => handleReject(a.id)}
+                        onReject={() => handleReject(a)}
                         onCancel={() => handleCancel(a.id)}
                         onDelete={() => handleDelete(a.id)}
                       />
@@ -453,6 +506,86 @@ export default function AdjustmentsPage() {
         locationsLoading={formData.locationsLoading}
         locationsError={formData.locationsError}
       />
+
+      {/* Reject Adjustment Dialog */}
+      {rejectingAdjustment && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseRejectDialog();
+            }
+          }}
+        >
+          <div className="w-full max-w-[500px] overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="border-b border-gray-100 px-6 py-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50">
+                  <AlertCircle size={18} className="text-red-600" />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Reject Adjustment
+                  </h2>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Please provide a reason for rejecting{" "}
+                    <span className="font-semibold text-gray-700">
+                      {getReference(rejectingAdjustment)}
+                    </span>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <label
+                htmlFor="adjustment-rejection-reason"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Reason for rejection
+              </label>
+
+              <textarea
+                id="adjustment-rejection-reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                autoFocus
+                disabled={isRejecting}
+                placeholder="Enter reason for rejection..."
+                className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+              />
+
+              <div className="mt-2 text-right text-xs text-gray-400">
+                {rejectionReason.trim().length} characters
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+              <button
+                type="button"
+                disabled={isRejecting}
+                onClick={handleCloseRejectDialog}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isRejecting || !rejectionReason.trim()}
+                onClick={handleConfirmReject}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isRejecting ? "Rejecting..." : "Confirm Rejection"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg z-50 ${toast.type === "error" ? "bg-red-600 text-white" : "bg-gray-900 text-white"}`}>

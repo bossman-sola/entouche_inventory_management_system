@@ -101,19 +101,82 @@ export const getItemUnitCost = (row) =>
   Number(row.item?.unit_cost ?? row.unit_cost ?? 0) || 0;
 
 export function signedQtyForAdjustment(a) {
+  const type = getAdjType(a);
+
   return getItemRows(a).reduce(
-    (sum, row) =>
-      sum + (Number(getItemQty(row)) || 0),
+    (sum, row) => {
+      const qty =
+        Number(getItemQty(row)) || 0;
+
+      if (type === "decrease") {
+        return sum - Math.abs(qty);
+      }
+
+      if (type === "set_stock") {
+        const before =
+          Number(
+            row.quantity_before ?? 0
+          ) || 0;
+
+        const after =
+          Number(
+            row.quantity_after ??
+            row.adjustment_quantity ??
+            0
+          ) || 0;
+
+        return sum + (after - before);
+      }
+
+      return sum + Math.abs(qty);
+    },
     0
   );
 }
 
 export function valueImpactForAdjustment(a) {
+  const type = getAdjType(a);
+
   return getItemRows(a).reduce(
-    (sum, row) =>
-      sum +
-      (Number(getItemQty(row)) || 0) *
-        getItemUnitCost(row),
+    (sum, row) => {
+      const qty =
+        Number(getItemQty(row)) || 0;
+
+      const unitCost =
+        getItemUnitCost(row);
+
+      let signedQty = 0;
+
+      if (type === "decrease") {
+        signedQty =
+          -Math.abs(qty);
+      } else if (
+        type === "set_stock"
+      ) {
+        const before =
+          Number(
+            row.quantity_before ?? 0
+          ) || 0;
+
+        const after =
+          Number(
+            row.quantity_after ??
+            row.adjustment_quantity ??
+            0
+          ) || 0;
+
+        signedQty =
+          after - before;
+      } else {
+        signedQty =
+          Math.abs(qty);
+      }
+
+      return (
+        sum +
+        signedQty * unitCost
+      );
+    },
     0
   );
 }

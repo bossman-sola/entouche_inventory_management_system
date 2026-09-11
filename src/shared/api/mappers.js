@@ -102,6 +102,8 @@ function fmtDateTime(iso) {
 
 export const RECEIPT_STATUS_LABEL = {
   draft: "Draft",
+  submitted: "Pending Approval",
+  approved: "Approved",
   received: "Received",
   cancelled: "Cancelled",
 };
@@ -404,18 +406,21 @@ export function mapApiReceipt(r) {
     canDelete:
       r.status === "draft",
 
+    canSubmit:
+      r.status === "draft",
+
+    canApprove:
+      r.status === "submitted",
+
     canReceive:
-      r.status ===
-      "approved",
+      r.status === "approved",
 
     canCancel:
       [
         "draft",
         "submitted",
         "approved",
-      ].includes(
-        r.status
-      ),
+      ].includes(r.status),
   };
 }
 
@@ -530,59 +535,298 @@ export function mapApiNotification(notification) {
 }
 
 export function mapApiReceiptForApproval(r) {
-  if (!r) return null;
-  const items = (r.items || []).map((it) => {
-    const item = it.item || {};
-    const qty = Number(it.quantity || 0);
-    const unitCost = Number(it.unit_cost || 0);
+  if (!r) {
+    return null;
+  }
+
+  const items = (
+    r.items || []
+  ).map((it) => {
+    const item =
+      it.item || {};
+
+    const qty =
+      Number(
+        it.quantity || 0,
+      );
+
+    const unitCost =
+      Number(
+        it.unit_cost || 0,
+      );
+
+    const totalCost =
+      it.total_cost !==
+        undefined &&
+        it.total_cost !== null
+        ? Number(
+          it.total_cost,
+        )
+        : qty * unitCost;
+
     return {
-      id: it.item_id ?? item.id,
-      name: item.name || it.item_name || "Unknown item",
-      sku: item.sku || "",
-      cat: item.category?.name || "Uncategorized",
-      unit: item.unit?.abbreviation
-        ? `${item.unit.name} (${item.unit.abbreviation})`
-        : item.unit?.name || "-",
+      id:
+        it.item_id ??
+        item.id,
+
+      lineId:
+        it.id,
+
+      name:
+        item.name ||
+        it.item_name ||
+        "Unknown item",
+
+      sku:
+        item.sku ||
+        "",
+
+      cat:
+        item.category
+          ?.name ||
+        "Uncategorized",
+
+      unit:
+        item.unit
+          ?.abbreviation ||
+        item.unit?.name ||
+        "-",
+
       qty,
+
       unitCost,
-      totalCost: qty * unitCost,
+
+      totalCost,
     };
   });
-  const qty = items.reduce((a, it) => a + it.qty, 0);
-  const amount = items.reduce((a, it) => a + it.totalCost, 0);
-  const { poNumber, notes } = unpackReceiptNotes(r.notes);
+
+  const totalQty =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.qty || 0,
+        ),
+      0,
+    );
+
+  const totalAmount =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(
+          item.totalCost || 0,
+        ),
+      0,
+    );
+
+  const {
+    poNumber: legacyPoNumber,
+    notes,
+  } =
+    unpackReceiptNotes(
+      r.notes,
+    );
+
+  /*
+   * receipt_date is a business DATE.
+   *
+   * Do not pass it through new Date()
+   * because that can shift the date
+   * according to the browser timezone.
+   */
+  const formatDateOnly = (
+    value,
+  ) => {
+    if (!value) {
+      return "";
+    }
+
+    const dateOnly =
+      String(value).slice(
+        0,
+        10,
+      );
+
+    const [
+      year,
+      month,
+      day,
+    ] =
+      dateOnly.split("-");
+
+    if (
+      !year ||
+      !month ||
+      !day
+    ) {
+      return value;
+    }
+
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    const monthIndex =
+      Number(month) - 1;
+
+    if (
+      monthIndex < 0 ||
+      monthIndex > 11
+    ) {
+      return value;
+    }
+
+    return `${months[monthIndex]
+      } ${Number(
+        day,
+      )}, ${year}`;
+  };
+
+  const submittedByRole =
+    r.creator?.roles?.[0]
+      ?.name
+      ?.replace(
+        /_/g,
+        " ",
+      )
+      ?.replace(
+        /\b\w/g,
+        (c) =>
+          c.toUpperCase(),
+      ) || "";
 
   return {
     receipt: {
-      number: r.receipt_number || "",
-      supplier: r.supplier?.name || "",
-      submittedOn: fmtDateTime(r.created_at),
-      warehouse: r.warehouse?.name || "",
-      submittedBy: r.creator?.name || "",
-      type: "Purchase Receipt",
-      expectedDeliveryDate: r.receipt_date || "",
+      number:
+        r.receipt_number ||
+        "",
+
+      supplier:
+        r.supplier?.name ||
+        "",
+
+      /*
+       * created_at is a real timestamp,
+       * so local date + time is correct here.
+       */
+      submittedOn:
+        fmtDateTime(
+          r.created_at,
+        ),
+
+      submittedBy:
+        r.creator?.name ||
+        "",
+
+      submittedByRole,
+
+      warehouse:
+        r.warehouse?.name ||
+        "",
+
+      type:
+        "Standard Receipt",
+
+      /*
+       * receipt_date stays date-only.
+       */
+      expectedDeliveryDate:
+        formatDateOnly(
+          r.receipt_date,
+        ),
     },
+
     items,
+
     totals: {
-      items: items.length,
-      qty: `${qty} ${items[0]?.unit ?? ""}`.trim(),
-      amount,
+      items:
+        items.length,
+
+      qty:
+        totalQty,
+
+      amount:
+        totalAmount,
+
+      taxPct:
+        0,
+
+      taxAmount:
+        0,
     },
+
     reference: {
-      poNumber,
-      invoiceNumber: r.vendor_po_number || "",
-      deliveryNote: r.receipt_number || "",
+      /*
+       * Prefer the proper dedicated DB
+       * field. The unpacked note value is
+       * retained only as compatibility
+       * fallback for older records.
+       */
+      poNumber:
+        r.vendor_po_number ||
+        legacyPoNumber ||
+        "",
+
+      invoiceNumber:
+        r.invoice_number ||
+        "",
+
+      deliveryNote:
+        r.receipt_number ||
+        "",
     },
-    notes,
+
+    notes:
+      notes || "",
+
     workflowSteps: [
       {
-        label: "Submitted",
-        status: "done",
-        date: fmtDateTime(r.created_at),
-        by: r.creator?.name,
+        label:
+          "Submitted",
+
+        status:
+          "done",
+
+        date:
+          fmtDateTime(
+            r.created_at,
+          ),
+
+        by:
+          r.creator?.name ||
+          "",
+
+        byRole:
+          submittedByRole,
       },
-      { label: "Pending Approval", status: "current" },
-      { label: "Approved", status: "pending" },
+
+      {
+        label:
+          "Pending Approval",
+
+        status:
+          "current",
+      },
+
+      {
+        label:
+          "Approved",
+
+        status:
+          "pending",
+      },
     ],
   };
 }
@@ -697,61 +941,187 @@ export function mapNotificationToSimpleDialog(n) {
   };
 }
 
-export function mapApiAdjustmentPending(
-  adj,
-  itemsById = {},
-  locationsById = {},
-) {
-  if (!adj) return null;
-  const items = (adj.items || []).map((it) => {
-    const item = itemsById[it.item_id] || {};
-    const loc = locationsById[it.warehouse_location_id] || {};
-    const qtyChange = Number(it.adjustment_quantity || 0);
+export function mapApiAdjustmentPending(adj) {
+  if (!adj) {
+    return null;
+  }
+
+  const items = (adj.items || []).map((row) => {
+    const item = row.item || {};
+    const location =
+      row.location ||
+      adj.location ||
+      {};
+
+    const qty =
+      Number(row.adjustment_quantity || 0);
+
+    const signedQty =
+      adj.adjustment_type === "decrease"
+        ? -qty
+        : qty;
+
     return {
-      name: item.name || `Item #${it.item_id}`,
-      sku: item.sku || "",
-      cat: item.category?.name || "",
+      id: row.id,
+
+      name:
+        item.name ||
+        `Item #${row.item_id}`,
+
+      sku:
+        item.sku || "",
+
+      cat:
+        item.category?.name ||
+        "Uncategorized",
+
       location:
-        loc.name ||
-        (it.warehouse_location_id
-          ? `Location #${it.warehouse_location_id}`
-          : "—"),
-      zone: "",
+        location.name || "—",
+
+      zone:
+        adj.warehouse?.name || "",
+
       qtyChange:
-        adj.adjustment_type === "decrease" ? `-${qtyChange}` : `+${qtyChange}`,
-      unit: item.unit?.abbreviation || "",
+        `${signedQty > 0 ? "+" : ""}${signedQty}`,
+
+      unit:
+        item.unit?.abbreviation ||
+        item.unit?.name ||
+        "",
     };
   });
 
-  const totalChange = items.reduce((a, it) => a + parseFloat(it.qtyChange), 0);
+  const totalChange =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.qtyChange || 0),
+      0,
+    );
+
+  const submittedBy =
+    adj.adjusted_by || null;
+
+  const approvedBy =
+    adj.approved_by || null;
+
+  const submittedByRole =
+    submittedBy?.roles?.[0]?.name
+      ?.replace(/_/g, " ")
+      ?.replace(
+        /\b\w/g,
+        (c) => c.toUpperCase(),
+      ) || "";
+
+  const approvalFromRole =
+    approvedBy?.roles?.[0]?.name
+      ?.replace(/_/g, " ")
+      ?.replace(
+        /\b\w/g,
+        (c) => c.toUpperCase(),
+      ) || "";
+
+  const firstRow =
+    adj.items?.[0];
+
+  const previousStock =
+    firstRow?.quantity_before != null
+      ? Number(firstRow.quantity_before)
+      : null;
+
+  const expectedStock =
+    previousStock != null
+      ? previousStock + totalChange
+      : null;
 
   return {
     adjustment: {
-      number: adj.adjustment_number || "",
-      type: adj.adjustment_type === "decrease" ? "Decrease" : "Increase",
-      submittedOn: fmtDateTime(adj.created_at),
-      reason: adj.reason || "",
-      submittedBy: "", // adjusted_by/created_by are raw ids, no expansion available
-      submittedByRole: "",
-      approvalFrom: "",
-      approvalFromRole: "",
+      number:
+        adj.adjustment_number || "",
+
+      type:
+        adj.adjustment_type ===
+          "decrease"
+          ? "Decrease"
+          : "Increase",
+
+      submittedOn:
+        fmtDateTime(
+          adj.created_at,
+        ),
+
+      reason:
+        adj.reason || "",
+
+      submittedBy:
+        submittedBy?.name || "",
+
+      submittedByRole,
+
+      approvalFrom:
+        approvedBy?.name ||
+        "Warehouse Manager",
+
+      approvalFromRole,
     },
+
     items,
+
     stockSummary: {
-      previous: "—", // quantity_before/after are 0.000 placeholders in this payload, not reliable
-      adjustment: `${totalChange >= 0 ? "+" : ""}${totalChange}`,
-      expected: "—",
+      previous:
+        previousStock ?? "—",
+
+      adjustment:
+        `${totalChange > 0 ? "+" : ""}${totalChange}`,
+
+      expected:
+        expectedStock ?? "—",
     },
+
     details: {
-      reasonDetails: adj.notes || "",
-      reference: adj.adjustment_number || "",
-      affectedBy: "",
-      attachment: null,
+      reasonDetails:
+        adj.notes ||
+        adj.reason ||
+        "",
+
+      reference:
+        adj.adjustment_number || "",
+
+      affectedBy:
+        submittedBy?.name || "",
+
+      attachment:
+        null,
+
+      attachmentUrl:
+        null,
     },
+
     workflowSteps: [
-      { label: "Submitted", status: "done", date: fmtDateTime(adj.created_at) },
-      { label: "Pending Approval", status: "current" },
-      { label: "Approved", status: "pending" },
+      {
+        label: "Submitted",
+        status: "done",
+
+        date:
+          fmtDateTime(
+            adj.created_at,
+          ),
+
+        by:
+          submittedBy?.name || "",
+      },
+
+      {
+        label:
+          "Pending Approval",
+
+        status: "current",
+      },
+
+      {
+        label: "Approved",
+        status: "pending",
+      },
     ],
   };
 }
@@ -809,6 +1179,27 @@ export function mapApiTransferApproved(transfer) {
 
   return {
     transfer: {
+      requestedOn:
+        fmtDateTime(transfer.created_at),
+
+      requestedBy:
+        transfer.requester?.name || "",
+
+      requestedByRole,
+
+      reference:
+        transfer.transfer_number || "",
+
+      status:
+        transfer.status === "rejected"
+          ? "Rejected"
+          : transfer.status === "completed"
+            ? "Completed"
+            : "Approved",
+
+      rejectionReason:
+        transfer.rejection_reason || "",
+
       number:
         transfer.transfer_number || "",
 

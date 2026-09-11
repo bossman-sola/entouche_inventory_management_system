@@ -147,14 +147,44 @@ export const api = {
     unwrap(apiClient.post(`/locations/${id}/toggle-status`, { status })),
 
   // ─── Receipts ───
-  listReceipts: (params) => unwrap(apiClient.get("/receipts", { params })),
-  createReceipt: (body) => unwrap(apiClient.post("/receipts", body)),
-  getReceipt: (id) => unwrap(apiClient.get(`/receipts/${id}`)),
-  updateReceipt: (id, body) => unwrap(apiClient.put(`/receipts/${id}`, body)),
-  deleteReceipt: (id) => unwrap(apiClient.delete(`/receipts/${id}`)),
-  receiveReceipt: (id) => unwrap(apiClient.post(`/receipts/${id}/receive`)), // ★ moves stock
-  approveReceipt: (id) => unwrap(apiClient.post(`/receipts/${id}/approve`)), // ★ alias for receive
-  cancelReceipt: (id) => unwrap(apiClient.post(`/receipts/${id}/cancel`)),
+  listReceipts: (params) =>
+    unwrap(apiClient.get("/receipts", { params })),
+
+  createReceipt: (body) =>
+    unwrap(apiClient.post("/receipts", body)),
+
+  getReceipt: (id) =>
+    unwrap(apiClient.get(`/receipts/${id}`)),
+
+  updateReceipt: (id, body) =>
+    unwrap(apiClient.put(`/receipts/${id}`, body)),
+
+  deleteReceipt: (id) =>
+    unwrap(apiClient.delete(`/receipts/${id}`)),
+
+  submitReceipt: (id) =>
+    unwrap(
+      apiClient.post(
+        `/receipts/${id}/submit`,
+      ),
+    ),
+
+  approveReceipt: (id) =>
+    unwrap(
+      apiClient.post(
+        `/receipts/${id}/approve`,
+      ),
+    ),
+
+  receiveReceipt: (id) =>
+    unwrap(
+      apiClient.post(
+        `/receipts/${id}/receive`,
+      ),
+    ),
+
+  cancelReceipt: (id) =>
+    unwrap(apiClient.post(`/receipts/${id}/cancel`)),
 
   // ─── Transfers ───
   listTransfers: (params) => unwrap(apiClient.get("/transfers", { params })),

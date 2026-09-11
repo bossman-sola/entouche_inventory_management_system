@@ -30,6 +30,17 @@ export default function MainLayout() {
   };
 
   const handleNotificationClick = async (notification) => {
+    console.log(
+      "CLICKED NOTIFICATION:",
+      notification
+    );
+
+    console.log(
+      "CLICKED TYPE:",
+      notification?.type
+    );
+
+
     try {
       if (notification.unread) await markAsRead(notification);
     } catch (error) {
@@ -58,12 +69,6 @@ export default function MainLayout() {
         });
         break;
 
-      case "transfer_completed":
-        setActiveDialog({
-          type: "transfer_completed",
-          data: notification,
-        });
-        break;
       case "adjustment_pending":
         setActiveDialog({
           type: "adjustment_pending",
@@ -73,6 +78,76 @@ export default function MainLayout() {
             timeAgo: notification.timeAgo,
             adjustmentId: notification.adjustmentId,
             ...notification.data,
+          },
+        });
+        break;
+      case "adjustment_approved":
+        setActiveDialog({
+          type: "adjustment_approved",
+          data: {
+            ...notification,
+
+            adjustmentId:
+              notification.adjustmentId ??
+              notification.adjustment_id ??
+              notification.data?.adjustmentId ??
+              notification.data?.adjustment_id,
+
+            adjustment_id:
+              notification.adjustment_id ??
+              notification.adjustmentId ??
+              notification.data?.adjustment_id ??
+              notification.data?.adjustmentId,
+          },
+        });
+        break;
+      case "adjustment_cancelled":
+        setActiveDialog({
+          type: "adjustment_cancelled",
+          data: {
+            ...notification,
+
+            adjustmentId:
+              notification.adjustmentId ??
+              notification.adjustment_id ??
+              notification.data?.adjustmentId ??
+              notification.data?.adjustment_id,
+
+            adjustment_id:
+              notification.adjustment_id ??
+              notification.adjustmentId ??
+              notification.data?.adjustment_id ??
+              notification.data?.adjustmentId,
+
+            previousStatus:
+              notification.previousStatus ??
+              notification.previous_status ??
+              notification.data?.previousStatus ??
+              notification.data?.previous_status,
+          },
+        });
+        break;
+      case "adjustment_rejected":
+        setActiveDialog({
+          type: "adjustment_rejected",
+          data: {
+            ...notification,
+
+            adjustmentId:
+              notification.adjustmentId ??
+              notification.adjustment_id ??
+              notification.data?.adjustmentId ??
+              notification.data?.adjustment_id,
+
+            adjustment_id:
+              notification.adjustment_id ??
+              notification.adjustmentId ??
+              notification.data?.adjustment_id ??
+              notification.data?.adjustmentId,
+
+            reason:
+              notification.reason ??
+              notification.data?.reason,
           },
         });
         break;
@@ -215,9 +290,54 @@ export default function MainLayout() {
         break;
       }
 
+      case "transfer_pending":
+        setActiveDialog({
+          type: "transfer_pending",
+          data: {
+            ...notification,
 
+            transferId:
+              notification.transferId ??
+              notification.transfer_id ??
+              notification.data?.transferId ??
+              notification.data?.transfer_id,
+
+            transfer_id:
+              notification.transfer_id ??
+              notification.transferId ??
+              notification.data?.transfer_id ??
+              notification.data?.transferId,
+          },
+        });
+        break;
+      case "transfer_completed":
+        setActiveDialog({
+          type: "transfer_completed",
+          data: notification,
+        });
+        break;
       case "transfer_approved":
         await openTransferApproved(notification);
+        break;
+      case "transfer_rejected":
+        setActiveDialog({
+          type: "transfer_rejected",
+          data: {
+            ...notification,
+
+            transferId:
+              notification.transferId ??
+              notification.transfer_id ??
+              notification.data?.transferId ??
+              notification.data?.transfer_id,
+
+            transfer_id:
+              notification.transfer_id ??
+              notification.transferId ??
+              notification.data?.transfer_id ??
+              notification.data?.transferId,
+          },
+        });
         break;
 
       case "import_completed":
