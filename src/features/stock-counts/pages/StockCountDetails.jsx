@@ -41,7 +41,7 @@ import {
     StatCard,
     SkeletonRow,
     EmptyState,
-} from "../components/primitives.jsx";
+} from "../components/Primitives.jsx";
 import { RowActionsMenu } from "../components/RowActionsMenu.jsx";
 import { AddItemsModal } from "../components/AddItemsModal.jsx";
 import { ReasonModal } from "../components/ReasonModal.jsx";
