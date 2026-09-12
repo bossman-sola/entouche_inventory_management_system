@@ -68,7 +68,55 @@ export default function MainLayout() {
           data: notification,
         });
         break;
+      case "receipt_cancelled":
+        setActiveDialog({
+          type: "receipt_cancelled",
+          data: {
+            ...notification,
 
+            receiptId:
+              notification.receiptId ??
+              notification.receipt_id ??
+              notification.data?.receiptId ??
+              notification.data?.receipt_id,
+
+            receipt_id:
+              notification.receipt_id ??
+              notification.receiptId ??
+              notification.data?.receipt_id ??
+              notification.data?.receiptId,
+
+            previousStatus:
+              notification.previousStatus ??
+              notification.previous_status ??
+              notification.data?.previousStatus ??
+              notification.data?.previous_status,
+          },
+        });
+
+        break;
+      case "receipt_approved":
+        setActiveDialog({
+          type: "receipt_approved",
+          data: {
+            ...notification,
+
+            receiptId:
+              notification.receiptId ??
+              notification.receipt_id ??
+              notification.data?.receiptId ??
+              notification.data?.receipt_id,
+
+            receipt_id:
+              notification.receipt_id ??
+              notification.receiptId ??
+              notification.data?.receipt_id ??
+              notification.data?.receiptId,
+          },
+        });
+
+        break;
+      
       case "adjustment_pending":
         setActiveDialog({
           type: "adjustment_pending",
@@ -343,7 +391,6 @@ export default function MainLayout() {
       case "import_completed":
         await openImportCompleted(notification);
         break;
-
       case "import_failed":
         await openImportFailed(notification);
         break;

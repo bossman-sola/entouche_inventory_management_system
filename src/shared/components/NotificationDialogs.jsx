@@ -18,7 +18,9 @@ import {
 
 import AlertDialog from "../layouts/dialogs/Alertdialog";
 import ReceiptCompletedDialog from "../layouts/dialogs/ReceiptCompletedDialog";
+import ReceiptCancelledDialog from "../layouts/dialogs/ReceiptCancelledDialog";
 import NewReceiptApprovalDialog from "../layouts/dialogs/NewReceiptApprovalDialog";
+import ReceiptApprovedDialog from "../layouts/dialogs/ReceiptApprovedDialog";
 
 import TransferApprovedDialog from "../layouts/dialogs/TransferApprovedDialog";
 import TransferCompletedDialog from "../layouts/dialogs/TransferCompletedDialog";
@@ -417,6 +419,188 @@ export default function NotificationDialogs({
     activeDialog?.data?.adjustment_id,
     activeDialog?.data?.data?.adjustmentId,
     activeDialog?.data?.data?.adjustment_id,
+  ]);
+
+  const getReceiptIdFromDialog = () =>
+    activeDialog?.receiptId ??
+    activeDialog?.receipt_id ??
+    activeDialog?.data?.receiptId ??
+    activeDialog?.data?.receipt_id ??
+    activeDialog?.data?.data?.receiptId ??
+    activeDialog?.data?.data?.receipt_id ??
+    null;
+
+  const [
+    approvedReceiptData,
+    setApprovedReceiptData,
+  ] = useState(null);
+
+  const [
+    loadingApprovedReceipt,
+    setLoadingApprovedReceipt,
+  ] = useState(false);
+
+  const [
+    receivingApprovedReceipt,
+    setReceivingApprovedReceipt,
+  ] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadApprovedReceipt() {
+      if (
+        activeDialog?.type !==
+        "receipt_approved"
+      ) {
+        setApprovedReceiptData(null);
+        return;
+      }
+
+      const receiptId =
+        getReceiptIdFromDialog();
+
+      if (!receiptId) {
+        console.error(
+          "Receipt Approved notification is missing receipt_id",
+          activeDialog
+        );
+
+        setApprovedReceiptData(null);
+        return;
+      }
+
+      try {
+        setLoadingApprovedReceipt(true);
+
+        const receipt =
+          await api.getReceipt(
+            receiptId
+          );
+
+        if (cancelled) return;
+
+        setApprovedReceiptData(
+          receipt
+        );
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Failed to load approved receipt:",
+            error
+          );
+
+          setApprovedReceiptData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingApprovedReceipt(
+            false
+          );
+        }
+      }
+    }
+
+    loadApprovedReceipt();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeDialog?.type,
+    activeDialog?.receiptId,
+    activeDialog?.receipt_id,
+    activeDialog?.data?.receiptId,
+    activeDialog?.data?.receipt_id,
+    activeDialog?.data?.data?.receiptId,
+    activeDialog?.data?.data?.receipt_id,
+  ]);
+
+  const [
+    cancelledReceiptData,
+    setCancelledReceiptData,
+  ] = useState(null);
+
+  const [
+    loadingCancelledReceipt,
+    setLoadingCancelledReceipt,
+  ] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCancelledReceipt() {
+      if (
+        activeDialog?.type !==
+        "receipt_cancelled"
+      ) {
+        setCancelledReceiptData(null);
+        return;
+      }
+
+      const receiptId =
+        getReceiptIdFromDialog();
+
+      if (!receiptId) {
+        console.error(
+          "Receipt Cancelled notification is missing receipt_id",
+          activeDialog
+        );
+
+        setCancelledReceiptData(null);
+        return;
+      }
+
+      try {
+        setLoadingCancelledReceipt(
+          true
+        );
+
+        const receipt =
+          await api.getReceipt(
+            receiptId
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        setCancelledReceiptData(
+          receipt
+        );
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Failed to load cancelled receipt:",
+            error
+          );
+
+          setCancelledReceiptData(
+            null
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCancelledReceipt(
+            false
+          );
+        }
+      }
+    }
+
+    loadCancelledReceipt();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeDialog?.type,
+    activeDialog?.receiptId,
+    activeDialog?.receipt_id,
+    activeDialog?.data?.receiptId,
+    activeDialog?.data?.receipt_id,
+    activeDialog?.data?.data?.receiptId,
+    activeDialog?.data?.data?.receipt_id,
   ]);
 
   /*
@@ -1298,6 +1482,98 @@ export default function NotificationDialogs({
         onViewStockHistory={
           onClose
         }
+      />
+
+      <ReceiptApprovedDialog
+        isOpen={
+          activeDialog?.type ===
+          "receipt_approved"
+        }
+        onClose={onClose}
+        receipt={
+          approvedReceiptData || {}
+        }
+        loading={
+          loadingApprovedReceipt
+        }
+        onViewDetails={() => {
+          const receiptId =
+            getReceiptIdFromDialog();
+
+          if (receiptId) {
+            goTo(
+              `/receipts?receipt=${receiptId}`
+            );
+          } else {
+            goTo("/receipts");
+          }
+        }}
+        onReceive={async () => {
+          const receiptId =
+            getReceiptIdFromDialog();
+
+          if (!receiptId) {
+            console.error(
+              "Cannot receive receipt: receipt ID missing"
+            );
+            return;
+          }
+
+          try {
+            setReceivingApprovedReceipt(
+              true
+            );
+
+            await api.receiveReceipt(
+              receiptId
+            );
+
+            onClose();
+          } catch (error) {
+            console.error(
+              "Failed to receive receipt:",
+              error
+            );
+          } finally {
+            setReceivingApprovedReceipt(
+              false
+            );
+          }
+        }}
+      />
+
+      <ReceiptCancelledDialog
+        isOpen={
+          activeDialog?.type ===
+          "receipt_cancelled"
+        }
+        onClose={onClose}
+        receipt={
+          cancelledReceiptData || {}
+        }
+        loading={
+          loadingCancelledReceipt
+        }
+        previousStatus={
+          activeDialog?.data
+            ?.previousStatus ??
+          activeDialog?.data
+            ?.previous_status ??
+          activeDialog?.data
+            ?.data?.previous_status
+        }
+        onViewDetails={() => {
+          const receiptId =
+            getReceiptIdFromDialog();
+
+          if (receiptId) {
+            goTo(
+              `/receipts?receipt=${receiptId}`
+            );
+          } else {
+            goTo("/receipts");
+          }
+        }}
       />
 
       {/* RECEIPT COMPLETED */}

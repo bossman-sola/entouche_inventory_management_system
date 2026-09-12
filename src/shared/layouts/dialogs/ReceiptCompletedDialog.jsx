@@ -12,6 +12,8 @@ import {
   ItemCell,
   DialogButton,
 } from "./primitives";
+import { formatDateTime } from "../../../lib/dateUtils";
+
 
 const ReceiptCompletedDialog = ({
   isOpen,
@@ -182,7 +184,7 @@ const ReceiptCompletedDialog = ({
 
           <InfoField
             label="Completed on"
-            value={safeValue(
+            value={formatDateTime(
               receipt.completedOn
             )}
           />
