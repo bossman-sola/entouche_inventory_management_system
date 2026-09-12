@@ -43,109 +43,175 @@ function formatTxnId(id) {
   return `TXN-${digits.padStart(6, "0")}`;
 }
 
-export function normalizeTransaction(raw, itemMeta, assumedType) {
+export function normalizeTransaction(
+  raw,
+  itemMeta,
+  assumedType
+) {
   const rawType = firstDefined(
     raw.type,
     raw.transaction_type,
     raw.txn_type,
     raw.movement_type,
   );
-  const type = labelizeType(rawType, assumedType);
-  const typeDetail = labelizeTypeDetail(rawType, type);
-  const direction = firstDefined(
-    raw.direction,
-    rawType && String(rawType).endsWith("_out") ? "out" : undefined,
-    rawType && String(rawType).endsWith("_in") ? "in" : undefined,
+
+  const type = labelizeType(
+    rawType,
+    assumedType
   );
 
+  const typeDetail =
+    labelizeTypeDetail(
+      rawType,
+      type
+    );
+
+  const direction =
+    firstDefined(
+      raw.direction,
+
+      rawType &&
+        String(rawType).endsWith(
+          "_out"
+        )
+        ? "out"
+        : undefined,
+
+      rawType &&
+        String(rawType).endsWith(
+          "_in"
+        )
+        ? "in"
+        : undefined,
+    );
+
+  // IMPORTANT:
+  // Prefer API signed_quantity.
   const qty =
-    Number(firstDefined(raw.quantity, raw.qty, raw.quantity_change, 0)) || 0;
+    Number(
+      firstDefined(
+        raw.signed_quantity,
+        raw.quantity,
+        raw.qty,
+        raw.quantity_change,
+        0
+      )
+    ) || 0;
+
   const unitCost =
-    Number(firstDefined(raw.unit_cost, raw.cost, itemMeta?.unit_cost, 0)) || 0;
+    Number(
+      firstDefined(
+        raw.unit_cost,
+        raw.cost,
+        itemMeta?.unit_cost,
+        0
+      )
+    ) || 0;
+
+  // IMPORTANT:
+  // Prefer API signed_total_value.
   const total =
-    Number(firstDefined(raw.total_cost, raw.total, qty * unitCost)) || 0;
-
-  const createdAtRaw = firstDefined(
-    raw.created_at,
-    raw.date,
-    raw.performed_at,
-    raw.transaction_date,
-  );
-  const createdAt = createdAtRaw ? new Date(createdAtRaw) : null;
-
-  const isTransfer =
-    rawType === "transfer_in" ||
-    rawType === "transfer_out" ||
-    raw.reference_type === "App\\Models\\Transfer";
-
-  const from = isTransfer
-    ? firstDefined(
-      raw.transfer?.from_location?.name,
-      raw.transfer?.from_warehouse?.name,
-      "-",
-    )
-    : direction === "out"
-      ? firstDefined(
-        raw.location?.name,
-        raw.warehouse?.name,
-        "-",
+    Number(
+      firstDefined(
+        raw.signed_total_value,
+        raw.total_value,
+        raw.total_cost,
+        raw.total,
+        qty * unitCost
       )
-      : firstDefined(
-        raw.from_location?.name,
-        raw.source_location?.name,
-        raw.from,
-        "-",
-      );
+    ) || 0;
 
-  const to = isTransfer
-    ? firstDefined(
-      raw.transfer?.to_location?.name,
-      raw.transfer?.to_warehouse?.name,
-      "-",
-    )
-    : direction === "in"
+  const createdAtRaw =
+    firstDefined(
+      raw.created_at,
+      raw.date,
+      raw.performed_at,
+      raw.transaction_date
+    );
+
+  const createdAt =
+    createdAtRaw
+      ? new Date(createdAtRaw)
+      : null;
+
+  const from =
+    direction === "out"
       ? firstDefined(
-        raw.location?.name,
-        raw.warehouse?.name,
-        "-",
-      )
-      : firstDefined(
-        raw.to_location?.name,
-        raw.destination_location?.name,
-        raw.to,
-        "-",
-      );
+          raw.location?.name,
+          raw.warehouse?.name,
+          "-"
+        )
+      : "-";
 
-  const userName = firstDefined(
-    raw.performer?.name,
-    raw.user?.name,
-    raw.created_by_user?.name,
-    raw.creator?.name,
-    raw.requester?.name,
-    raw.requested_by_user?.name,
-    "-",
-  );
+  const to =
+    direction === "in"
+      ? firstDefined(
+          raw.location?.name,
+          raw.warehouse?.name,
+          "-"
+        )
+      : "-";
 
-  const status = raw.status ? labelizeType(raw.status) : "Completed";
+  const userName =
+    firstDefined(
+      raw.performer?.name,
+      raw.user?.name,
+      raw.created_by_user?.name,
+      raw.creator?.name,
+      raw.requested_by?.name,
+      "-"
+    );
+
+  const status =
+    raw.status
+      ? labelizeType(raw.status)
+      : "Completed";
 
   return {
     id: firstDefined(
       raw.id,
       raw.reference_number,
-      `${itemMeta?.id || "x"}-${Math.random().toString(36).slice(2, 8)}`,
+      `${
+        itemMeta?.id || "x"
+      }-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`
     ),
-    refLabel: formatTxnId(raw.id) || firstDefined(raw.reference_number, "-"),
+
+    refLabel:
+      formatTxnId(raw.id) ||
+      firstDefined(
+        raw.reference_number,
+        "-"
+      ),
+
     date: createdAt,
+
     type,
     typeDetail,
     direction,
-    item: firstDefined(raw.item?.name, itemMeta?.name, "-"),
-    sku: firstDefined(raw.item?.sku, itemMeta?.sku, "-"),
+
+    item:
+      firstDefined(
+        raw.item?.name,
+        itemMeta?.name,
+        "-"
+      ),
+
+    sku:
+      firstDefined(
+        raw.item?.sku,
+        itemMeta?.sku,
+        "-"
+      ),
+
     from,
     to,
+
     qty,
     unitCost,
     total,
+
     user: userName,
     status,
   };

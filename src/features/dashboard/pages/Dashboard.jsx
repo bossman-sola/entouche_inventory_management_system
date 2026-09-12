@@ -144,6 +144,7 @@ function buildDailyValueTrend(transactions) {
 
     const quantity =
       Number(
+        transaction.signed_quantity ??
         transaction.quantity ??
         transaction.qty ??
         0
@@ -220,8 +221,8 @@ const StatCard = ({
 
       <p
         className={`text-[11px] font-bold mt-2 ${isDown
-            ? "text-orange-500"
-            : "text-emerald-500"
+          ? "text-orange-500"
+          : "text-emerald-500"
           }`}
       >
         {trend}
@@ -266,6 +267,7 @@ const TableContainer = ({
 
 function transactionQuantity(transaction) {
   const qty = Number(
+    transaction.signed_quantity ??
     transaction.quantity ??
     transaction.qty ??
     0
@@ -779,18 +781,18 @@ const Dashboard = () => {
                       <td className="px-6 py-4">
                         <span
                           className={`inline-flex px-2 py-1 rounded text-[10px] font-bold ${type ===
-                              "Receipt"
-                              ? "bg-emerald-50 text-emerald-600"
+                            "Receipt"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : type ===
+                              "Transfer"
+                              ? "bg-blue-50 text-blue-600"
                               : type ===
-                                "Transfer"
-                                ? "bg-blue-50 text-blue-600"
+                                "Adjustment"
+                                ? "bg-amber-50 text-amber-600"
                                 : type ===
-                                  "Adjustment"
-                                  ? "bg-amber-50 text-amber-600"
-                                  : type ===
-                                    "Stock Count"
-                                    ? "bg-purple-50 text-purple-600"
-                                    : "bg-slate-100 text-slate-600"
+                                  "Stock Count"
+                                  ? "bg-purple-50 text-purple-600"
+                                  : "bg-slate-100 text-slate-600"
                             }`}
                         >
                           {type}
@@ -828,15 +830,14 @@ const Dashboard = () => {
 
                       <td
                         className={`px-6 py-4 text-center font-bold ${quantity < 0
-                            ? "text-red-500"
-                            : quantity > 0
-                              ? "text-emerald-600"
-                              : "text-[#1E2740]"
+                          ? "text-red-500"
+                          : quantity > 0
+                            ? "text-emerald-600"
+                            : "text-[#1E2740]"
                           }`}
                       >
-                        {quantity > 0
-                          ? `+${quantity}`
-                          : quantity}
+                        {quantity > 0 ? "+" : ""}
+                        {quantity}
                       </td>
 
                       <td className="px-6 py-4 text-[#6B7591]">
