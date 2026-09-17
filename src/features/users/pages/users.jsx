@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../../shared/api/entoucheApi.js"; // adjust depth to match this file's location
 
 const Icon = ({
@@ -314,6 +315,7 @@ const UserForm = ({ user, roles, onSave, onClose, saving }) => {
 };
 
 export default function UsersRolesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState("Users");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -327,7 +329,6 @@ export default function UsersRolesPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [addModal, setAddModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [deleteUser, setDeleteUser] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
@@ -335,6 +336,27 @@ export default function UsersRolesPage() {
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const PER_PAGE = 8;
+  
+  const [addModal, setAddModal] = useState(
+    () => searchParams.get("addUser") === "true"
+  );
+
+
+  useEffect(() => {
+    if (searchParams.get("addUser") !== "true") {
+      return;
+    }
+
+    // Remove the URL trigger immediately so it only fires once.
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("addUser");
+
+    setSearchParams(nextParams, {
+      replace: true,
+    });
+  }, [searchParams, setSearchParams]);
+
+
 
   const showToast = (msg) => {
     setToast(msg);
@@ -356,7 +378,7 @@ export default function UsersRolesPage() {
       if (usersRes.status === "rejected" || rolesRes.status === "rejected") {
         setLoadError(
           (usersRes.reason || rolesRes.reason)?.message ||
-            "Failed to load data",
+          "Failed to load data",
         );
       }
     } catch (e) {
@@ -476,6 +498,21 @@ export default function UsersRolesPage() {
       );
     } catch (e) {
       showToast(e.message || "Failed to update status");
+    }
+  };
+
+  const shouldOpenAddUser =
+    searchParams.get("addUser") === "true";
+
+  const closeAddUserModal = () => {
+    setAddModal(false);
+
+    if (shouldOpenAddUser) {
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname
+      );
     }
   };
 
@@ -1023,15 +1060,15 @@ export default function UsersRolesPage() {
 
       {/* Add User Modal */}
       <Modal
-        open={addModal}
-        onClose={() => setAddModal(false)}
+        open={addModal || shouldOpenAddUser}
+        onClose={closeAddUserModal}
         title="Add New User"
       >
         <UserForm
           roles={roles}
           saving={busy}
           onSave={addUser}
-          onClose={() => setAddModal(false)}
+          onClose={closeAddUserModal}
         />
       </Modal>
 

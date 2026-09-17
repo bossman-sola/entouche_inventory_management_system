@@ -51,6 +51,104 @@ export default function NotificationDialogs({
     onNavigate(path);
   };
 
+  const getUserIdFromDialog = () =>
+    activeDialog?.userId ??
+    activeDialog?.user_id ??
+    activeDialog?.data?.userId ??
+    activeDialog?.data?.user_id ??
+    activeDialog?.data?.data?.userId ??
+    activeDialog?.data?.data?.user_id ??
+    null;
+
+  /*
+ * =========================================================
+ * USER CREATED STATE
+ * =========================================================
+ */
+
+  const [
+    createdUserData,
+    setCreatedUserData,
+  ] = useState(null);
+
+  const [
+    loadingCreatedUser,
+    setLoadingCreatedUser,
+  ] = useState(false);
+
+  /*
+ * =========================================================
+ * LOAD CREATED USER
+ * =========================================================
+ */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCreatedUser() {
+      if (
+        activeDialog?.type !==
+        "user_created"
+      ) {
+        setCreatedUserData(null);
+        return;
+      }
+
+      const userId =
+        getUserIdFromDialog();
+
+      if (!userId) {
+        console.error(
+          "User Created notification is missing user_id",
+          activeDialog,
+        );
+
+        setCreatedUserData(null);
+        return;
+      }
+
+      try {
+        setLoadingCreatedUser(true);
+
+        const user =
+          await api.getUser(userId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setCreatedUserData(user);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Failed to load created user:",
+            error,
+          );
+
+          setCreatedUserData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCreatedUser(false);
+        }
+      }
+    }
+
+    loadCreatedUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeDialog?.type,
+    activeDialog?.userId,
+    activeDialog?.user_id,
+    activeDialog?.data?.userId,
+    activeDialog?.data?.user_id,
+    activeDialog?.data?.data?.userId,
+    activeDialog?.data?.data?.user_id,
+  ]);
+
   /**
   * ========================================================
   * HELPER: GET ADJUSTMENT ID FROM NOTIFICATION DIALOG
@@ -2078,18 +2176,19 @@ export default function NotificationDialogs({
           "user_created"
         }
         onClose={onClose}
-        {...(
-          activeDialog?.type ===
-            "user_created"
-            ? activeDialog.data
-            : {}
-        )}
-        onViewUser={() =>
-          goTo("/settings")
+        user={
+          createdUserData || {}
         }
-        onAddAnotherUser={() =>
-          goTo("/settings")
+        loading={
+          loadingCreatedUser
         }
+        onViewUser={() => {
+          goTo("/user");
+
+        }}
+        onAddAnotherUser={() => {
+          goTo("/user?addUser=true");
+        }}
       />
 
       {/* SYSTEM MAINTENANCE */}
