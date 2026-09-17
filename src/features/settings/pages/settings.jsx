@@ -29,12 +29,18 @@ export default function Settings() {
     loading,
     loadError,
     savingSection,
+    uploadingLogo,
     warehouses,
     auditLogCount,
     loadAll,
     saveSection,
+    uploadCompanyLogo,
     refreshAuditLogs,
-  } = useSettings({ hydrateFromApi, getSectionPayload, showToast });
+  } = useSettings({
+    hydrateFromApi,
+    getSectionPayload,
+    showToast,
+  });
 
   const selectSection = (section) => {
     setActiveSection(section);
@@ -60,14 +66,14 @@ export default function Settings() {
       case "audit":
         return <AuditSettings form={form} setField={setField} auditLogCount={auditLogCount} onSave={saveSection} saving={savingSection === "audit"} />;
       default:
-        return <div className="st-card" style={{background:"#fff",border:"1px solid #e4e7ef",borderRadius:12,padding:48,textAlign:"center",color:"#9aa1b4",fontSize:13}}>This section is coming soon.</div>;
+        return <div className="st-card" style={{ background: "#fff", border: "1px solid #e4e7ef", borderRadius: 12, padding: 48, textAlign: "center", color: "#9aa1b4", fontSize: 13 }}>This section is coming soon.</div>;
     }
   };
 
   const activeNavItem = NAV_ITEMS.find((item) => item.key === activeSection);
 
   return (
-    <div style={{ fontFamily:"Inter,system-ui,sans-serif", fontSize:13, color:"#1e2740" }}>
+    <div style={{ fontFamily: "Inter,system-ui,sans-serif", fontSize: 13, color: "#1e2740" }}>
       <Toast msg={toast} />
       <style>{`
         .st-layout { display:grid; grid-template-columns:250px minmax(0,1fr) 280px; gap:16px; align-items:start; }
@@ -92,23 +98,32 @@ export default function Settings() {
         }
       `}</style>
 
-      <div className="st-page" style={{ paddingBottom:0 }}>
-        <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:22, fontWeight:700, margin:0, lineHeight:1.2 }}>Settings</h1>
-          <p style={{ color:"#6b7591", fontSize:12.5, margin:"4px 0 0" }}>Manage system configuration and preferences.</p>
+      <div className="st-page" style={{ paddingBottom: 0 }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>Settings</h1>
+          <p style={{ color: "#6b7591", fontSize: 12.5, margin: "4px 0 0" }}>Manage system configuration and preferences.</p>
         </div>
 
-        {loadError && <div style={{background:"#fff5f5",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:10,padding:"10px 16px",marginBottom:16,fontSize:12.5,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}><span>Couldn't load live settings: {loadError}</span><button type="button" onClick={loadAll} style={{border:"1px solid #fecaca",background:"#fff",color:"#b91c1c",borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Retry</button></div>}
+        {loadError && <div style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 10, padding: "10px 16px", marginBottom: 16, fontSize: 12.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}><span>Couldn't load live settings: {loadError}</span><button type="button" onClick={loadAll} style={{ border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Retry</button></div>}
 
-        <button className="st-navmobile-toggle" type="button" onClick={()=>setNavOpen((v)=>!v)} style={{alignItems:"center",justifyContent:"space-between",width:"100%",padding:"12px 16px",marginBottom:12,background:"#fff",border:"1px solid #e4e7ef",borderRadius:10,fontFamily:"inherit",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",gap:10}}><span style={{color:"#4f6ef7"}}>{activeNavItem?.icon}</span><span style={{fontSize:13.5,fontWeight:600,color:"#1e2740"}}>{activeNavItem?.label}</span></span><span>⌄</span></button>
+        <button className="st-navmobile-toggle" type="button" onClick={() => setNavOpen((v) => !v)} style={{ alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", marginBottom: 12, background: "#fff", border: "1px solid #e4e7ef", borderRadius: 10, fontFamily: "inherit", cursor: "pointer" }}><span style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ color: "#4f6ef7" }}>{activeNavItem?.icon}</span><span style={{ fontSize: 13.5, fontWeight: 600, color: "#1e2740" }}>{activeNavItem?.label}</span></span><span>⌄</span></button>
 
         <div className="st-layout">
           <SettingsSidebar activeSection={activeSection} onChange={selectSection} navOpen={navOpen} />
-          <div style={{ minWidth:0 }}>
-            {loading ? <div style={{background:"#fff",border:"1px solid #e4e7ef",borderRadius:12,padding:48,textAlign:"center",color:"#9aa1b4"}}>Loading settings…</div> : renderSection()}
+          <div style={{ minWidth: 0 }}>
+            {loading ? <div style={{ background: "#fff", border: "1px solid #e4e7ef", borderRadius: 12, padding: 48, textAlign: "center", color: "#9aa1b4" }}>Loading settings…</div> : renderSection()}
           </div>
-          <SettingsRightPanel form={form} warehouses={warehouses} auditLogCount={auditLogCount} onViewLogs={refreshAuditLogs} showToast={showToast} />
-        </div>
+          <SettingsRightPanel
+            form={form}
+            warehouses={warehouses}
+            auditLogCount={auditLogCount}
+            onViewLogs={refreshAuditLogs}
+            showToast={showToast}
+            onUploadCompanyLogo={
+              uploadCompanyLogo
+            }
+            uploadingLogo={uploadingLogo}
+          />        </div>
       </div>
     </div>
   );

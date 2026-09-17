@@ -359,4 +359,17 @@ export const api = {
 
   scheduleMaintenance: (body) =>
     unwrap(apiClient.post("/maintenance", body)),
+
+uploadCompanyLogo: (file) => {
+  const formData = new FormData();
+
+  formData.append("logo", file);
+
+  return unwrap(
+    apiClient.post(
+      "/settings/company-logo",
+      formData,
+    ),
+  );
+},
 };
