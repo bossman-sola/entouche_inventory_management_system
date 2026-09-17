@@ -360,16 +360,24 @@ export const api = {
   scheduleMaintenance: (body) =>
     unwrap(apiClient.post("/maintenance", body)),
 
-uploadCompanyLogo: (file) => {
-  const formData = new FormData();
+  uploadCompanyLogo: (file) => {
+    const formData = new FormData();
 
-  formData.append("logo", file);
+    formData.append("logo", file);
 
-  return unwrap(
-    apiClient.post(
-      "/settings/company-logo",
-      formData,
-    ),
-  );
-},
+    return unwrap(
+      apiClient.post(
+        "/settings/company-logo",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
+      ),
+    );
+  },
+
+  getBranding: () =>
+  unwrap(apiClient.get("/branding")),
 };

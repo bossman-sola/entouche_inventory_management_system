@@ -52,7 +52,7 @@ export function useSettings({
 
       if (
         settingsRes.status ===
-          "fulfilled" &&
+        "fulfilled" &&
         settingsRes.value
       ) {
         hydrateFromApi(
@@ -64,7 +64,7 @@ export function useSettings({
       ) {
         setLoadError(
           settingsRes.reason?.message ||
-            "Failed to load settings",
+          "Failed to load settings",
         );
       }
 
@@ -83,17 +83,17 @@ export function useSettings({
         const count = Array.isArray(val)
           ? val.length
           : (
-              val?.total ??
-              val?.data?.length ??
-              null
-            );
+            val?.total ??
+            val?.data?.length ??
+            null
+          );
 
         setAuditLogCount(count);
       }
     } catch (error) {
       setLoadError(
         error.message ||
-          "Failed to load settings",
+        "Failed to load settings",
       );
     } finally {
       setLoading(false);
@@ -131,8 +131,7 @@ export function useSettings({
       );
     } catch (error) {
       showToast?.(
-        `Couldn't save settings: ${
-          error.message
+        `Couldn't save settings: ${error.message
         }`,
       );
     } finally {
@@ -172,11 +171,22 @@ export function useSettings({
 
       return result;
     } catch (error) {
+      console.error(
+        "Company logo upload failed:",
+        {
+          message: error?.message,
+          status: error?.status,
+          errors: error?.errors,
+        },
+      );
+
+      const validationMessage =
+        error?.errors?.logo?.[0];
+
       showToast?.(
-        `Couldn't update company logo: ${
-          error?.message ||
-          "Upload failed"
-        }`,
+        validationMessage ||
+        error?.message ||
+        "Company logo upload failed",
       );
 
       throw error;
@@ -194,24 +204,22 @@ export function useSettings({
         const count = Array.isArray(res)
           ? res.length
           : (
-              res?.total ??
-              res?.data?.length ??
-              0
-            );
+            res?.total ??
+            res?.data?.length ??
+            0
+          );
 
         setAuditLogCount(count);
 
         showToast?.(
-          `${count} audit log entr${
-            count === 1
-              ? "y"
-              : "ies"
+          `${count} audit log entr${count === 1
+            ? "y"
+            : "ies"
           } recorded`,
         );
       } catch (error) {
         showToast?.(
-          `Couldn't load audit logs: ${
-            error.message
+          `Couldn't load audit logs: ${error.message
           }`,
         );
       }

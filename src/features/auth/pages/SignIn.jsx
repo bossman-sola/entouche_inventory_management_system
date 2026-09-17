@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import inventoryIllustration from "../../../assets/images/inventory-illustration.png";
+import { api } from "../../../shared/api/entoucheApi";
 
 const IconMail = (props) => (
   <svg
@@ -142,6 +143,40 @@ function SignIn() {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [companyLogo, setCompanyLogo] = useState("");
+  const [companyName, setCompanyName] = useState("Entouche");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadBranding = async () => {
+      try {
+        const branding = await api.getBranding();
+
+        if (!mounted) return;
+
+        setCompanyLogo(
+          branding?.company_logo || ""
+        );
+
+        setCompanyName(
+          branding?.company_name || "Entouche"
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load company branding:",
+          error
+        );
+      }
+    };
+
+    loadBranding();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const { login, error } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -166,12 +201,23 @@ function SignIn() {
       <div className="hidden lg:flex lg:w-[40%] xl:w-[38%] relative bg-[#0b1120] text-white flex-col justify-between overflow-hidden px-12 py-14">
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
-              <IconBox className="h-5 w-5 text-white" />
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden ${companyLogo ? "bg-white" : "bg-blue-600"
+                }`}
+            >
+              {companyLogo ? (
+                <img
+                  src={companyLogo}
+                  alt={`${companyName} logo`}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <IconBox className="h-5 w-5 text-white" />
+              )}
             </div>
             <div>
               <p className="text-lg font-bold leading-tight">
-                Entouche<span className="text-blue-500"></span>
+                {companyName}
               </p>
               <p className="text-xs text-slate-400">
                 Enterprise inventory management
@@ -230,7 +276,7 @@ function SignIn() {
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
             <p className="mt-2 text-sm text-gray-500">
-              Sign in to your Entouche account
+              Sign in to your {companyName} account
             </p>
           </div>
 
@@ -336,9 +382,18 @@ function SignIn() {
             </div>
           </div>
 
-          <p className="mt-6 text-center text-xs text-gray-400">
-            © {new Date().getFullYear()} InventoryPro. All rights reserved.
-          </p>
+          <div className="mt-6 text-center text-xs text-gray-400">
+            <p>
+              © {new Date().getFullYear()} {companyName}. All rights reserved.
+            </p>
+
+            <p className="mt-1">
+              Designed &amp; developed by{" "}
+              <span className="font-semibold text-gray-500">
+                Skiplab Innovation
+              </span>
+            </p>
+          </div>
         </div>
       </div>
     </div>

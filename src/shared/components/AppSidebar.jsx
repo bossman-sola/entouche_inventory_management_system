@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
@@ -13,10 +13,60 @@ import UsersIcon from "../../assets/icons/Users.svg?react";
 import WarehouseIcon from "../../assets/icons/Warehouse.svg?react";
 import AuditIcon from "../../assets/icons/Audit.svg?react";
 import SettingsIcon from "../../assets/icons/Settings.svg?react";
+import { api } from "../../shared/api/entoucheApi";
 
 export default function AppSidebar({ collapsed, setCollapsed }) {
   const [inventoryOpen, setInventoryOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
+
+  const [companyLogo, setCompanyLogo] = useState("");
+  const [companyName, setCompanyName] = useState("Entouche");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadBranding = async () => {
+      try {
+        const settings = await api.listSettings();
+
+        if (!mounted || !settings) {
+          return;
+        }
+
+        const flat = {};
+
+        Object.values(settings).forEach((group) => {
+          if (!Array.isArray(group)) {
+            return;
+          }
+
+          group.forEach((setting) => {
+            flat[setting.key] = setting.value;
+          });
+        });
+
+        setCompanyLogo(
+          flat["company.logo"] || "",
+        );
+
+        setCompanyName(
+          flat["general.company_name"] ||
+          "Entouche",
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load company branding:",
+          error,
+        );
+      }
+    };
+
+    loadBranding();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <motion.aside
@@ -25,13 +75,28 @@ export default function AppSidebar({ collapsed, setCollapsed }) {
       className="bg-[#1E2740] text-white flex flex-col h-full z-20 flex-shrink-0"
     >
       <div className="p-5 flex items-center gap-3 overflow-hidden whitespace-nowrap border-b border-slate-700/20">
-        <div className="min-w-[32px] h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center shadow-inner">
-          <Logo className="text-white w-4 h-4" />
+        <div className={`min-w-[32px] w-8 h-8 rounded-lg flex items-center justify-center shadow-inner overflow-hidden ${companyLogo ? "bg-white" : "bg-[#4F46E5]"
+          }`}>
+          {companyLogo ? (
+            <img
+              src={companyLogo}
+              alt={`${companyName} logo`}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <Logo className="text-white w-4 h-4" />
+          )}
         </div>
+
         {!collapsed && (
-          <div className="flex flex-col">
-            <span className="font-bold text-base leading-tight tracking-tight">Entouche</span>
-            <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">Enterprise Inventory</span>
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-base leading-tight tracking-tight truncate">
+              {companyName}
+            </span>
+
+            <span className="text-[9px] text-[#6B7591] font-semibold tracking-wider">
+              Enterprise Inventory
+            </span>
           </div>
         )}
       </div>
@@ -120,8 +185,7 @@ function SidebarLink({ to, icon, label, collapsed, end = false }) {
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group ${
-          isActive ? "bg-[#4F46E5] text-white shadow-xl shadow-indigo-900/40" : "text-[#6B7591] hover:bg-slate-800 hover:text-white"
+        `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative group ${isActive ? "bg-[#4F46E5] text-white shadow-xl shadow-indigo-900/40" : "text-[#6B7591] hover:bg-slate-800 hover:text-white"
         }`
       }
     >
