@@ -1,14 +1,10 @@
 import axios from "axios";
 
-const STAGING_URL =
-  "https://entouche-staging-api-16910c236bc5.herokuapp.com/api/v1";
+export const BASE_URL = import.meta.env.VITE_API_URL;
 
-const PRODUCTION_URL =
-  "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
-
-export const BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? STAGING_URL : PRODUCTION_URL);
+if (!BASE_URL) {
+  throw new Error("VITE_API_URL is not configured");
+}
 
 /*
  * Use the same storage key everywhere in the application.

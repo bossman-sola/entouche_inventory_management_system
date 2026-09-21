@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
-export const BASE_URL =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV
-    ? "https://entouche-staging-api-16910c236bc5.herokuapp.com"
-    : "https://entouche-production-api-8db0aeb1236f.herokuapp.com");
+export const BASE_URL = import.meta.env.VITE_API_URL;
+
+if (!BASE_URL) {
+  throw new Error("VITE_API_URL is not configured");
+}
 
 const DEFAULT_EMAIL = "admin@inventory.local";
 const DEFAULT_PASSWORD = "Admin@1234";
@@ -533,7 +533,7 @@ export default function AuditLogs() {
     setAuthStatus("connecting");
     setAuthError("");
     try {
-      const json = await apiFetch("/api/v1/auth/login", {
+      const json = await apiFetch("/auth/login", {
         method: "POST",
         body: { email, password },
       });

@@ -1,4 +1,4 @@
-const API_BASE = "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export async function apiRequest(path, { method = "GET", token, body } = {}) {
   const res = await fetch(`${API_BASE}${path}`, {

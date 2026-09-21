@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 
-export const API_BASE = "https://entouche-production-api-8db0aeb1236f.herokuapp.com/api/v1";
+export const API_BASE = import.meta.env.VITE_API_URL;
 const DEFAULT_EMAIL = "admin@inventory.local";
 const DEFAULT_PASSWORD = "Admin@1234";
 
