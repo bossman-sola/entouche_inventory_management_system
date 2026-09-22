@@ -91,7 +91,7 @@ function SignIn() {
       await login({ email, password })
       navigate(redirectTo, { replace: true })
     } catch {
-    
+
     } finally {
       setIsSubmitting(false)
     }
@@ -99,10 +99,10 @@ function SignIn() {
 
   return (
     <div className="min-h-screen w-full flex bg-white">
-      
+
       {/* Left panel: narrower now so the form side can take more space */}
       <div className="hidden lg:flex lg:w-[40%] xl:w-[38%] relative bg-[#0b1120] text-white flex-col justify-between overflow-hidden px-12 py-14">
-      
+
 
         <div>
           <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ function SignIn() {
             </div>
           </div>
 
-          
+
           <h1 className="mt-10 text-4xl font-bold leading-tight">
             Smarter inventory.
             <br />
@@ -133,12 +133,12 @@ function SignIn() {
         <div className="relative -mx-2 flex flex-1 items-center justify-center py-6">
           <img
             src={inventoryIllustration}
-            alt="InventoryPro dashboard preview with a warehouse illustration"
+            alt="Entouche dashboard preview with a warehouse illustration"
             className="w-full max-w-md object-contain drop-shadow-2xl"
           />
         </div>
 
-        
+
         <div className="relative grid grid-cols-3 gap-6 pt-4">
           <div>
             <IconShield className="h-5 w-5 text-blue-500" />
@@ -164,7 +164,7 @@ function SignIn() {
         </div>
       </div>
 
-      
+
       {/* Right panel: now takes the remaining, larger share of the width */}
       <div className="flex flex-1 items-center justify-center px-6 py-12 sm:px-10 lg:px-16">
         <div className="w-full max-w-[420px]">
@@ -185,7 +185,7 @@ function SignIn() {
               </div>
             )}
 
-           
+
             <label htmlFor="email" className="block text-sm font-medium text-gray-800">
               Email address
             </label>
@@ -201,7 +201,7 @@ function SignIn() {
               />
             </div>
 
-           
+
             <label htmlFor="password" className="mt-5 block text-sm font-medium text-gray-800">
               Password
             </label>
@@ -225,7 +225,7 @@ function SignIn() {
               </button>
             </div>
 
-            
+
             <div className="mt-4 flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
@@ -241,7 +241,7 @@ function SignIn() {
               </a>
             </div>
 
-            
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -251,13 +251,13 @@ function SignIn() {
             </button>
           </form>
 
-         
+
           <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-gray-500">
             <IconShield className="h-3.5 w-3.5" />
             Your data is secure and encrypted
           </p>
 
-          
+
           <div className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <IconInfo className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" />
             <div>
@@ -269,7 +269,14 @@ function SignIn() {
           </div>
 
           <p className="mt-6 text-center text-xs text-gray-400">
-            © {new Date().getFullYear()} InventoryPro. All rights reserved.
+            <span>© {new Date().getFullYear()} Entouche. All rights reserved.</span>
+
+            <span className="mt-1 block">
+              Designed &amp; developed by{" "}
+              <strong className="font-semibold text-gray-500">
+                Skiplab Innovation
+              </strong>
+            </span>
           </p>
         </div>
       </div>
