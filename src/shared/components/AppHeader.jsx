@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, ChevronDown, HelpCircle, LogOut, Search, Settings as SettingsGear, User } from "lucide-react";
+import {
+  Bell, ChevronDown, HelpCircle, LogOut, Search, Settings as SettingsGear, User, BookOpen, Download,
+} from "lucide-react";
 import Notifications from "../layouts/Notifications";
+import userGuide from "../../assets/docs/entouche-ims-user-guide.pdf";
 
 export default function AppHeader({
   user,
@@ -24,13 +27,26 @@ export default function AppHeader({
   const [notifOpen, setNotifOpen] = useState(false);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
-      if (!dialogOpen && notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+
+      if (!dialogOpen && notifRef.current && !notifRef.current.contains(event.target)) {
+        setNotifOpen(false);
+      }
+
+      if (helpRef.current && !helpRef.current.contains(event.target)) {
+        setHelpOpen(false);
+      }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dialogOpen]);
 
@@ -85,7 +101,106 @@ export default function AppHeader({
           />
         </div>
 
-        <HelpCircle size={18} className="text-gray-500 cursor-pointer" />
+        <div className="relative" ref={helpRef}>
+          <button
+            type="button"
+            aria-label="Help and Support"
+            aria-expanded={helpOpen}
+            onClick={() => {
+              setHelpOpen((open) => !open);
+              setProfileOpen(false);
+              setNotifOpen(false);
+            }}
+            className={`p-2 rounded-full transition-colors cursor-pointer ${helpOpen
+              ? "bg-[#EEF2FF] text-[#4F6EF7]"
+              : "text-gray-500 hover:bg-gray-50"
+              }`}
+          >
+            <HelpCircle size={18} />
+          </button>
+
+          <AnimatePresence>
+            {helpOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="absolute right-0 top-[calc(100%+12px)] w-72 bg-white rounded-xl shadow-2xl border border-gray-100 z-30 origin-top-right overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-[13px] font-bold text-[#1E2740]">
+                    Help & Support
+                  </h3>
+                  <p className="text-[11px] text-[#6B7591] mt-1">
+                    Resources to help you use Entouche IMS.
+                  </p>
+                </div>
+
+                {/* Options */}
+                <div className="py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHelpOpen(false);
+                      window.open(userGuide, "_blank", "noopener,noreferrer");
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="w-9 h-9 bg-[#EEF2FF] rounded-lg flex items-center justify-center">
+                      <BookOpen size={18} className="text-[#4F6EF7]" />
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="text-[13px] font-semibold text-[#1E2740]">
+                        User Guide
+                      </p>
+                      <p className="text-[11px] text-[#6B7591]">
+                        View the IMS user manual
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHelpOpen(false);
+
+                      const link = document.createElement("a");
+                      link.href = userGuide;
+                      link.download = "Entouche_IMS_User_Guide.pdf";
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="w-9 h-9 bg-[#EEF2FF] rounded-lg flex items-center justify-center">
+                      <Download size={18} className="text-[#4F6EF7]" />
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="text-[13px] font-semibold text-[#1E2740]">
+                        Download Manual
+                      </p>
+                      <p className="text-[11px] text-[#6B7591]">
+                        Save a copy for offline use
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                  <p className="text-[10px] text-gray-400 text-center">
+                    Entouche Inventory Management System
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div className="relative" ref={profileRef}>
           <button type="button" onClick={() => setProfileOpen((open) => !open)} className="flex items-center gap-3 pl-4 border-l border-gray-200 cursor-pointer group">
