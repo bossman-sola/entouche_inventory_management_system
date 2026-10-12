@@ -3,18 +3,22 @@ import * as XLSX from "xlsx";
 import AddNewReceipt from "../components/AddNewReceipt";
 import ReceiptDetails from "../components/ReceiptDetails";
 import DateRangePicker from "../components/DateRangePicker";
-import {
+import { Upload } from "lucide-react";
+
+import { api } from "../../../shared/api/entoucheApi";
+import { mapApiReceipt, packReceiptNotes } from "../../../shared/api/mappers";
+
+const {
   listSuppliers,
   listReceipts,
   createReceipt,
   updateReceipt,
   deleteReceipt,
+  submitReceipt,
+  approveReceipt,
   receiveReceipt,
   cancelReceipt,
-  mapApiReceipt,
-  packReceiptNotes,
-} from "../../../lib/api.js";
-import { Upload } from "lucide-react";
+} = api;
 
 function parseNaira(str) {
   return Number(String(str).replace(/[₦,]/g, "")) || 0;
@@ -23,23 +27,57 @@ function fmtNaira(n) {
   return "₦" + Math.round(Number(n) || 0).toLocaleString("en-NG");
 }
 
-function fmtDateDisplay(iso) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-US", {
+function fmtDateDisplay(date) {
+  if (!date) return "-";
+
+  const dateOnly = String(date).slice(0, 10);
+  const [year, month, day] = dateOnly.split("-");
+
+  if (!year || !month || !day) {
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+    timeZone: "UTC",
+  }).format(
+    new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+      ),
+    ),
+  );
 }
 
 const statusStyle = {
-  Received: { bg: "#e6faf3", color: "#16a369" },
-  Draft: { bg: "#fff7ed", color: "#c27a0a" },
-  Cancelled: { bg: "#fff1f0", color: "#c0392b" },
+  Draft: {
+    bg: "#fff7ed",
+    color: "#c27a0a",
+  },
+
+  "Pending Approval": {
+    bg: "#fff7ed",
+    color: "#c27a0a",
+  },
+
+  Approved: {
+    bg: "#eef2ff",
+    color: "#4f6ef7",
+  },
+
+  Received: {
+    bg: "#e6faf3",
+    color: "#16a369",
+  },
+
+  Cancelled: {
+    bg: "#fff1f0",
+    color: "#c0392b",
+  },
 };
 
 const SearchSm = () => (
@@ -122,20 +160,7 @@ const DotsIcon = () => (
     <circle cx="12" cy="19" r="1" />
   </svg>
 );
-const DownloadIcon = () => (
-  <svg
-    width={14}
-    height={14}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="#5c657a"
-    strokeWidth={2}
-  >
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
+
 const PlusIcon = () => (
   <svg
     width={14}
@@ -323,12 +348,12 @@ export default function Receipts() {
   };
 
   useEffect(() => {
-    refreshReceipts();
+    (() => refreshReceipts())();
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setLoadingSuppliers(true);
+    (() => setLoadingSuppliers(true))();
     listSuppliers()
       .then((rows) => {
         if (!cancelled) setSupplierOptions(rows || []);
@@ -387,14 +412,61 @@ export default function Receipts() {
     }
   };
 
+  const handleSubmit = async (receipt) => {
+    setActioningId(receipt.id);
+    setActionError("");
+
+    try {
+      await submitReceipt(receipt.id);
+
+      await refreshReceipts();
+
+      setDetailsReceipt(null);
+    } catch (err) {
+      setActionError(
+        err.message ||
+        "Failed to submit this receipt.",
+      );
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleApprove = async (receipt) => {
+    setActioningId(receipt.id);
+    setActionError("");
+
+    try {
+      await approveReceipt(receipt.id);
+
+      await refreshReceipts();
+
+      setDetailsReceipt(null);
+    } catch (err) {
+      setActionError(
+        err.message ||
+        "Failed to approve this receipt.",
+      );
+    } finally {
+      setActioningId(null);
+    }
+  };
+
   const handleReceive = async (receipt) => {
     setActioningId(receipt.id);
     setActionError("");
+
     try {
       await receiveReceipt(receipt.id);
+
       await refreshReceipts();
+
+      setDetailsReceipt(null);
     } catch (err) {
-      setActionError(err.message || "Failed to receive this receipt.");
+      setActionError(
+        err.message ||
+        "Failed to receive this receipt.",
+      );
     } finally {
       setActioningId(null);
     }
@@ -529,8 +601,13 @@ export default function Receipts() {
       <ReceiptDetails
         isOpen={!!detailsReceipt}
         receipt={detailsReceipt}
-        onClose={() => setDetailsReceipt(null)}
+        onClose={() =>
+          setDetailsReceipt(null)
+        }
         onEdit={openEditReceiptModal}
+        onSubmit={handleSubmit}
+        onApprove={handleApprove}
+        onReceive={handleReceive}
       />
 
       {/* Page Header */}
@@ -919,7 +996,14 @@ export default function Receipts() {
                 fontFamily: "inherit",
               }}
             >
-              {["All Statuses", "Draft", "Received", "Cancelled"].map((s) => (
+              {[
+                "All Statuses",
+                "Draft",
+                "Pending Approval",
+                "Approved",
+                "Received",
+                "Cancelled",
+              ].map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -1208,7 +1292,7 @@ export default function Receipts() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {r.supplier ?? '-'}
+                        {r.supplier ?? "-"}
                       </td>
                       <td
                         style={{
@@ -1235,7 +1319,7 @@ export default function Receipts() {
                           fontWeight: 500,
                         }}
                       >
-                        {r.received_by || '-'}
+                        {r.received_by || "-"}
                       </td>
                       <td
                         style={{
@@ -1361,8 +1445,8 @@ export default function Receipts() {
                                 (e.currentTarget.style.background = "#f4f6fb")
                               }
                               onMouseLeave={(e) =>
-                                (e.currentTarget.style.background =
-                                  "transparent")
+                              (e.currentTarget.style.background =
+                                "transparent")
                               }
                             >
                               <EyeIcon /> View Details
@@ -1386,11 +1470,65 @@ export default function Receipts() {
                                   (e.currentTarget.style.background = "#f4f6fb")
                                 }
                                 onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
+                                (e.currentTarget.style.background =
+                                  "transparent")
                                 }
                               >
                                 Edit Receipt
+                              </div>
+                            )}
+
+                            {r.canSubmit && (
+                              <div
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  handleSubmit(r);
+                                }}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 6,
+                                  cursor: "pointer",
+                                  fontSize: 12.5,
+                                  color: "#4f6ef7",
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) =>
+                                (e.currentTarget.style.background =
+                                  "#f4f6fb")
+                                }
+                                onMouseLeave={(e) =>
+                                (e.currentTarget.style.background =
+                                  "transparent")
+                                }
+                              >
+                                Submit for Approval
+                              </div>
+                            )}
+
+                            {r.canApprove && (
+                              <div
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  handleApprove(r);
+                                }}
+                                style={{
+                                  padding: "8px 10px",
+                                  borderRadius: 6,
+                                  cursor: "pointer",
+                                  fontSize: 12.5,
+                                  color: "#16a369",
+                                  fontWeight: 500,
+                                }}
+                                onMouseEnter={(e) =>
+                                (e.currentTarget.style.background =
+                                  "#f4f6fb")
+                                }
+                                onMouseLeave={(e) =>
+                                (e.currentTarget.style.background =
+                                  "transparent")
+                                }
+                              >
+                                Approve Receipt
                               </div>
                             )}
 
@@ -1412,8 +1550,8 @@ export default function Receipts() {
                                   (e.currentTarget.style.background = "#f4f6fb")
                                 }
                                 onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
+                                (e.currentTarget.style.background =
+                                  "transparent")
                                 }
                               >
                                 Receive Stock
@@ -1438,8 +1576,8 @@ export default function Receipts() {
                                   (e.currentTarget.style.background = "#f4f6fb")
                                 }
                                 onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
+                                (e.currentTarget.style.background =
+                                  "transparent")
                                 }
                               >
                                 Cancel Receipt
@@ -1464,8 +1602,8 @@ export default function Receipts() {
                                   (e.currentTarget.style.background = "#f4f6fb")
                                 }
                                 onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
+                                (e.currentTarget.style.background =
+                                  "transparent")
                                 }
                               >
                                 Delete Receipt

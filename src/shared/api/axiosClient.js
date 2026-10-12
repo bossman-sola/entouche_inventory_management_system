@@ -6,10 +6,6 @@ if (!BASE_URL) {
   throw new Error("VITE_API_URL is not configured");
 }
 
-/*
- * Use the same storage key everywhere in the application.
- * Your other API helper already uses "entouche_access_token".
- */
 const ACCESS_TOKEN_KEY = "entouche_access_token";
 
 export const tokenStorage = {

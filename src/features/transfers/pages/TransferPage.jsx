@@ -1,28 +1,51 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { useAccessToken } from "../api/Client.js";
+
 import { useWarehouseLocations } from "../hooks/useWarehouseLocations.js";
+import { useItemsUsers } from "../hooks/useItemsUsers.js";
 import { useTransfers } from "../hooks/useTransfers.js";
+
 import { Icon, icons } from "../components/icons.jsx";
-import { Spinner } from "../components/ui.jsx";
 import NewTransferModal from "../components/NewTransferModal.jsx";
 import TransferFiltersBar from "../components/TransferFiltersBar.jsx";
 import TransferTable from "../components/TransferTable.jsx";
 import TransferSidebar from "../components/TransferSidebar.jsx";
 import TransferDetailsModal from "../components/TransferDetailsModal.jsx";
+import {
+  getTransfer,
+} from "../api/TransfersApi.js";
 
 export default function TransfersPage() {
-  const { token, user, status: authStatus, error: authError, retry: retryLogin } = useAccessToken();
-  const { locations, loading: locationsLoading, error: locationsError } = useWarehouseLocations(token);
   const {
-    transfers, loading: transfersLoading, error: transfersError,
-    createTransfer, submitTransfer, approveTransfer, rejectTransfer,
-    completeTransfer, cancelTransfer, removeTransfer,
-  } = useTransfers(token);
+    locations,
+    loading: locationsLoading,
+    error: locationsError,
+  } = useWarehouseLocations();
+
+  const {
+    items,
+    users,
+    loading: itemsUsersLoading,
+    error: itemsUsersError,
+  } = useItemsUsers();
+
+  const {
+    transfers,
+    loading: transfersLoading,
+    error: transfersError,
+    createTransfer,
+    submitTransfer,
+    approveTransfer,
+    rejectTransfer,
+    completeTransfer,
+    cancelTransfer,
+    removeTransfer,
+  } = useTransfers();
+
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedTransfer, setSelectedTransfer] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [selectedTransfer, setSelectedTransfer] = useState(null);
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -32,7 +55,44 @@ export default function TransfersPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
-  const setDateRange = (start, end) => { setDateStart(start); setDateEnd(end); setPage(1); };
+  const setDateRange = (start, end) => {
+    setDateStart(start);
+    setDateEnd(end);
+    setPage(1);
+  };
+
+  const locationsById = useMemo(
+    () =>
+      new Map(
+        locations.map((location) => [
+          String(location.id),
+          location,
+        ])
+      ),
+    [locations]
+  );
+
+  const itemsById = useMemo(
+    () =>
+      new Map(
+        items.map((item) => [
+          String(item.id),
+          item,
+        ])
+      ),
+    [items]
+  );
+
+  const usersById = useMemo(
+    () =>
+      new Map(
+        users.map((user) => [
+          String(user.id),
+          user,
+        ])
+      ),
+    [users]
+  );
 
   const filtered = transfers.filter(t => {
     if (fromFilter && String(t.from_location?.id) !== fromFilter) return false;
@@ -80,6 +140,24 @@ export default function TransfersPage() {
     XLSX.writeFile(workbook, "transfers.xlsx");
   };
 
+  const handleSelectTransfer = async (transfer) => {
+    if (!transfer?.id) return;
+
+    try {
+      const fullTransfer = await getTransfer(transfer.id);
+
+      setSelectedTransfer(fullTransfer);
+    } catch (error) {
+      console.error(
+        "Failed to load transfer details:",
+        error
+      );
+
+      // fallback to the row data
+      setSelectedTransfer(transfer);
+    }
+  };
+
   // Keep the modal's transfer in sync with the underlying list (e.g. after
   // an action mutates status) by always looking it up fresh from `transfers`.
   const activeTransfer = selectedTransfer
@@ -116,22 +194,19 @@ export default function TransfersPage() {
         </div>
 
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {authStatus === "connecting" && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
-              <Spinner size={13} /> Connecting to API…
-            </span>
-          )}
-          {authStatus === "error" && (
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
-              <Icon d={icons.lock} size={13} /> {authError || "Could not connect to the API."}
-              <button onClick={() => retryLogin()} className="ml-1 underline">Retry</button>
-            </div>
-          )}
-          {authStatus === "ok" && (locationsError || transfersError) && (
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex-wrap">
-              <Icon d={icons.alert} size={13} /> {locationsError || transfersError}
-            </div>
-          )}
+          {(
+            locationsError ||
+            itemsUsersError ||
+            transfersError
+          ) && (
+              <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <Icon d={icons.alert} size={13} />
+
+                {locationsError ||
+                  itemsUsersError ||
+                  transfersError}
+              </div>
+            )}
         </div>
 
         {/* <TransferStatsCards transfers={transfers} /> */}
@@ -155,8 +230,18 @@ export default function TransfersPage() {
           perPage={perPage}
           setPage={setPage}
           setPerPage={setPerPage}
-          loading={transfersLoading && transfers.length === 0}
-          onSelectTransfer={setSelectedTransfer}
+
+          loading={
+            transfersLoading ||
+            locationsLoading ||
+            itemsUsersLoading
+          }
+
+          locationsById={locationsById}
+          itemsById={itemsById}
+          usersById={usersById}
+
+          onSelectTransfer={handleSelectTransfer}
           onSubmit={submitTransfer}
           onApprove={approveTransfer}
           onReject={rejectTransfer}
@@ -176,16 +261,22 @@ export default function TransfersPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
-        token={token}
         locations={locations}
         locationsLoading={locationsLoading}
         locationsError={locationsError}
+        items={items}
+        itemsLoading={itemsUsersLoading}
       />
 
       <TransferDetailsModal
         open={!!selectedTransfer}
         onClose={() => setSelectedTransfer(null)}
-        transfer={activeTransfer}
+        transfer={selectedTransfer}
+
+        locationsById={locationsById}
+        itemsById={itemsById}
+        usersById={usersById}
+
         onSubmit={submitTransfer}
         onApprove={approveTransfer}
         onReject={rejectTransfer}

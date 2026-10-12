@@ -14,7 +14,7 @@ const UserCreatedDialog = ({
   isOpen,
   onClose,
   user = {},
-  details = {},
+  loading = false,
   onViewUser,
   onAddAnotherUser,
 }) => {
@@ -74,31 +74,100 @@ const UserCreatedDialog = ({
         </div>
       </div>
 
-      {/* User details */}
-      <div className="mt-5">
-        <div className="text-[13.5px] font-bold text-[#1E2740] mb-3">User Details</div>
-        <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-          <InfoField label="User ID" value={details.userId} />
-          <InfoField label="Username" value={details.username} />
-          <InfoField label="Role" value={details.role} />
-          <InfoField label="Status" value={<Pill tone={STATUS_TONE[details.status] || "green"}>{details.status || "Active"}</Pill>} />
-          <InfoField label="Department" value={details.department} />
-          <InfoField label="Date Created" value={details.dateCreated} />
-          <InfoField label="Warehouse Access" value={details.warehouseAccess} />
-          <InfoField label="Last Login" value={details.lastLogin || "Never"} />
-          <InfoField label="Created By" value={<>{details.createdBy}{details.createdByRole && <span className="text-gray-400 font-medium"> ({details.createdByRole})</span>}</>} />
-          <InfoField
-            label="Temporary Password"
-            value={
-              <span className="flex items-center gap-1.5 text-indigo-600">
-                <KeyRound size={13} />
-                {details.temporaryPassword || "—"}
-              </span>
-            }
-          />
+      {loading ? (
+        <div className="py-10 text-center text-sm text-gray-500">
+          Loading user details...
         </div>
-      </div>
+      ) : (
+        <>
+          {/* User details */}
+          <div className="mt-5">
+            <div className="text-[13.5px] font-bold text-[#1E2740] mb-3">
+              User Details
+            </div>
 
+            <div className="grid grid-cols-2 gap-x-10 gap-y-4">
+              <InfoField
+                label="User ID"
+                value={user?.id ?? "—"}
+              />
+
+              <InfoField
+                label="Name"
+                value={user?.name ?? "—"}
+              />
+
+              <InfoField
+                label="Email"
+                value={user?.email ?? "—"}
+              />
+
+              <InfoField
+                label="Phone"
+                value={user?.phone ?? "—"}
+              />
+
+              <InfoField
+                label="Role"
+                value={
+                  user?.roles?.length
+                    ? user.roles
+                      .map((role) =>
+                        role.name
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (char) =>
+                            char.toUpperCase()
+                          )
+                      )
+                      .join(", ")
+                    : "—"
+                }
+              />
+
+              <InfoField
+                label="Status"
+                value={
+                  <Pill
+                    tone={
+                      user?.status === "active"
+                        ? "green"
+                        : "gray"
+                    }
+                  >
+                    {user?.status
+                      ? user.status.charAt(0).toUpperCase() +
+                      user.status.slice(1)
+                      : "—"}
+                  </Pill>
+                }
+              />
+
+              <InfoField
+                label="Date Created"
+                value={
+                  user?.created_at
+                    ? new Date(
+                      user.created_at
+                    ).toLocaleString()
+                    : "—"
+                }
+              />
+
+              <InfoField
+                label="Last Updated"
+                value={
+                  user?.updated_at
+                    ? new Date(
+                      user.updated_at
+                    ).toLocaleString()
+                    : "—"
+                }
+              />
+            </div>
+          </div>
+        </>
+      )}
+      
       <Banner tone="blue" className="mt-5 flex items-center gap-2.5">
         <Info size={15} className="flex-shrink-0" />
         <span>An email has been sent to the user with login credentials and instructions to access the system.</span>

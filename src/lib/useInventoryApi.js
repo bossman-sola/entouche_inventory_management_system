@@ -1,110 +1,491 @@
-import { useState, useCallback, useEffect } from "react";
 import {
-  login as apiLogin,
-  setAccessToken,
-  getAccessToken,
-  getCurrentUser,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  api,
+  fetchAllPages,
+} from "../shared/api/entoucheApi";
+
+import apiClient, {
+  tokenStorage,
+} from "../shared/api/axiosClient";
+
+import { normalizeName } from "./parsers";
+
+
+const {
+  login: apiLogin,
+  me: apiMe,
   listCategories,
   listUnits,
   listUsers,
   listWarehouses,
-  fetchAllPages,
-  requestRaw,
-} from "./api";
-import { normalizeName } from "./parsers";
+} = api;
 
-const DEFAULT_EMAIL = "admin@inventory.local";
-const DEFAULT_PASSWORD = "Admin@1234";
 
-export function useInventoryApi() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authStatus, setAuthStatus] = useState("connecting");
-  const [authError, setAuthError] = useState("");
+/* =========================================================
+   ERROR HELPER
+========================================================= */
 
-  const [categories, setCategories] = useState([]);
-  const [units, setUnits] = useState([]);
-  const [existingUsers, setExistingUsers] = useState([]);
-  const [items, setItems] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [itemsTotal, setItemsTotal] = useState(null);
-  const [usersTotal, setUsersTotal] = useState(null);
-  const [refLoading, setRefLoading] = useState(false);
+function getErrorMessage(
+  err,
+  fallback
+) {
+  return (
+    err?.response?.data?.message ||
+    err?.message ||
+    fallback
+  );
+}
 
-  // Loads all reference data. Callers invoke this only after auth succeeds,
-  // so no authStatus guard is needed and the callback has no reactive deps.
-  const loadReferenceData = useCallback(async () => {
-    setRefLoading(true);
-    try {
-      const [cats, uns, usersList, usersMeta, itemsList, whs] = await Promise.all([
-        listCategories(),
-        listUnits(),
-        listUsers(),
-        requestRaw("/users", { params: { per_page: 1 } }),
-        fetchAllPages("/items"),
-        listWarehouses(),
-      ]);
-      setCategories(cats || []);
-      setUnits(uns || []);
-      setExistingUsers(usersList || []);
-      setItems(itemsList || []);
-      setWarehouses(whs || []);
-      setItemsTotal(itemsList ? itemsList.length : null);
-      setUsersTotal(usersMeta?.meta?.total ?? (usersList ? usersList.length : null));
-    } catch (err) {
-      setAuthError(err.message || "Failed to load reference data");
-    } finally {
-      setRefLoading(false);
-    }
-  }, []);
 
-  const login = useCallback(async (email, password) => {
-    setAuthStatus("connecting");
-    setAuthError("");
-    try {
-      const data = await apiLogin(email, password);
-      setAccessToken(data.access_token);
-      setCurrentUser(data.user);
-      setAuthStatus("ok");
-      loadReferenceData(); // chained directly after successful auth
-    } catch (err) {
-      setAuthStatus("error");
-      setAuthError(err.message || "Could not reach the API");
-    }
-  }, [loadReferenceData]);
+/* =========================================================
+   FETCH REFERENCE DATA
+========================================================= */
 
-  // Mount: validate stored token, or fall back to default login.
-  useEffect(() => {
-    (async () => {
-      const existingToken = getAccessToken();
-      if (existingToken) {
-        try {
-          const user = await getCurrentUser();
-          setCurrentUser(user);
-          setAuthStatus("ok");
-          loadReferenceData(); // chained here too
-          return;
-        } catch {
-          setAccessToken(null);
-        }
-      }
-      login(DEFAULT_EMAIL, DEFAULT_PASSWORD);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+async function fetchReferenceData() {
+  const [
+    categories,
+    units,
+    usersList,
+    usersMeta,
+    itemsList,
+    warehouses,
+  ] = await Promise.all([
+    listCategories(),
 
-  const refData = {
-    categories: new Map(categories.map(c => [normalizeName(c.name), c])),
-    units: new Map(units.map(u => [normalizeName(u.name), u])),
-    userEmails: new Set(existingUsers.map(u => u.email.toLowerCase())),
-    itemsBySku: new Map(
-      items.filter(it => it.sku).map(it => [normalizeName(it.sku), it])
-    ),
-  };
+    listUnits(),
+
+    listUsers(),
+
+    apiClient
+      .get("/users", {
+        params: {
+          per_page: 1,
+        },
+      })
+      .then((response) =>
+        response.data
+      ),
+
+    fetchAllPages("/items"),
+
+    listWarehouses(),
+  ]);
 
   return {
-    currentUser, authStatus, authError, login,
-    refData, warehouses, itemsTotal, usersTotal, refLoading, loadReferenceData,
+    categories:
+      Array.isArray(categories)
+        ? categories
+        : [],
+
+    units:
+      Array.isArray(units)
+        ? units
+        : [],
+
+    users:
+      Array.isArray(usersList)
+        ? usersList
+        : [],
+
+    items:
+      Array.isArray(itemsList)
+        ? itemsList
+        : [],
+
+    warehouses:
+      Array.isArray(warehouses)
+        ? warehouses
+        : [],
+
+    usersTotal:
+      usersMeta?.meta?.total ??
+      (
+        Array.isArray(usersList)
+          ? usersList.length
+          : null
+      ),
+
+    itemsTotal:
+      Array.isArray(itemsList)
+        ? itemsList.length
+        : null,
   };
 }
 
-export { DEFAULT_EMAIL, DEFAULT_PASSWORD };
+
+/* =========================================================
+   HOOK
+========================================================= */
+
+export function useInventoryApi() {
+  const [
+    currentUser,
+    setCurrentUser,
+  ] = useState(null);
+
+  const [
+    authStatus,
+    setAuthStatus,
+  ] = useState("connecting");
+
+  const [
+    authError,
+    setAuthError,
+  ] = useState("");
+
+
+  const [
+    categories,
+    setCategories,
+  ] = useState([]);
+
+  const [
+    units,
+    setUnits,
+  ] = useState([]);
+
+  const [
+    existingUsers,
+    setExistingUsers,
+  ] = useState([]);
+
+  const [
+    items,
+    setItems,
+  ] = useState([]);
+
+  const [
+    warehouses,
+    setWarehouses,
+  ] = useState([]);
+
+  const [
+    itemsTotal,
+    setItemsTotal,
+  ] = useState(null);
+
+  const [
+    usersTotal,
+    setUsersTotal,
+  ] = useState(null);
+
+  const [
+    refLoading,
+    setRefLoading,
+  ] = useState(false);
+
+
+  /* =======================================================
+     APPLY REFERENCE DATA
+  ======================================================= */
+
+  const applyReferenceData =
+    useCallback((data) => {
+      setCategories(
+        data.categories
+      );
+
+      setUnits(
+        data.units
+      );
+
+      setExistingUsers(
+        data.users
+      );
+
+      setItems(
+        data.items
+      );
+
+      setWarehouses(
+        data.warehouses
+      );
+
+      setItemsTotal(
+        data.itemsTotal
+      );
+
+      setUsersTotal(
+        data.usersTotal
+      );
+    }, []);
+
+
+  /* =======================================================
+     LOAD REFERENCE DATA
+  ======================================================= */
+
+  const loadReferenceData =
+    useCallback(async () => {
+      try {
+        setRefLoading(true);
+        setAuthError("");
+
+        const data =
+          await fetchReferenceData();
+
+        applyReferenceData(
+          data
+        );
+
+        return data;
+
+      } catch (err) {
+        const message =
+          getErrorMessage(
+            err,
+            "Failed to load reference data"
+          );
+
+        setAuthError(message);
+
+        throw err;
+
+      } finally {
+        setRefLoading(false);
+      }
+    }, [applyReferenceData]);
+
+
+  /* =======================================================
+     INITIAL AUTH BOOTSTRAP
+  ======================================================= */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const token =
+        tokenStorage.get?.();
+
+      /*
+       * No saved token means this hook
+       * cannot authenticate automatically.
+       */
+      if (!token) {
+        if (!cancelled) {
+          setAuthStatus("error");
+
+          setAuthError(
+            "You are not authenticated."
+          );
+        }
+
+        return;
+      }
+
+      try {
+        /*
+         * axiosClient adds the stored
+         * bearer token automatically.
+         */
+        const user =
+          await apiMe();
+
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentUser(user);
+        setAuthStatus("ok");
+        setAuthError("");
+
+        /*
+         * Load all Data Import reference
+         * information after auth succeeds.
+         */
+        setRefLoading(true);
+
+        const referenceData =
+          await fetchReferenceData();
+
+        if (cancelled) {
+          return;
+        }
+
+        applyReferenceData(
+          referenceData
+        );
+
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentUser(null);
+        setAuthStatus("error");
+
+        setAuthError(
+          getErrorMessage(
+            err,
+            "Could not restore your session."
+          )
+        );
+
+      } finally {
+        if (!cancelled) {
+          setRefLoading(false);
+        }
+      }
+    }
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyReferenceData]);
+
+
+  /* =======================================================
+     MANUAL LOGIN
+  ======================================================= */
+
+  const login =
+    useCallback(
+      async (
+        email,
+        password
+      ) => {
+        try {
+          setAuthStatus(
+            "connecting"
+          );
+
+          setAuthError("");
+
+          const data =
+            await apiLogin(
+              email,
+              password
+            );
+
+          tokenStorage.set(
+            data.access_token
+          );
+
+          setCurrentUser(
+            data.user
+          );
+
+          setAuthStatus("ok");
+
+          await loadReferenceData();
+
+          return data;
+
+        } catch (err) {
+          setCurrentUser(null);
+
+          setAuthStatus(
+            "error"
+          );
+
+          setAuthError(
+            getErrorMessage(
+              err,
+              "Could not reach the API"
+            )
+          );
+
+          throw err;
+        }
+      },
+      [loadReferenceData]
+    );
+
+
+  /* =======================================================
+     REFERENCE MAPS
+  ======================================================= */
+
+  const refData =
+    useMemo(
+      () => ({
+        categories:
+          new Map(
+            categories.map(
+              (category) => [
+                normalizeName(
+                  category.name
+                ),
+                category,
+              ]
+            )
+          ),
+
+        units:
+          new Map(
+            units.map(
+              (unit) => [
+                normalizeName(
+                  unit.name
+                ),
+                unit,
+              ]
+            )
+          ),
+
+        userEmails:
+          new Set(
+            existingUsers
+              .filter(
+                (user) =>
+                  user?.email
+              )
+              .map(
+                (user) =>
+                  user.email.toLowerCase()
+              )
+          ),
+
+        itemsBySku:
+          new Map(
+            items
+              .filter(
+                (item) =>
+                  item?.sku
+              )
+              .map(
+                (item) => [
+                  normalizeName(
+                    item.sku
+                  ),
+                  item,
+                ]
+              )
+          ),
+      }),
+      [
+        categories,
+        units,
+        existingUsers,
+        items,
+      ]
+    );
+
+
+  return {
+    currentUser,
+    authStatus,
+    authError,
+
+    login,
+
+    refData,
+    warehouses,
+
+    itemsTotal,
+    usersTotal,
+
+    refLoading,
+
+    loadReferenceData,
+  };
+}

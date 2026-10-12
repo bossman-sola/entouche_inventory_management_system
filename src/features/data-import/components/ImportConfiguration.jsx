@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { Icon, icons } from "../../../lib/icons";
 import { IMPORT_TYPES } from "../../../lib/validation";
-import { listWarehouseLocations } from "../../../lib/api";
+import { api } from "../../../shared/api/entoucheApi";
+
+const { listWarehouseLocations } = api;
 
 const selectCls =
   "appearance-none w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white pr-7 disabled:bg-gray-50 disabled:text-gray-400";

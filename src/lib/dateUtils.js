@@ -43,3 +43,44 @@ export const buildMonthGrid = (year, month) => {
 };
 
 export const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+export function formatDateOnly(value) {
+  if (!value) return "—";
+
+  const datePart = String(value).split("T")[0];
+
+  const [year, month, day] = datePart
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(
+    new Date(Date.UTC(year, month - 1, day))
+  );
+}
+
+export function formatDateTime(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

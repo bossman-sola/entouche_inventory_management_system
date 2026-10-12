@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { fetchAllPages } from "../../../shared/api/entoucheApi";
 
 export const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -43,47 +44,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-
-async function apiFetch(path, { token, method = "GET", body } = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  let json = {};
-  try {
-    json = await res.json();
-  } catch {
-    /* non-JSON */
-  }
-  if (!res.ok || json.success === false) {
-    const msg = json?.errors
-      ? Object.values(json.errors).flat().join(" ")
-      : json?.message || `Request failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json;
-}
-
-async function fetchAllPages(path, token) {
-  let page = 1,
-    lastPage = 1;
-  const all = [];
-  do {
-    const json = await apiFetch(
-      `${path}${path.includes("?") ? "&" : "?"}page=${page}`,
-      { token },
-    );
-    all.push(...(json.data || []));
-    lastPage = json.meta?.last_page || 1;
-    page++;
-  } while (page <= lastPage);
-  return all;
-}
 
 function initials(name) {
   return (name || "?")
@@ -555,16 +515,15 @@ export default function AuditLogs() {
   const [dataError, setDataError] = useState("");
 
   const loadActivity = useCallback(async () => {
-    if (!token) return;
     setDataLoading(true);
     setDataError("");
     try {
       const [items, categories, suppliers, units, users] = await Promise.all([
-        fetchAllPages("/items", token),
-        fetchAllPages("/categories", token),
-        fetchAllPages("/suppliers", token),
-        fetchAllPages("/units", token),
-        fetchAllPages("/users", token),
+        fetchAllPages("/items"),
+        fetchAllPages("/categories"),
+        fetchAllPages("/suppliers"),
+        fetchAllPages("/units"),
+        fetchAllPages("/users"),
       ]);
       const userMap = new Map(users.map((u) => [u.id, u]));
       const entries = [
@@ -583,10 +542,10 @@ export default function AuditLogs() {
     } finally {
       setDataLoading(false);
     }
-  }, [token]);
+  }, []);
   useEffect(() => {
-    if (token) loadActivity();
-  }, [token, loadActivity]);
+    (() => loadActivity())();
+  }, [loadActivity]);
 
   const modulesPresent = useMemo(
     () => ["All Modules", ...Array.from(new Set(logs.map((l) => l.module)))],
@@ -617,7 +576,9 @@ export default function AuditLogs() {
   const calRef = useRef();
 
   useEffect(() => {
-    if (!selected && logs.length) setSelected(logs[0]);
+    (() => {
+      if (!selected && logs.length) setSelected(logs[0]);
+    })();
   }, [logs, selected]);
   useEffect(() => {
     const h = (e) => {
@@ -798,8 +759,6 @@ export default function AuditLogs() {
     return [1, 2, null, page - 1, page, page + 1, null, totalPages];
   };
 
-  const isAuthed = authStatus === "ok" && token;
-
   return (
     <div
       style={{
@@ -874,12 +833,7 @@ export default function AuditLogs() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {authStatus === "connecting" && (
-              <span style={{ fontSize: 11.5, color: "#6b7591" }}>
-                Connecting…
-              </span>
-            )}
-            {isAuthed && (
+            {!dataError && (
               <span
                 style={{
                   display: "flex",
@@ -907,7 +861,7 @@ export default function AuditLogs() {
             )}
             <button
               onClick={loadActivity}
-              disabled={!isAuthed || dataLoading}
+              disabled={dataLoading}
               title="Refresh"
               style={{
                 width: 30,
@@ -940,7 +894,7 @@ export default function AuditLogs() {
           </div>
         </div>
 
-        {authStatus === "error" && (
+        {dataError && (
           <div
             style={{
               marginBottom: 16,
@@ -955,10 +909,10 @@ export default function AuditLogs() {
             }}
           >
             <span style={{ fontSize: 12.5, color: "#c0392b" }}>
-              {authError || "Could not connect to the API."}
+              {dataError}
             </span>
             <button
-              onClick={() => login(loginEmail, loginPassword)}
+              onClick={loadActivity}
               style={{
                 fontSize: 12,
                 color: "#4f6ef7",
@@ -971,21 +925,6 @@ export default function AuditLogs() {
             >
               Retry
             </button>
-          </div>
-        )}
-        {dataError && (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#fff7ed",
-              border: "1px solid #fde3c2",
-              borderRadius: 10,
-              padding: "10px 14px",
-              fontSize: 12.5,
-              color: "#c27a0a",
-            }}
-          >
-            {dataError}
           </div>
         )}
 

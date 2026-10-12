@@ -74,6 +74,7 @@ const BTN_VARIANTS = {
 
 export const DialogButton = ({ icon: Icon, variant = "ghost", onClick, children, disabled = false }) => (
   <button
+    type="button"
     onClick={onClick}
     disabled={disabled}
     className={`${BTN_BASE} ${BTN_VARIANTS[variant] || BTN_VARIANTS.ghost} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}

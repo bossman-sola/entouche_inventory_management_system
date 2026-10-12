@@ -12,7 +12,6 @@ import {
   getFirstItemName, getItemCount, signedQtyForAdjustment, valueImpactForAdjustment,
 } from "../components/adjustmentHelpers.js";
 
-
 const StatCard = ({ label, value, sub, subColor, icon, bg, loading }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-4">
     <div className="flex items-center gap-3">
@@ -78,43 +77,111 @@ function DateRangeFilter({ start, end, onChange }) {
   );
 }
 
-function RowMenu({ adjustment, onSubmit, onApprove, onReject, onCancel, onDelete }) {
+function RowMenu({
+  adjustment,
+  onSubmit,
+  onApprove,
+  onReject,
+  onCancel,
+  onDelete,
+}) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const buttonRef = useRef(null);
+
   const status = getStatus(adjustment);
 
   const actions = [];
+
   if (status === "draft") {
-    actions.push({ label: "Submit for approval", onClick: onSubmit });
-    actions.push({ label: "Delete draft", onClick: onDelete, danger: true });
-  } else if (status === "pending") {
-    actions.push({ label: "Approve", onClick: onApprove });
-    actions.push({ label: "Reject", onClick: onReject, danger: true });
-    actions.push({ label: "Cancel", onClick: onCancel, danger: true });
+    actions.push({
+      label: "Submit for approval",
+      onClick: onSubmit,
+    });
+
+    actions.push({
+      label: "Delete draft",
+      onClick: onDelete,
+      danger: true,
+    });
+  } else if (status === "pending_approval") {
+    actions.push({
+      label: "Approve",
+      onClick: onApprove,
+    });
+
+    actions.push({
+      label: "Reject",
+      onClick: onReject,
+      danger: true,
+    });
+
+    actions.push({
+      label: "Cancel",
+      onClick: onCancel,
+      danger: true,
+    });
   }
+
+  const handleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const estimatedMenuHeight = 140;
+
+      setOpenUp(spaceBelow < estimatedMenuHeight);
+    }
+
+    setOpen((o) => !o);
+  };
 
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={buttonRef}
+        onClick={handleOpen}
         className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"
       >
         <MoreVertical size={16} />
       </button>
+
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+
+          <div
+            className={`absolute right-0 z-50 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 ${
+              openUp
+                ? "bottom-8"
+                : "top-8"
+            }`}
+          >
             {actions.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-gray-400">No actions available</p>
-            ) : actions.map((a) => (
-              <button
-                key={a.label}
-                onClick={() => { setOpen(false); a.onClick(); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${a.danger ? "text-red-600" : "text-gray-700"}`}
-              >
-                {a.label}
-              </button>
-            ))}
+              <p className="px-3 py-2 text-xs text-gray-400">
+                No actions available
+              </p>
+            ) : (
+              actions.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => {
+                    setOpen(false);
+                    a.onClick();
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${
+                    a.danger
+                      ? "text-red-600"
+                      : "text-gray-700"
+                  }`}
+                >
+                  {a.label}
+                </button>
+              ))
+            )}
           </div>
         </>
       )}
@@ -130,6 +197,11 @@ export default function AdjustmentsPage() {
   const [dateStart, setDateStart] = useState(null);
   const [dateEnd, setDateEnd] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Rejection dialog state
+  const [rejectingAdjustment, setRejectingAdjustment] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const {
     adjustments, loading, error, actionError, page, setPage, hasNextPage, reload,
@@ -148,11 +220,60 @@ export default function AdjustmentsPage() {
     showToast(result.message, result.ok ? "success" : "error");
   }
 
-  const handleReject = (id) => {
-    const reason = window.prompt("Reason for rejecting this adjustment:");
-    if (reason === null) return;
-    handleAction(rejectAdjustment, id, reason || "No reason given");
+  const handleReject = (adjustment) => {
+    setRejectingAdjustment(adjustment);
+    setRejectionReason("");
   };
+
+  const handleCloseRejectDialog = () => {
+    if (isRejecting) return;
+
+    setRejectingAdjustment(null);
+    setRejectionReason("");
+  };
+
+ const handleConfirmReject = async () => {
+  if (!rejectingAdjustment) return;
+
+  const reason = rejectionReason.trim();
+
+  if (!reason) {
+    showToast(
+      "Please enter a reason for rejection.",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    setIsRejecting(true);
+
+    const result = await rejectAdjustment(
+      rejectingAdjustment.id,
+      reason
+    );
+
+    if (!result?.ok) {
+      showToast(
+        result?.message ||
+          "Failed to reject adjustment.",
+        "error"
+      );
+      return;
+    }
+
+    showToast(
+      result.message ||
+        "Adjustment rejected successfully.",
+      "success"
+    );
+
+    setRejectingAdjustment(null);
+    setRejectionReason("");
+  } finally {
+    setIsRejecting(false);
+  }
+};
 
   const handleDelete = (id) => {
     if (!window.confirm("Delete this draft adjustment? This can't be undone.")) return;
@@ -271,8 +392,8 @@ export default function AdjustmentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-visible">
+        <div className="overflow-x-auto overflow-y-visible min-h-[320px]">
           <table className="w-full min-w-[1180px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -352,7 +473,7 @@ export default function AdjustmentsPage() {
                         adjustment={a}
                         onSubmit={() => handleAction(submitAdjustment, a.id)}
                         onApprove={() => handleApprove(a.id)}
-                        onReject={() => handleReject(a.id)}
+                        onReject={() => handleReject(a)}
                         onCancel={() => handleCancel(a.id)}
                         onDelete={() => handleDelete(a.id)}
                       />
@@ -385,6 +506,86 @@ export default function AdjustmentsPage() {
         locationsLoading={formData.locationsLoading}
         locationsError={formData.locationsError}
       />
+
+      {/* Reject Adjustment Dialog */}
+      {rejectingAdjustment && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseRejectDialog();
+            }
+          }}
+        >
+          <div className="w-full max-w-[500px] overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="border-b border-gray-100 px-6 py-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50">
+                  <AlertCircle size={18} className="text-red-600" />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Reject Adjustment
+                  </h2>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Please provide a reason for rejecting{" "}
+                    <span className="font-semibold text-gray-700">
+                      {getReference(rejectingAdjustment)}
+                    </span>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <label
+                htmlFor="adjustment-rejection-reason"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Reason for rejection
+              </label>
+
+              <textarea
+                id="adjustment-rejection-reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                autoFocus
+                disabled={isRejecting}
+                placeholder="Enter reason for rejection..."
+                className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+              />
+
+              <div className="mt-2 text-right text-xs text-gray-400">
+                {rejectionReason.trim().length} characters
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+              <button
+                type="button"
+                disabled={isRejecting}
+                onClick={handleCloseRejectDialog}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isRejecting || !rejectionReason.trim()}
+                onClick={handleConfirmReject}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isRejecting ? "Rejecting..." : "Confirm Rejection"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg z-50 ${toast.type === "error" ? "bg-red-600 text-white" : "bg-gray-900 text-white"}`}>
