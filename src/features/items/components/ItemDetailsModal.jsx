@@ -180,7 +180,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
                 action={
                   !isEditing && (
                     <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 text-[#4F46E5] text-[11px] font-bold border border-indigo-100 px-3 py-1.5 rounded-lg bg-indigo-50/50 hover:bg-indigo-50 transition-all">
-                      <Edit3 size={14}/> Edit Item
+                      <Edit3 size={14} /> Edit Item
                     </button>
                   )
                 }
@@ -231,30 +231,73 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
               {/* Stock Information Card */}
               <SectionCard title="Stock Information">
                 {isLoadingStock ? (
-                  <p className="text-sm text-slate-400 font-medium">Loading stock balance...</p>
-                ) : stockBalance && stockBalance.by_location?.length > 0 ? (
+                  <p className="text-sm text-slate-400 font-medium">
+                    Loading stock balance...
+                  </p>
+                ) : stockBalance?.by_location?.length > 0 ? (
                   <div className="space-y-4">
-                    {stockBalance.by_location.map((loc, idx) => {
-                      console.log("Location Data:", loc); // Debugging line to check the structure of loc
-                      return (
-                        <div key={idx} className="flex justify-between text-[13px] font-bold text-[#1E2740]">
-                          <span>{loc.warehouse_name || `Location ${idx + 1}`}</span>
-                          <span>{loc.quantity ?? loc.on_hand ?? 0} units</span>
+                    {stockBalance.by_location.map((balance) => (
+                      <div
+                        key={balance.id}
+                        className="flex items-center justify-between text-[13px]"
+                      >
+                        <div>
+                          <p className="font-bold text-[#1E2740]">
+                            {balance.location?.name || "Unknown Location"}
+                          </p>
+
+                          <p className="text-[11px] text-slate-400 font-medium mt-1">
+                            {balance.warehouse?.name || "Unknown Warehouse"}
+                          </p>
                         </div>
-                      );
-                    })}
+
+                        <div className="text-right">
+                          <p className="font-bold text-[#1E2740]">
+                            {Number(balance.quantity_on_hand ?? 0).toLocaleString()} units
+                          </p>
+
+                          {Number(balance.quantity_reserved ?? 0) > 0 && (
+                            <p className="text-[11px] text-amber-500 mt-1">
+                              {Number(balance.quantity_reserved).toLocaleString()} reserved
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="border-t border-slate-100 pt-4 mt-4 grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1">
+                          On Hand
+                        </p>
+                        <p className="text-[14px] font-bold text-[#1E2740]">
+                          {Number(stockBalance?.total_on_hand ?? 0).toLocaleString()} units
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1">
+                          Reserved
+                        </p>
+                        <p className="text-[14px] font-bold text-amber-500">
+                          {Number(stockBalance?.total_reserved ?? 0).toLocaleString()} units
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1">
+                          Available
+                        </p>
+                        <p className="text-[14px] font-bold text-emerald-500">
+                          {Number(stockBalance?.total_available ?? 0).toLocaleString()} units
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-y-8">
-                    <div>
-                      <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1.5 tracking-widest">Available Stock</p>
-                      <div className="text-[14px] font-bold text-emerald-500 tracking-tight">{stockBalance?.total_available ?? item.stock} units</div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-[#6B7591] uppercase mb-1.5 tracking-widest">Reserved Stock</p>
-                      <div className="text-[14px] font-bold text-amber-500 tracking-tight">{stockBalance?.total_reserved ?? 0} units</div>
-                    </div>
-                  </div>
+                  <p className="text-sm text-slate-400 font-medium">
+                    No stock recorded for this item.
+                  </p>
                 )}
               </SectionCard>
             </div>
@@ -300,7 +343,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
             onClick={handleDuplicateClick}
             className="flex items-center gap-2 text-[#1E2740] font-bold text-[13px] border border-slate-200 px-5 py-2.5 rounded-xl hover:bg-slate-50 shadow-sm transition-all active:scale-95"
           >
-            <Copy size={16} className="text-slate-400"/> Duplicate Item
+            <Copy size={16} className="text-slate-400" /> Duplicate Item
           </button>
 
           <div className="flex gap-4">
@@ -313,7 +356,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item, onUpdate, onDuplicate, catego
                 disabled={isSaving}
                 className="flex items-center gap-2 px-10 py-2.5 text-[13px] font-bold text-white bg-emerald-600 rounded-xl shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Save size={16}/> {isSaving ? "Saving..." : "Save Changes"}
+                <Save size={16} /> {isSaving ? "Saving..." : "Save Changes"}
               </button>
             ) : (
               <button
@@ -389,16 +432,16 @@ const TransactionRow = ({ type, qty, date, refId, isNegative }) => {
 
   return (
     <div className="flex items-center justify-between group">
-       <div className="flex items-center gap-4 text-left">
-          <div className={`w-10 h-10 rounded-xl ${meta.color} flex items-center justify-center transition-transform group-hover:scale-105`}>
-             <meta.icon size={18} />
-          </div>
-          <div>
-            <p className="text-[12px] font-bold text-[#1E2740]">{type}</p>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{refId} {refId && date ? "•" : ""} {date}</p>
-          </div>
-       </div>
-       <span className={`text-[12px] font-bold ${isNegative ? 'text-red-500' : 'text-emerald-500'}`}>{qty}</span>
+      <div className="flex items-center gap-4 text-left">
+        <div className={`w-10 h-10 rounded-xl ${meta.color} flex items-center justify-center transition-transform group-hover:scale-105`}>
+          <meta.icon size={18} />
+        </div>
+        <div>
+          <p className="text-[12px] font-bold text-[#1E2740]">{type}</p>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{refId} {refId && date ? "•" : ""} {date}</p>
+        </div>
+      </div>
+      <span className={`text-[12px] font-bold ${isNegative ? 'text-red-500' : 'text-emerald-500'}`}>{qty}</span>
     </div>
   );
 };

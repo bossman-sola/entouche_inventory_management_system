@@ -1,5 +1,10 @@
 import apiClient from "../../../shared/api/axiosClient.js";
 
+export const getItemStats = async () => {
+  const { data } = await apiClient.get("/items/stats");
+  return data?.data;
+};
+
 export const listItems = async (params = {}) => {
   const { data } = await apiClient.get("/items", { params });
   return { items: data?.data || [], meta: data?.meta };

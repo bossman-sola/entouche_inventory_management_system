@@ -1,43 +1,46 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
-  Plus, Download, Upload, Search, ChevronDown, Filter,
-  MoreVertical, Eye, Trash2, SlidersHorizontal
+  Plus,
+  Download,
+  Upload,
+  Search,
+  ChevronDown,
+  MoreVertical,
+  Eye,
+  Trash2
 } from 'lucide-react';
 import useClickOutside from '../../../lib/useClickOutside.js';
 import ItemDetailsModal from '../components/ItemDetailsModal';
 import AddNewItems from '../components/addNewItems';
 import ImportItems from '../components/importItems';
-import Num    from "../../../assets/icons/num.svg?react";
-import Card   from "../../../assets/icons/card.svg?react";
+import Num from "../../../assets/icons/num.svg?react";
+import Card from "../../../assets/icons/card.svg?react";
 import Burger from "../../../assets/icons/burger.svg?react";
-import Book   from "../../../assets/icons/book.svg?react";
-import Fiter  from "../../../assets/icons/filter.svg?react";
+import Book from "../../../assets/icons/book.svg?react";
 
 import { useItems } from "../hooks/useItems.js";
 import { useCategories } from "../../categories/hooks/useCategories.js";
 import { useSuppliers } from "../../suppliers/hooks/useSuppliers.js";
 import { useUnits } from "../../units/hooks/useUnits.js";
-import { UNIT_TYPES } from "../types/itemTypes.js";
 import { generateCode } from "../../../lib/generateCode.js";
 
-
+const ITEM_TYPES = [
+  { value: "stock_item", label: "Stock Item" },
+  { value: "consumable", label: "Consumable" },
+];
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-
 const TYPE_BADGE_STYLES = {
-  Count: 'bg-indigo-50 text-indigo-600',
-  Weight: 'bg-amber-50 text-amber-600',
-  Volume: 'bg-sky-50 text-sky-600',
-  Length: 'bg-emerald-50 text-emerald-600',
-  Area: 'bg-violet-50 text-violet-600',
+  "Stock Item": "bg-indigo-50 text-indigo-600",
+  "Consumable": "bg-amber-50 text-amber-600",
 };
 
 const Items = () => {
   // items hook is called after local state declarations below so the
   // query object can reference the current filter/pagination state.
 
- 
+
   const { categories, createCategory } = useCategories();
   const { suppliers, createSupplier } = useSuppliers();
   const { units, createUnit } = useUnits();
@@ -56,15 +59,19 @@ const Items = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All Categories');
   const [filterStatus, setFilterStatus] = useState('All Statuses');
-  const [filterType, setFilterType] = useState('All Types');
-
+  const [filterType, setFilterType] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const selectedCategory = categories.find(
+    (category) => category.name === filterCategory
+  );
+
   const {
     items,
     meta,
+    stats,
     isLoading: isLoadingItems,
     error: itemsError,
     refetch,
@@ -76,24 +83,33 @@ const Items = () => {
     page: currentPage,
     per_page: itemsPerPage,
     search: searchQuery || undefined,
-    category: filterCategory !== 'All Categories' ? filterCategory : undefined,
-    status: filterStatus !== 'All Statuses' ? filterStatus : undefined,
-    type: filterType !== 'All Types' ? filterType : undefined,
+
+    category_id:
+      filterCategory !== 'All Categories'
+        ? selectedCategory?.id
+        : undefined,
+
+    status:
+      filterStatus !== 'All Statuses'
+        ? filterStatus.toLowerCase()
+        : undefined,
+
+    item_type: filterType || undefined,
   });
 
 
   const categoryNames = ['All Categories', ...Array.from(new Set(categories.map(c => c.name))).sort()];
   const statuses = ['All Statuses', 'Active', 'Inactive'];
-  const types = ['All Types', ...UNIT_TYPES];
+  const types = [
+    { value: "", label: "All Types" },
+    ...ITEM_TYPES,
+  ];
 
- 
   const existingBarcodes = useMemo(() => items.map(i => i.barcode).filter(Boolean), [items]);
   const existingSkus = useMemo(() => items.map(i => i.sku).filter(Boolean), [items]);
 
 
   const totalPages = Math.max(1, Math.ceil((meta?.total ?? 0) / itemsPerPage));
-  const paginatedItems = items; // server provides the current page
-
 
   const handleFilterChange = (setter) => (val) => {
     setter(val);
@@ -211,7 +227,7 @@ const Items = () => {
     });
   };
 
-  
+
   const handleImportComplete = async (validRows) => {
     setActionError(null);
     const failures = [];
@@ -236,7 +252,7 @@ const Items = () => {
           status: "active",
         });
 
-        
+
         if (row.itemStatus === 'Inactive') {
           await toggleItemStatus(created.id);
         }
@@ -259,7 +275,7 @@ const Items = () => {
     setSearchQuery('');
     setFilterCategory('All Categories');
     setFilterStatus('All Statuses');
-    setFilterType('All Types');
+    setFilterType('');
     setCurrentPage(1);
   };
 
@@ -267,7 +283,7 @@ const Items = () => {
     searchQuery ||
     filterCategory !== 'All Categories' ||
     filterStatus !== 'All Statuses' ||
-    filterType !== 'All Types';
+    !!filterType;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 min-w-0 font-['Inter'] pb-10">
@@ -279,7 +295,7 @@ const Items = () => {
           <p className="text-[#6B7591] text-[14px] font-medium mt-1">Manage all items in your inventory</p>
         </div>
         <div className="flex items-center gap-3">
-          <HeaderButton icon={<Download size={16}/>} label="Import Items" onClick={() => setIsImportModalOpen(true)} />
+          <HeaderButton icon={<Download size={16} />} label="Import Items" onClick={() => setIsImportModalOpen(true)} />
           <ImportItems
             isOpen={isImportModalOpen}
             onClose={() => setIsImportModalOpen(false)}
@@ -289,12 +305,12 @@ const Items = () => {
             existingBarcodes={existingBarcodes}
             existingSkus={existingSkus}
           />
-          <HeaderButton icon={< Upload size={16}/>} label="Export Items" onClick={handleExport} />
+          <HeaderButton icon={< Upload size={16} />} label="Export Items" onClick={handleExport} />
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2 bg-[#4F46E5] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
           >
-            <Plus size={18}/> Add New Item
+            <Plus size={18} /> Add New Item
           </button>
         </div>
       </div>
@@ -307,10 +323,33 @@ const Items = () => {
 
       {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard title="Total Items" val={(meta?.total ?? items.length).toLocaleString()} sub="Total items in inventory" icon={<Num size={20}/>} />
-        <StatCard title="Item Categories" val={categories.length.toString()} sub="Active categories" icon={<Card size={20}/>} />
-        <StatCard title="Total SKUs" val={Array.from(new Set(items.map(i => i.sku).filter(Boolean))).length.toString()} sub="Unique SKUs" icon={<Burger size={20}/>} />
-        <StatCard title="Items with Barcode" val={items.filter(i => i.barcode).length.toLocaleString()} sub={items.length ? `${Math.round((items.filter(i => i.barcode).length / items.length) * 100)}% of items` : '0% of items'} icon={<Book size={20}/>} />
+        <StatCard
+          title="Total Items"
+          val={stats.total_items.toLocaleString()}
+          sub="Total items in inventory"
+          icon={<Num size={20} />}
+        />
+
+        <StatCard
+          title="Item Categories"
+          val={stats.total_categories.toLocaleString()}
+          sub="Active categories"
+          icon={<Card size={20} />}
+        />
+
+        <StatCard
+          title="Total SKUs"
+          val={stats.total_skus.toLocaleString()}
+          sub="Unique SKUs"
+          icon={<Burger size={20} />}
+        />
+
+        <StatCard
+          title="Items with Barcode"
+          val={stats.items_with_barcode.toLocaleString()}
+          sub={`${stats.barcode_percentage}% of items`}
+          icon={<Book size={20} />}
+        />
       </div>
 
       {/* ── FILTER BAR ── */}
@@ -319,7 +358,7 @@ const Items = () => {
 
           {/* Search */}
           <div className="relative flex-1 min-w-[260px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
               value={searchQuery}
@@ -330,7 +369,7 @@ const Items = () => {
           </div>
 
           {/* Divider */}
-          <div className="h-8 w-px bg-gray-100 hidden sm:block"/>
+          <div className="h-8 w-px bg-gray-100 hidden sm:block" />
 
           {/* Category filter */}
           <div className="flex items-center gap-2">
@@ -363,7 +402,7 @@ const Items = () => {
           </div>
 
           {/* More Filters / Clear */}
-          <div className="ml-auto flex items-center gap-2">
+          {/* <div className="ml-auto flex items-center gap-2">
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -373,25 +412,35 @@ const Items = () => {
               </button>
             )}
             <button className="flex items-center gap-2 text-[#6B7591] border border-gray-200 px-4 py-2.5 rounded-xl text-[13px] font-bold hover:bg-gray-50 transition-all">
-              <Fiter size={15}/> More Filters
+              <Fiter size={15} /> More Filters
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Active filter pills */}
         {hasActiveFilters && (
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-50">
             {searchQuery && (
-              <FilterPill label={`Search: "${searchQuery}"`} onRemove={() => { setSearchQuery(''); setCurrentPage(1); }}/>
+              <FilterPill label={`Search: "${searchQuery}"`} onRemove={() => { setSearchQuery(''); setCurrentPage(1); }} />
             )}
             {filterCategory !== 'All Categories' && (
-              <FilterPill label={filterCategory} onRemove={() => handleFilterChange(setFilterCategory)('All Categories')}/>
+              <FilterPill label={filterCategory} onRemove={() => handleFilterChange(setFilterCategory)('All Categories')} />
             )}
             {filterStatus !== 'All Statuses' && (
-              <FilterPill label={filterStatus} onRemove={() => handleFilterChange(setFilterStatus)('All Statuses')}/>
+              <FilterPill label={filterStatus} onRemove={() => handleFilterChange(setFilterStatus)('All Statuses')} />
             )}
-            {filterType !== 'All Types' && (
-              <FilterPill label={filterType} onRemove={() => handleFilterChange(setFilterType)('All Types')}/>
+            {filterType && (
+              <FilterPill
+                label={
+                  ITEM_TYPES.find(
+                    (type) => type.value === filterType
+                  )?.label || filterType
+                }
+                onRemove={() => {
+                  setFilterType("");
+                  setCurrentPage(1);
+                }}
+              />
             )}
           </div>
         )}
@@ -403,7 +452,7 @@ const Items = () => {
           <table className="w-full min-w-[1100px] text-left">
             <thead className="bg-[#F8FAFC] border-b border-[#F1F5F9]">
               <tr className="text-[11px] uppercase font-extrabold text-[#6B7591] tracking-[0.1em]">
-                <th className="px-6 py-4 w-10 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600"/></th>
+                <th className="px-6 py-4 w-10 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600" /></th>
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">SKU</th>
                 {/* <th className="px-6 py-4">Barcode</th> */}
@@ -426,7 +475,7 @@ const Items = () => {
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
                     <div className="flex flex-col items-center gap-2">
-                      <Search size={32} className="text-gray-200"/>
+                      <Search size={32} className="text-gray-200" />
                       <p>No items yet. Add your first one to get started.</p>
                     </div>
                   </td>
@@ -435,7 +484,7 @@ const Items = () => {
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-[#6B7591] font-semibold text-[13px]">
                     <div className="flex flex-col items-center gap-2">
-                      <Search size={32} className="text-gray-200"/>
+                      <Search size={32} className="text-gray-200" />
                       <p>No items match your filters.</p>
                       <button onClick={clearFilters} className="text-indigo-500 font-bold text-[12px] hover:underline">Clear filters</button>
                     </div>
@@ -443,20 +492,19 @@ const Items = () => {
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr 
-                    key={item.id} 
-                    className={`transition-colors ${
-                      deletingId === item.id
-                        ? 'bg-red-50 opacity-60 pointer-events-none'
-                        : 'hover:bg-gray-50/50'
-                    }`}
+                  <tr
+                    key={item.id}
+                    className={`transition-colors ${deletingId === item.id
+                      ? 'bg-red-50 opacity-60 pointer-events-none'
+                      : 'hover:bg-gray-50/50'
+                      }`}
                   >
-                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600" disabled={deletingId === item.id}/></td>
+                    <td className="px-6 py-4 text-center"><input type="checkbox" className="rounded border-gray-300 text-indigo-600" disabled={deletingId === item.id} /></td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-[#F1F5F9] rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-100">
                           {typeof item.img === 'string' && (item.img.startsWith('blob:') || item.img.startsWith('http')) ? (
-                            <img src={item.img} alt={item.name} className="w-full h-full object-cover"/>
+                            <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
                           ) : (
                             <span className="text-lg">{item.img || '📦'}</span>
                           )}
@@ -489,7 +537,7 @@ const Items = () => {
                       {/*
                         FIX: the ref used to be attached unconditionally on every
                         row, so after render it only pointed at the LAST row's
-                        menu container — causing useClickOutside to treat clicks
+                        menu container - causing useClickOutside to treat clicks
                         inside any other row's open menu as "outside clicks" and
                         close the menu before the click handler (Delete/View) could
                         fire. Now the ref is only attached to the row whose menu
@@ -503,30 +551,29 @@ const Items = () => {
                           onClick={() => setActiveMenu(activeMenu === item.id ? null : item.id)}
                           className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
                         >
-                          <MoreVertical size={18}/>
+                          <MoreVertical size={18} />
                         </button>
                         {activeMenu === item.id && (
                           <div className="absolute right-12 top-2 w-36 bg-white border border-[#F1F5F9] shadow-2xl rounded-xl z-50 py-1 overflow-hidden">
                             <button onClick={() => handleOpenModal(item)} className="w-full text-left px-4 py-2.5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-3 transition-colors">
-                              <Eye size={15} className="text-indigo-500"/> View Details
+                              <Eye size={15} className="text-indigo-500" /> View Details
                             </button>
-                            <button 
+                            <button
                               onClick={() => handleDelete(item.id)}
                               disabled={deletingId === item.id}
-                              className={`w-full text-left px-4 py-2.5 text-[12px] font-bold flex items-center gap-3 transition-colors ${
-                                deletingId === item.id
-                                  ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
-                                  : 'text-red-600 hover:bg-red-50'
-                              }`}
+                              className={`w-full text-left px-4 py-2.5 text-[12px] font-bold flex items-center gap-3 transition-colors ${deletingId === item.id
+                                ? 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                                : 'text-red-600 hover:bg-red-50'
+                                }`}
                             >
                               {deletingId === item.id ? (
                                 <>
-                                  <div className="w-[15px] h-[15px] border-2 border-red-200 border-t-red-600 rounded-full animate-spin"/>
+                                  <div className="w-[15px] h-[15px] border-2 border-red-200 border-t-red-600 rounded-full animate-spin" />
                                   Deleting...
                                 </>
                               ) : (
                                 <>
-                                  <Trash2 size={15}/> Delete Item
+                                  <Trash2 size={15} /> Delete Item
                                 </>
                               )}
                             </button>
@@ -577,7 +624,7 @@ const Items = () => {
               >
                 {ITEMS_PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
         </div>
@@ -630,12 +677,30 @@ const FilterSelect = ({ value, onChange, options }) => (
   <div className="relative">
     <select
       value={value}
-      onChange={e => onChange(e.target.value)}
-      className="appearance-none bg-[#F8FAFC] border border-gray-100 rounded-xl py-2.5 pl-4 pr-9 text-[12px] font-bold text-[#1E2740] outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400 transition-all"
+      onChange={(e) => onChange(e.target.value)}
+      className="appearance-none bg-[#F8FAFC] border border-gray-100 rounded-xl py-2.5 pl-4 pr-9 text-[12px] font-bold text-[#1E2740] outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400"
     >
-      {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      {options.map((option) => {
+        if (typeof option === "object") {
+          return (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          );
+        }
+
+        return (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        );
+      })}
     </select>
-    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+
+    <ChevronDown
+      size={13}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+    />
   </div>
 );
 

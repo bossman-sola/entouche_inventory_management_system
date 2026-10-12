@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { Icon, icons } from "../../../lib/icons";
-import {
-  useInventoryApi,
-  DEFAULT_EMAIL,
-  DEFAULT_PASSWORD,
-} from "../../../lib/useInventoryApi";
+import { useInventoryApi } from "../../../lib/useInventoryApi";
 import { useImportFlow } from "../../../lib/useImportFlow";
 import { ConnectionStatus, LoginForm } from "../components/ConnectionStatus";
 import { StatsGrid } from "../components/StatsGrid";
@@ -56,7 +52,7 @@ export default function DataImportPage() {
     fileRef,
   } = flow;
 
-  console.log('History: ', history)
+  console.log("History: ", history);
 
   const isAuthed = authStatus === "ok" && !!currentUser;
   const successCount = history.filter((h) => h.status === "Completed").length;
@@ -87,10 +83,12 @@ export default function DataImportPage() {
         authError={authError}
         currentUser={currentUser}
         refLoading={refLoading}
-        onRetry={() => login(DEFAULT_EMAIL, DEFAULT_PASSWORD)}
+        onRetry={loadReferenceData}
       />
 
-      {!isAuthed && authStatus === "error" && <LoginForm onLogin={login} />}
+      {!isAuthed && authStatus === "error" && (
+        <LoginForm onLogin={login} />
+      )}
 
       <StatsGrid
         history={history}
@@ -100,9 +98,10 @@ export default function DataImportPage() {
         usersTotal={usersTotal}
       />
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        <div className="w-full lg:w-[560px] shrink-0 space-y-4">
+      <div className="flex flex-col xl:flex-row gap-5">
+        <div className="w-full xl:w-[800px] 2xl:w-[850px] shrink-0 space-y-4">
           <ImportTemplates />
+
           <NewImportPanel
             isAuthed={isAuthed}
             showConfig={true}
@@ -111,12 +110,11 @@ export default function DataImportPage() {
             warehouses={warehouses}
             selectedWarehouseId={selectedWarehouseId}
             setSelectedWarehouseId={setSelectedWarehouseId}
-            setSelectedLocationId={setSelectedLocationId}
             selectedLocationId={selectedLocationId}
+            setSelectedLocationId={setSelectedLocationId}
             fileFormat={fileFormat}
             setFileFormat={setFileFormat}
             encoding={encoding}
-            showConfig={true}
             setEncoding={setEncoding}
             flow={flow}
           />
@@ -129,6 +127,7 @@ export default function DataImportPage() {
             history={history}
             onNewImportClick={() => fileRef.current?.click()}
           />
+
           <ImportHistoryTable
             history={history}
             meta={historyMeta}

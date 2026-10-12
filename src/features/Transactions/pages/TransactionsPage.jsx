@@ -1,14 +1,26 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-import { apiRequest, fetchAllPages } from "../api/TransactionApi.js";
-import { normalizeTransaction } from "../utils/normalize.js";
 import {
-  iconPaths,
-  AUTO_LOGIN_EMAIL,
-  AUTO_LOGIN_PASSWORD,
-  PER_PAGE,
-  txTypes,
-} from "../constants.js";
+  listAllItems,
+  listAllSuppliers,
+  listAllUnits,
+  listAllWarehouses,
+  listAllTransactions,
+  getTransaction,
+  listAllReceipts,
+  listAllTransfers,
+  listAllAdjustments,
+  listAllStockCounts,
+  getWarehouseLocations,
+  createTransactionByType,
+} from "../api/TransactionApi.js";
+import {
+  normalizeTransaction,
+  normalizeDraftDocument,
+  isActionableStatus,
+} from "../utils/normalize.js";
+
+import { iconPaths, PER_PAGE, txTypes } from "../constants.js";
 import { Upload } from "lucide-react";
 import { Icon } from "../components/icons/Icon.jsx";
 import { PlusIcon } from "../components/icons/SmallIcons.jsx";
@@ -16,7 +28,7 @@ import { MetricsRow } from "../components/MetricsRow.jsx";
 import { FiltersBar } from "../components/FiltersBar.jsx";
 import { TransactionsTable } from "../components/TransactionsTable.jsx";
 import { NewTransactionModal } from "../components/NewTransactionModal.jsx";
-import { TransactionDetailsModal } from "../components/Transactiondetailsmodal .jsx";
+import { TransactionDetailsModal } from "../components/Transactiondetailsmodal.jsx";
 
 // /api/v1/transactions is now a live, global, read-only ledger endpoint
 // (filterable by item_id, warehouse_id, transaction_type, direction,
@@ -25,10 +37,6 @@ import { TransactionDetailsModal } from "../components/Transactiondetailsmodal .
 const TRANSACTIONS_MAX_PAGES = 50;
 
 export default function TransactionsPage() {
-  const [token, setToken] = useState(null);
-  const [authError, setAuthError] = useState("");
-  const [currentUserName, setCurrentUserName] = useState("");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [transactionDetails, setTransactionDetails] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -59,65 +67,63 @@ export default function TransactionsPage() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const json = await apiRequest("/auth/login", {
-          method: "POST",
-          body: { email: AUTO_LOGIN_EMAIL, password: AUTO_LOGIN_PASSWORD },
-        });
-        if (cancelled) return;
-        setToken(json.data.access_token);
-        setCurrentUserName(json.data.user?.name || AUTO_LOGIN_EMAIL);
-      } catch (e) {
-        if (cancelled) return;
-        setAuthError(
-          e.message ||
-            "Could not connect to the API. Check your network access to the production server.",
-        );
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const loadData = useCallback(async () => {
-    if (!token) return;
     setDataLoading(true);
     setDataError("");
     setPartialWarning("");
     try {
-      const [itemsRaw, suppliersRaw, unitsRaw, warehousesRaw, transactionsRaw] =
-        await Promise.all([
-          fetchAllPages("/items", token),
-          fetchAllPages("/suppliers", token),
-          fetchAllPages("/units", token),
-          fetchAllPages("/warehouses", token),
-          // Global ledger - filters (item_id, warehouse_id, transaction_type,
-          // direction, date_from, date_to) are supported server-side if we
-          // later want to push filtering down instead of doing it client-side.
-          fetchAllPages("/transactions", token, {
-            maxPages: TRANSACTIONS_MAX_PAGES,
-          }),
-        ]);
+      const [
+        itemsRaw,
+        suppliersRaw,
+        unitsRaw,
+        warehousesRaw,
+        transactionsRaw,
+        receiptsRaw,
+        transfersRaw,
+        adjustmentsRaw,
+        stockCountsRaw,
+      ] = await Promise.all([
+        listAllItems(),
+        listAllSuppliers(),
+        listAllUnits(),
+        listAllWarehouses(),
+        listAllTransactions(TRANSACTIONS_MAX_PAGES),
+        listAllReceipts(),
+        listAllTransfers(),
+        listAllAdjustments(),
+        listAllStockCounts(),
+      ]);
 
-      setTransactionsRaw(transactionsRaw)
+      setTransactionsRaw(transactionsRaw);
       setCatalogItems(itemsRaw);
       setSuppliers(suppliersRaw);
       setUnits(unitsRaw);
       setWarehouses(warehousesRaw);
 
-      // Transactions come back from the API with their related item
-      // (assumed eager-loaded as `item`). Fall back to the catalog lookup
-      // by item_id in case a given record doesn't have it embedded.
       const itemsById = new Map(itemsRaw.map((it) => [it.id, it]));
-      const flat = transactionsRaw
-        .map((raw) =>
-          normalizeTransaction(raw, raw.item || itemsById.get(raw.item_id)),
-        )
-        .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+
+      const ledgerFlat = transactionsRaw.map((raw) =>
+        normalizeTransaction(raw, raw.item || itemsById.get(raw.item_id)),
+      );
+
+      const draftRows = [
+        ...receiptsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "receipt", itemsById)),
+        ...transfersRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "transfer", itemsById)),
+        ...adjustmentsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "adjustment", itemsById)),
+        ...stockCountsRaw
+          .filter((d) => isActionableStatus(d.status))
+          .flatMap((d) => normalizeDraftDocument(d, "stock_count", itemsById)),
+      ];
+
+      const flat = [...draftRows, ...ledgerFlat].sort(
+        (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0),
+      );
 
       setTransactions(flat);
 
@@ -129,15 +135,17 @@ export default function TransactionsPage() {
     } catch (e) {
       setDataError(
         e.message ||
-          "Could not reach the API. Check your connection or CORS access to the production server.",
+        "Could not reach the API. Check your connection or CORS access to the production server.",
       );
     } finally {
       setDataLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    loadData();
+    (() => {
+      loadData();
+    })();
   }, [loadData]);
 
   /* date-aware filtering */
@@ -161,14 +169,23 @@ export default function TransactionsPage() {
   // Passed down to the modal so each location dropdown can load the
   // right options once a warehouse is picked.
   const fetchLocationsForWarehouse = useCallback(
-    async (warehouseId) => {
-      const json = await apiRequest(`/warehouses/${warehouseId}/locations`, {
-        token,
-      });
-      return Array.isArray(json.data) ? json.data : [];
-    },
-    [token],
+    (warehouseId) => getWarehouseLocations(warehouseId),
+    [],
   );
+
+  const handleViewTransaction = async (id) => {
+    if (!id) {
+      setTransactionDetails(null);
+      return;
+    }
+
+    try {
+      const fullTransaction = await getTransaction(id);
+      setTransactionDetails(fullTransaction);
+    } catch (error) {
+      console.error("Failed to load transaction details:", error);
+    }
+  };
 
   // Builds the exact request body each endpoint documents - the four
   // transaction types don't share a shape, so this branches per type
@@ -233,17 +250,10 @@ export default function TransactionsPage() {
     setSaveError("");
 
     const typeConfig = txTypes.find((t) => t.id === form.type);
-    const endpointMap = {
-      receipt: "/receipts",
-      transfer: "/transfers",
-      adjustment: "/adjustments",
-      stock_count: "/stock-counts",
-    };
-    const endpoint = endpointMap[typeConfig.apiType];
     const body = buildBody(form);
 
     try {
-      await apiRequest(endpoint, { method: "POST", token, body });
+      await createTransactionByType(typeConfig.apiType, body);
       setModalOpen(false);
       await loadData();
     } catch (e) {
@@ -266,69 +276,6 @@ export default function TransactionsPage() {
   const pendingCount = transactions.filter(
     (t) => t.status === "Pending",
   ).length;
-
-  if (!token) {
-    return (
-      <div
-        style={{
-          fontFamily: "Inter,system-ui,sans-serif",
-          fontSize: 13,
-          color: "#1e2740",
-        }}
-      >
-        <div style={{ marginBottom: 20 }}>
-          <h1
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              lineHeight: 1.2,
-              margin: 0,
-            }}
-          >
-            Transactions
-          </h1>
-          <p
-            style={{
-              color: "#6b7591",
-              fontSize: 12.5,
-              marginTop: 3,
-              margin: "3px 0 0",
-            }}
-          >
-            View and track all inventory transactions across your organization.
-          </p>
-        </div>
-        {authError ? (
-          <div
-            style={{
-              padding: "12px 14px",
-              background: "#fff1f0",
-              border: "1px solid #ffd3ce",
-              borderRadius: 10,
-              fontSize: 12.5,
-              color: "#c0392b",
-            }}
-          >
-            {authError}
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: "40px 20px",
-              textAlign: "center",
-              color: "#9aa1b4",
-              fontSize: 12.5,
-              background: "#fff",
-              border: "1px solid #e4e7ef",
-              borderRadius: 10,
-            }}
-          >
-            Connecting to the inventory system…
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div
@@ -542,9 +489,12 @@ export default function TransactionsPage() {
         openMenuId={openMenuId}
         onToggleMenu={(id) => {
           setOpenMenuId((prev) => (prev === id ? null : id));
-          setTransactionDetails(
-            id ? transactionsRaw.find((t) => t.id === id) : null,
-          );
+
+          if (id) {
+            handleViewTransaction(id);
+          } else {
+            setTransactionDetails(null);
+          }
         }}
         emptyMessage={
           transactions.length === 0

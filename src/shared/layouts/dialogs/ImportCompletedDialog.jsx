@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Download,
   FileSpreadsheet,
@@ -174,7 +173,12 @@ const ImportCompletedDialog = ({
           </div>
           {stats.failed > 0 && (
             <div className="mt-3">
-              <DialogButton icon={DownloadCloud} variant="outline" onClick={onDownloadErrorReport} disabled={!onDownloadErrorReport}>
+              <DialogButton 
+                icon={DownloadCloud} 
+                variant="outline" 
+                onClick={onDownloadErrorReport} 
+                disabled={!onDownloadErrorReport}
+              >
                 Download Error Report
               </DialogButton>
             </div>

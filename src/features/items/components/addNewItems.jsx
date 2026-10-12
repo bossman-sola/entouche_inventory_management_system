@@ -7,12 +7,17 @@ import Location from "../../../assets/icons/location.svg?react";
 import Sku from "../../../assets/icons/sku.svg?react";
 import Good from "../../../assets/icons/good.svg?react";
 import { mapFormToApiPayload } from "../api/itemsMapper.js";
-import { UNIT_TYPE_OPTIONS, getUnitType, getUnitNamesByType, findUnitReference } from "../types/itemTypes.js";
+import {
+  UNIT_TYPE_OPTIONS,
+  getUnitNamesByType,
+  findUnitReference
+} from "../types/itemTypes.js";
 
 const emptyForm = {
   name: '',
   categoryId: '',
   unitId: '',
+  itemType: 'stock_item',
   supplierId: '',
   barcode: '',
   brand: '',
@@ -62,10 +67,7 @@ const AddItemModal = ({
   const allSuppliers = [...suppliers, ...localSuppliers];
   const allUnits = [...units, ...localUnits];
 
-  // Type isn't chosen manually anymore - it's derived from whichever Unit
-  // of Measure is selected (e.g. Piece -> Count, Kilogram -> Weight).
-  const selectedUnit = allUnits.find((u) => String(u.id) === String(formData.unitId));
-  const derivedUnitType = selectedUnit ? getUnitType(selectedUnit.name, selectedUnit.abbreviation) : null;
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -97,7 +99,7 @@ const AddItemModal = ({
     setIsSaving(true);
     setError(null);
     try {
-      const payload = mapFormToApiPayload(formData, derivedUnitType);
+      const payload = mapFormToApiPayload(formData);
       await onSave(payload, imageFile);
       resetForm();
     } catch (err) {
@@ -217,16 +219,17 @@ const AddItemModal = ({
                       onAddNew={() => setQuickAdd('unit')}
                       hint="Click + to add a new unit of measure"
                     />
-                    <div className="flex flex-col">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
-                      <div className="w-full h-[46px] bg-slate-50 border border-slate-100 rounded-xl px-4 flex items-center justify-between">
-                        <span className={`text-sm font-bold ${derivedUnitType ? 'text-slate-700' : 'text-slate-300'}`}>
-                          {derivedUnitType || 'Select a unit first'}
-                        </span>
-                        <Lock size={14} className="text-slate-300" />
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-medium mt-2">Automatically set from the selected unit of measure.</p>
-                    </div>
+                    <SelectField
+                      label="Item Type"
+                      name="itemType"
+                      required
+                      value={formData.itemType}
+                      onChange={handleInputChange}
+                      options={[
+                        { value: 'stock_item', label: 'Stock Item' },
+                        { value: 'consumable', label: 'Consumable' },
+                      ]}
+                    />
                     <SelectWithAdd
                       label="Supplier (optional)"
                       name="supplierId"

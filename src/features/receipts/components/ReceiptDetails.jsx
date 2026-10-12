@@ -1,9 +1,30 @@
 import { useState } from 'react';
 
 const statusStyle = {
-  Received: { bg: '#e6faf3', color: '#16a369' },
-  Draft: { bg: '#fff7ed', color: '#c27a0a' },
-  Cancelled: { bg: '#fff1f0', color: '#c0392b' },
+  Received: {
+    bg: "#e6faf3",
+    color: "#16a369",
+  },
+
+  Draft: {
+    bg: "#fff7ed",
+    color: "#c27a0a",
+  },
+
+  "Pending Approval": {
+    bg: "#fff7ed",
+    color: "#c27a0a",
+  },
+
+  Approved: {
+    bg: "#eef2ff",
+    color: "#4f6ef7",
+  },
+
+  Cancelled: {
+    bg: "#fff1f0",
+    color: "#c0392b",
+  },
 };
 
 function fmtNaira(n) {
@@ -14,6 +35,32 @@ function fmtDateTime(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtReceiptDate(date) {
+  if (!date) return "-";
+
+  const dateOnly = String(date).slice(0, 10);
+  const [year, month, day] = dateOnly.split("-");
+
+  if (!year || !month || !day) {
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(
+    new Date(
+      Date.UTC(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+      ),
+    ),
+  );
 }
 
 const TimelineDot = ({ done }) => (
@@ -31,7 +78,15 @@ const TimelineDot = ({ done }) => (
   </div>
 );
 
-export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
+export default function ReceiptDetails({
+  isOpen,
+  receipt,
+  onClose,
+  onEdit,
+  onSubmit,
+  onApprove,
+  onReceive,
+}) {
   const [tab, setTab] = useState('items');
 
   if (!isOpen || !receipt) return null;
@@ -128,6 +183,53 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
         .rcd-btn-close:hover { background: #f4f6fb; }
         .rcd-btn-edit { padding: 9px 22px; border: none; border-radius: 8px; background: #4f6ef7; font-size: 12.5px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; }
         .rcd-btn-edit:hover { background: #3a5be0; }
+        .rcd-btn-submit {
+          padding: 9px 22px;
+          border: none;
+          border-radius: 8px;
+          background: #4f6ef7;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #fff;
+          cursor: pointer;
+          font-family: inherit;
+        }
+
+        .rcd-btn-submit:hover {
+          background: #3a5be0;
+        }
+
+        .rcd-btn-approve {
+          padding: 9px 22px;
+          border: none;
+          border-radius: 8px;
+          background: #22a06b;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #fff;
+          cursor: pointer;
+          font-family: inherit;
+        }
+              
+        .rcd-btn-approve:hover {
+          background: #188759;
+        }
+              
+        .rcd-btn-receive {
+          padding: 9px 22px;
+          border: none;
+          border-radius: 8px;
+          background: #22a06b;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #fff;
+          cursor: pointer;
+          font-family: inherit;
+        }
+              
+        .rcd-btn-receive:hover {
+          background: #188759;
+        }
 
         @media print {
           body * { visibility: hidden; }
@@ -165,9 +267,23 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               </div>
               <div className="rcd-meta">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                {fmtDateTime(receipt.date)}
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa1b4" strokeWidth="2" style={{ marginLeft: 6 }}><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a8 8 0 0 1 16 0v1" /></svg>
-                {receipt.by}
+                {fmtReceiptDate(receipt.date)}
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#9aa1b4"
+                  strokeWidth="2"
+                  style={{ marginLeft: 6 }}
+                >
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
+                </svg>
+
+                <span style={{ marginLeft: 4 }}>
+                  {receipt.receivedBy || "—"}
+                </span>
               </div>
             </div>
             <div><div className="rcd-stat-label">Supplier</div><div className="rcd-stat-val">{receipt.supplier}</div></div>
@@ -188,11 +304,11 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
               </div>
               <div className="rcd-field-grid">
                 <div><div className="rcd-flabel">Receipt Number</div><div className="rcd-fval">{receipt.no}</div></div>
-                <div><div className="rcd-flabel">Receipt Date</div><div className="rcd-fval">{fmtDateTime(receipt.date)}</div></div>
+                <div><div className="rcd-flabel">Receipt Date</div><div className="rcd-fval">{fmtReceiptDate(receipt.date)}</div></div>
                 <div><div className="rcd-flabel">PO Number from Vendor</div><div className="rcd-fval">{receipt.vendor_po_number}</div></div>
                 <div><div className="rcd-flabel">API PO Number </div><div className="rcd-fval">{receipt.api_po_number}</div></div>
                 <div><div className="rcd-flabel">Supplier</div><div className="rcd-fval link">{receipt.supplier}</div></div>
-                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.received_by}</div></div>
+                <div><div className="rcd-flabel">Received By</div><div className="rcd-fval">{receipt.receivedBy || "—"}</div></div>
                 <div><div className="rcd-flabel">Delivery Note No.</div><div className="rcd-fval">{receipt.deliveryNoteNo}</div></div>
               </div>
               <div className="rcd-notes-block">
@@ -209,7 +325,7 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
                 Delivery &amp; Location
               </div>
               <div className="rcd-field-grid">
-                <div><div className="rcd-flabel">Delivery Date</div><div className="rcd-fval">{fmtDateTime(receipt.deliveryDate)}</div></div>
+                <div><div className="rcd-flabel">Delivery Date</div><div className="rcd-fval">{fmtReceiptDate(receipt.deliveryDate)}</div></div>
                 <div><div className="rcd-flabel">Warehouse</div><div className="rcd-fval">{receipt.warehouse}</div></div>
                 <div><div className="rcd-flabel">Receiving Location</div><div className="rcd-fval">{receipt.receivingLocation}</div></div>
                 <div><div className="rcd-flabel">Storage Location</div><div className="rcd-fval">{receipt.storageLocation}</div></div>
@@ -341,14 +457,81 @@ export default function ReceiptDetails({ isOpen, receipt, onClose, onEdit }) {
 
           {/* Footer */}
           <div className="rcd-footer">
-            <button className="rcd-btn-print" onClick={handlePrint}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5c657a" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            <button
+              className="rcd-btn-print"
+              onClick={handlePrint}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#5c657a"
+                strokeWidth="2"
+              >
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+
               Print Receipt
             </button>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="rcd-btn-close" onClick={onClose}>Close</button>
-              {receipt.canEdit !== false && (
-                <button className="rcd-btn-edit" onClick={() => onEdit && onEdit(receipt)}>Edit Receipt</button>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+              }}
+            >
+              <button
+                className="rcd-btn-close"
+                onClick={onClose}
+              >
+                Close
+              </button>
+
+              {receipt.canEdit && (
+                <button
+                  className="rcd-btn-edit"
+                  onClick={() =>
+                    onEdit?.(receipt)
+                  }
+                >
+                  Edit Receipt
+                </button>
+              )}
+
+              {receipt.canSubmit && (
+                <button
+                  className="rcd-btn-submit"
+                  onClick={() =>
+                    onSubmit?.(receipt)
+                  }
+                >
+                  Submit for Approval
+                </button>
+              )}
+
+              {receipt.canApprove && (
+                <button
+                  className="rcd-btn-approve"
+                  onClick={() =>
+                    onApprove?.(receipt)
+                  }
+                >
+                  Approve Receipt
+                </button>
+              )}
+
+              {receipt.canReceive && (
+                <button
+                  className="rcd-btn-receive"
+                  onClick={() =>
+                    onReceive?.(receipt)
+                  }
+                >
+                  Receive Stock
+                </button>
               )}
             </div>
           </div>

@@ -2,14 +2,14 @@ import axios from "axios";
 
 export const BASE_URL = import.meta.env.VITE_API_URL;
 
+// Temporary debugging
+console.log("API URL configured:", Boolean(import.meta.env.VITE_API_URL));
+console.log("API URL:", BASE_URL);
+
 if (!BASE_URL) {
   throw new Error("VITE_API_URL is not configured");
 }
 
-/*
- * Use the same storage key everywhere in the application.
- * Your other API helper already uses "entouche_access_token".
- */
 const ACCESS_TOKEN_KEY = "entouche_access_token";
 
 export const tokenStorage = {
