@@ -2,6 +2,10 @@ import axios from "axios";
 
 export const BASE_URL = import.meta.env.VITE_API_URL;
 
+// Temporary debugging
+console.log("API URL configured:", Boolean(import.meta.env.VITE_API_URL));
+console.log("API URL:", BASE_URL);
+
 if (!BASE_URL) {
   throw new Error("VITE_API_URL is not configured");
 }
